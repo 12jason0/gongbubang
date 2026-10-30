@@ -12,7 +12,15 @@ const ROW_BTN =
   "flex h-11 min-w-11 shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg px-1.5 text-[11px] text-slate-500 active:bg-black/5 disabled:opacity-50 md:h-9 md:flex-row md:gap-1 md:px-2 md:text-[13px]";
 const CLOSE_BTN = "flex h-9 items-center gap-1 rounded-lg px-2 text-[13px] text-slate-500 active:bg-black/5";
 
-type S = { id: string; name: string; grade: string; parentPhone: string; active: boolean; classIds: string[] };
+type S = {
+  id: string;
+  name: string;
+  grade: string;
+  parentPhone: string;
+  birthDate: string | null;
+  active: boolean;
+  classIds: string[];
+};
 type C = { id: string; name: string; days: string; time: string };
 
 const input =
@@ -31,6 +39,10 @@ function StudentFields({ s, classes }: { s?: S; classes: C[] }) {
           inputMode="tel"
           className={`${input} col-span-2`}
         />
+        <label className="col-span-2 flex items-center gap-2">
+          <span className="w-24 shrink-0 pl-1 text-[13px] text-slate-500">생년월일 (선택)</span>
+          <input name="birthDate" type="date" defaultValue={s?.birthDate ?? ""} className={input} />
+        </label>
       </div>
       <p className="mt-3 mb-1.5 text-[12px] font-semibold text-slate-500">듣는 반 (여러 개 선택 가능)</p>
       {classes.length === 0 ? (

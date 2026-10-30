@@ -4,11 +4,12 @@ import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { and, eq, isNull, ne, inArray } from "drizzle-orm";
-import { db, academies, students, attendance, notes, notices, classes, classStudents } from "@/db";
+import { db, academies, students, attendance, notes, notices, classes, classStudents, payments } from "@/db";
 import { createSession, deleteSession, requireAcademy } from "@/lib/session";
 import { sendMessages, smsBytes } from "@/lib/sms";
 import { attendanceText, feedbackText, noticeText, parseDays } from "@/lib/templates";
-import { isValidDate, spokenTimeKST, todayKST } from "@/lib/date";
+import { isValidDate, isValidMonth, spokenTimeKST, todayKST } from "@/lib/date";
+import { isPaymentMethod, parseWon } from "@/lib/money";
 import { isValidMobile, normalizePhone } from "@/lib/phone";
 
 // ───────────────────────── 로그인 ─────────────────────────
@@ -256,12 +257,16 @@ function readStudentForm(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const grade = String(formData.get("grade") ?? "").trim();
   const parentPhone = normalizePhone(String(formData.get("parentPhone") ?? ""));
+  const birthDate = String(formData.get("birthDate") ?? "").trim() || null;
   const classIds = formData.getAll("classIds").map(String);
 
   if (!name) return { error: "학생 이름을 입력해 주세요." } as const;
   if (!grade) return { error: "학년을 입력해 주세요. (예: 초5)" } as const;
   if (!isValidMobile(parentPhone)) return { error: "학부모 휴대폰 번호를 확인해 주세요. (예: 010-1234-5678)" } as const;
-  return { data: { name, grade, parentPhone }, classIds } as const;
+  if (birthDate && (!isValidDate(birthDate) || birthDate > todayKST() || birthDate < "1900-01-01")) {
+    return { error: "생년월일을 확인해 주세요." } as const;
+  }
+  return { data: { name, grade, parentPhone, birthDate }, classIds } as const;
 }
 
 /** 학생의 반을 통째로 다시 지정 (이 공부방의 반만 허용) */
@@ -321,6 +326,41 @@ export async function setStudentActive(studentId: string, active: boolean) {
     .where(and(eq(students.id, studentId), eq(students.academyId, academy.id)));
   revalidatePath("/students");
   revalidatePath("/");
+}
+
+// ───────────────────────── 교습비 납부 ─────────────────────────
+
+/** 납부 기록 추가 (결제선생·카드·계좌이체·현금 모두 원장님이 직접 입력, 선납은 앞으로의 달로) */
+export async function addPayment(_prev: FormResult, formData: FormData): Promise<FormResult> {
+  const academy = await requireAcademy();
+  const studentId = String(formData.get("studentId") ?? "");
+  const paidOn = String(formData.get("paidOn") ?? "");
+  const period = String(formData.get("period") ?? "");
+  const subject = String(formData.get("subject") ?? "").trim().slice(0, 30);
+  const tuition = parseWon(String(formData.get("tuition") ?? ""));
+  const otherFee = parseWon(String(formData.get("otherFee") ?? ""));
+  const method = String(formData.get("method") ?? "");
+  const memo = String(formData.get("memo") ?? "").trim().slice(0, 100);
+
+  if (!(await getOwnStudent(academy.id, studentId))) return { ok: false, message: "학생을 찾을 수 없어요." };
+  if (!isValidDate(paidOn) || paidOn > todayKST()) return { ok: false, message: "받은 날짜를 확인해 주세요." };
+  if (!isValidMonth(period)) return { ok: false, message: "교습기간(월)을 골라 주세요." };
+  if (!subject) return { ok: false, message: "교습과목을 입력해 주세요. (예: 영어)" };
+  if (!Number.isFinite(tuition) || !Number.isFinite(otherFee)) return { ok: false, message: "금액은 숫자로 입력해 주세요." };
+  if (tuition + otherFee <= 0 || tuition > 10_000_000 || otherFee > 10_000_000) {
+    return { ok: false, message: "금액을 확인해 주세요." };
+  }
+  if (!isPaymentMethod(method)) return { ok: false, message: "결제수단을 골라 주세요." };
+
+  await db.insert(payments).values({ academyId: academy.id, studentId, paidOn, period, subject, tuition, otherFee, method, memo });
+  revalidatePath("/stats");
+  return { ok: true, message: "납부 기록을 저장했어요." };
+}
+
+export async function deletePayment(paymentId: string) {
+  const academy = await requireAcademy();
+  await db.delete(payments).where(and(eq(payments.id, paymentId), eq(payments.academyId, academy.id)));
+  revalidatePath("/stats");
 }
 
 // ───────────────────────── 반 관리 ─────────────────────────

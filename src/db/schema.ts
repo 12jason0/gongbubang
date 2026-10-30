@@ -29,6 +29,7 @@ export const students = pgTable(
     name: text("name").notNull(),
     grade: text("grade").notNull(), // 예: 초5, 중2
     parentPhone: text("parent_phone").notNull(), // 숫자만. 예: 01012345678
+    birthDate: text("birth_date"), // 생년월일 "2014-03-02" (선택, 영수증 원부용)
     active: boolean("active").notNull().default(true), // 그만둔 학생은 false (기록은 남김)
     createdAt: createdAt(),
   },
@@ -109,6 +110,28 @@ export const notices = pgTable(
     sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("notices_academy_idx").on(t.academyId, t.sentAt)],
+);
+
+// 교습비 납부 기록 — 원장님이 직접 입력 (결제선생·카드·계좌이체·현금, 선납 포함). 영수증 원부의 근거
+export const payments = pgTable(
+  "payments",
+  {
+    id: id(),
+    academyId: text("academy_id").notNull().references(() => academies.id, { onDelete: "cascade" }),
+    studentId: text("student_id").notNull().references(() => students.id, { onDelete: "cascade" }),
+    paidOn: text("paid_on").notNull(), // 받은 날 "2026-10-30"
+    period: text("period").notNull(), // 교습기간(월) "2026-11" — 선납이면 앞으로의 달
+    subject: text("subject").notNull(), // 교습과목. 예: 영어, 수학
+    tuition: integer("tuition").notNull(), // 교습비 (원)
+    otherFee: integer("other_fee").notNull().default(0), // 기타경비 (원, 교재비 등)
+    method: text("method").notNull(), // lib/money.ts PAYMENT_METHODS 중 하나
+    memo: text("memo").notNull().default(""), // 원비가 바뀐 이유 등 (예: 결석 2회 차감)
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("payments_academy_period_idx").on(t.academyId, t.period),
+    index("payments_student_idx").on(t.studentId),
+  ],
 );
 
 // 나간 문자 전부 기록 (실패 원인 확인 + 월 문자 사용량 계산용)

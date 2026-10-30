@@ -1,11 +1,13 @@
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, MessageSquare } from "lucide-react";
-import { and, eq, gte, like, lt } from "drizzle-orm";
-import { db, attendance, messageLogs, students } from "@/db";
+import { ChevronLeft, ChevronRight, MessageSquare, Wallet } from "lucide-react";
+import { and, desc, eq, gte, like, lt } from "drizzle-orm";
+import { db, attendance, messageLogs, students, payments, classes, classStudents } from "@/db";
 import { requireAcademy } from "@/lib/session";
-import { isValidMonth, shiftMonth, thisMonthKST } from "@/lib/date";
+import { isValidMonth, shiftMonth, thisMonthKST, todayKST } from "@/lib/date";
 import { isLongMessage } from "@/lib/sms";
+import { formatWon } from "@/lib/money";
 import { byGradeName } from "@/lib/templates";
+import { PaymentRow, type PaymentItem } from "@/components/PaymentRow";
 
 const KIND_LABEL: Record<string, string> = { ATTENDANCE: "등원", FEEDBACK: "피드백", NOTICE: "공지" };
 const NAV_BTN = "flex h-11 w-[84px] items-center gap-0.5 rounded-xl px-1.5 text-[13px] text-slate-500 active:bg-black/5";
@@ -14,14 +16,15 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
   const academy = await requireAcademy();
   const sp = await searchParams;
   const current = thisMonthKST();
-  const month = isValidMonth(sp.month) && sp.month <= current ? sp.month : current;
+  const last = shiftMonth(current, 6); // 선납 확인용으로 반년 앞까지
+  const month = isValidMonth(sp.month) && sp.month <= last ? sp.month : current;
   const [y, m] = month.split("-").map(Number);
 
   // 한국 시간 기준 이번 달 1일 0시 ~ 다음 달 1일 0시
   const from = new Date(`${month}-01T00:00:00+09:00`);
   const to = new Date(`${shiftMonth(month, 1)}-01T00:00:00+09:00`);
 
-  const [studentRows, attRows, logs] = await Promise.all([
+  const [studentRows, attRows, logs, monthPayments, lastPayments, classRows] = await Promise.all([
     db.select().from(students).where(eq(students.academyId, academy.id)),
     db
       .select({ studentId: attendance.studentId, status: attendance.status })
@@ -31,7 +34,33 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
       .select({ kind: messageLogs.kind, text: messageLogs.text, status: messageLogs.status })
       .from(messageLogs)
       .where(and(eq(messageLogs.academyId, academy.id), gte(messageLogs.createdAt, from), lt(messageLogs.createdAt, to))),
+    db
+      .select()
+      .from(payments)
+      .where(and(eq(payments.academyId, academy.id), eq(payments.period, month)))
+      .orderBy(payments.paidOn),
+    // 학생별 가장 최근 납부 — 입력 칸 기본값 (지난번과 같은 금액·과목·수단)
+    db
+      .selectDistinctOn([payments.studentId])
+      .from(payments)
+      .where(eq(payments.academyId, academy.id))
+      .orderBy(payments.studentId, desc(payments.createdAt)),
+    db
+      .select({ studentId: classStudents.studentId, name: classes.name })
+      .from(classStudents)
+      .innerJoin(classes, eq(classes.id, classStudents.classId))
+      .where(eq(classes.academyId, academy.id)),
   ]);
+
+  const paidBy = new Map<string, PaymentItem[]>();
+  for (const p of monthPayments) paidBy.set(p.studentId, [...(paidBy.get(p.studentId) ?? []), p]);
+  const lastBy = new Map(lastPayments.map((p) => [p.studentId, p]));
+  const defaultsOf = (sid: string) => {
+    const lp = lastBy.get(sid);
+    if (lp) return { subject: lp.subject, tuition: lp.tuition, otherFee: lp.otherFee, method: lp.method };
+    const names = classRows.filter((c) => c.studentId === sid).map((c) => c.name);
+    return { subject: names.join(", "), tuition: 0, otherFee: 0, method: "결제선생" };
+  };
 
   const tally = new Map<string, { present: number; absent: number }>();
   for (const a of attRows) {
@@ -41,9 +70,9 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
     tally.set(a.studentId, t);
   }
 
-  // 다니는 학생 + 이번 달 기록이 있는 그만둔 학생
+  // 다니는 학생 + 이번 달 기록(출결·납부)이 있는 그만둔 학생
   const rows = studentRows
-    .filter((s) => s.active || tally.has(s.id))
+    .filter((s) => s.active || tally.has(s.id) || paidBy.has(s.id))
     .sort(byGradeName)
     .map((s) => ({ ...s, ...(tally.get(s.id) ?? { present: 0, absent: 0 }) }));
 
@@ -59,6 +88,8 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
 
   const totalPresent = rows.reduce((n, r) => n + r.present, 0);
   const totalAbsent = rows.reduce((n, r) => n + r.absent, 0);
+  const totalPaid = monthPayments.reduce((n, p) => n + p.tuition + p.otherFee, 0);
+  const unpaid = rows.filter((r) => r.active && !paidBy.has(r.id)).length;
 
   return (
     <main className="px-3 pt-3">
@@ -72,7 +103,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
         <p className="text-[19px] font-bold tracking-tight">
           {y}년 {m}월
         </p>
-        {month < current ? (
+        {month < last ? (
           <Link href={`/stats?month=${shiftMonth(month, 1)}`} className={`${NAV_BTN} justify-end`}>
             다음 달 <ChevronRight size={20} />
           </Link>
@@ -82,7 +113,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
       </div>
 
       {/* PC: 왼쪽 학생 표, 오른쪽 합계·문자 사용량 (휴대폰 순서는 그대로) */}
-      <div className="lg:mt-2 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-x-4 lg:gap-y-3">
+      <div className="lg:mt-2 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:grid-rows-[auto_auto_1fr] lg:items-start lg:gap-x-4 lg:gap-y-3">
       <div className="mt-2 grid grid-cols-2 gap-2 lg:col-start-2 lg:row-start-1 lg:mt-0">
         <div className="rounded-2xl bg-white p-4 ring-1 ring-black/5">
           <p className="text-[11px] font-medium text-slate-400">이번 달 출석</p>
@@ -94,48 +125,39 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
         </div>
       </div>
 
-      <section className="mt-3 rounded-2xl bg-white ring-1 ring-black/5 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:mt-0">
+      {/* 교습비 합계 */}
+      <section className="mt-2 flex items-center gap-3 rounded-2xl bg-white p-4 ring-1 ring-black/5 lg:col-start-2 lg:row-start-2 lg:mt-0">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand">
+          <Wallet size={19} />
+        </span>
+        <div className="min-w-0">
+          <p className="text-[11px] font-medium text-slate-400">{m}월분 교습비</p>
+          <p className="text-[17px] font-bold tabular-nums">{formatWon(totalPaid)}</p>
+          <p className="text-xs text-slate-500">
+            납부 {paidBy.size}명{unpaid > 0 && <span className="font-semibold text-rose-500"> · 미납 {unpaid}명</span>}
+          </p>
+        </div>
+      </section>
+
+      <section className="mt-3 rounded-2xl bg-white ring-1 ring-black/5 lg:col-start-1 lg:row-span-3 lg:row-start-1 lg:mt-0">
         <div className="flex px-4 pt-3 pb-2 text-[11px] font-medium text-slate-400">
-          <span className="flex-1">학생</span>
-          <span className="w-12 text-right">출석</span>
-          <span className="w-12 text-right">결석</span>
+          <span className="flex-1">학생 · 누르면 납부 기록</span>
+          <span className="w-10 text-right">출석</span>
+          <span className="w-10 text-right">결석</span>
+          <span className="w-[76px] pr-4 text-right">{m}월분</span>
         </div>
         {rows.length === 0 ? (
           <p className="px-4 py-10 text-center text-sm text-slate-400">학생이 없어요</p>
         ) : (
           <ul className="divide-y divide-black/5 border-t border-black/5">
-            {rows.map((r) => {
-              const total = r.present + r.absent;
-              return (
-                <li key={r.id} className="flex items-center px-4 py-2.5">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[15px] font-medium">
-                      {r.name} <span className="text-xs text-slate-400">{r.grade}</span>
-                      {!r.active && <span className="ml-1 text-xs text-slate-400">(그만둠)</span>}
-                    </p>
-                    <div className="mt-1 flex h-1.5 w-28 overflow-hidden rounded-full bg-slate-100" aria-hidden>
-                      {total > 0 && (
-                        <>
-                          <div className="bg-emerald-500" style={{ width: `${(r.present / total) * 100}%` }} />
-                          <div className="bg-rose-400" style={{ width: `${(r.absent / total) * 100}%` }} />
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  <span className="w-12 text-right text-[15px] font-semibold text-emerald-600 tabular-nums">{r.present}</span>
-                  <span
-                    className={`w-12 text-right text-[15px] tabular-nums ${r.absent ? "font-bold text-rose-500" : "text-slate-300"}`}
-                  >
-                    {r.absent}
-                  </span>
-                </li>
-              );
-            })}
+            {rows.map((r) => (
+              <PaymentRow key={r.id} s={r} paid={paidBy.get(r.id) ?? []} defaults={defaultsOf(r.id)} month={month} today={todayKST()} />
+            ))}
           </ul>
         )}
       </section>
 
-      <section className="mt-3 flex items-center gap-3 rounded-2xl bg-white p-4 ring-1 ring-black/5 lg:col-start-2 lg:row-start-2 lg:mt-0">
+      <section className="mt-3 flex items-center gap-3 rounded-2xl bg-white p-4 ring-1 ring-black/5 lg:col-start-2 lg:row-start-3 lg:mt-0">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gold-soft text-[#8a6d35]">
           <MessageSquare size={19} />
         </span>

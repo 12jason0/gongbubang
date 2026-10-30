@@ -17,6 +17,7 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
         name: students.name,
         grade: students.grade,
         parentPhone: students.parentPhone,
+        birthDate: students.birthDate,
         active: students.active,
       })
       .from(students)
