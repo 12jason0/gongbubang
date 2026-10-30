@@ -8,7 +8,7 @@ export type RowData = {
   id: string;
   name: string;
   grade: string;
-  group: string;
+  classLabel: string; // 이 학생의 반 이름들
   status: "PRESENT" | "ABSENT" | null;
   notifiedTime: string | null; // 등원 문자 보낸 시각
   note: string;
@@ -89,7 +89,7 @@ export function AttendanceRow({ row, date }: { row: RowData; date: string }) {
             ) : status === "ABSENT" ? (
               <span className="text-rose-500">결석</span>
             ) : (
-              <span>{row.group}</span>
+              <span className="truncate">{row.classLabel}</span>
             )}
             {row.noteSentTime ? (
               <span className="text-brand">· 피드백 보냄</span>

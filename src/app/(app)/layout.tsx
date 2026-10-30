@@ -1,7 +1,5 @@
-import { LogOut } from "lucide-react";
 import { requireAcademy } from "@/lib/session";
 import { isTestMode } from "@/lib/sms";
-import { logout } from "../actions";
 import { BottomNav } from "@/components/BottomNav";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -21,11 +19,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             테스트 모드
           </span>
         )}
-        <form action={logout} className="ml-auto">
-          <button aria-label="로그아웃" className="flex h-9 w-9 items-center justify-center rounded-lg text-white/60">
-            <LogOut size={18} />
-          </button>
-        </form>
+
       </header>
       {children}
       <BottomNav />

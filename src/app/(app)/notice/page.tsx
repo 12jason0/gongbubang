@@ -1,27 +1,43 @@
 import { and, desc, eq } from "drizzle-orm";
 import { Inbox } from "lucide-react";
-import { db, notices, students } from "@/db";
+import { db, notices, students, classes, classStudents } from "@/db";
 import { requireAcademy } from "@/lib/session";
-import { GROUPS } from "@/lib/templates";
+import { byTimeName } from "@/lib/templates";
 import { NoticeForm } from "@/components/NoticeForm";
 import { PageTitle } from "@/components/PageTitle";
 
 export default async function NoticePage() {
   const academy = await requireAcademy();
 
-  const [studentRows, history] = await Promise.all([
+  const [studentRows, classRows, memberRows, history] = await Promise.all([
     db
-      .select({ group: students.group, phone: students.parentPhone })
+      .select({ id: students.id, phone: students.parentPhone })
       .from(students)
       .where(and(eq(students.academyId, academy.id), eq(students.active, true))),
+    db
+      .select()
+      .from(classes)
+      .where(and(eq(classes.academyId, academy.id), eq(classes.active, true))),
+    db
+      .select({ classId: classStudents.classId, studentId: classStudents.studentId })
+      .from(classStudents)
+      .innerJoin(classes, eq(classes.id, classStudents.classId))
+      .where(eq(classes.academyId, academy.id)),
     db.select().from(notices).where(eq(notices.academyId, academy.id)).orderBy(desc(notices.sentAt)).limit(20),
   ]);
 
-  // 반별 실제로 받는 학부모 수 (형제는 한 번만)
-  const counts: Record<string, number> = { 전체: new Set(studentRows.map((s) => s.phone)).size };
-  for (const g of GROUPS) {
-    counts[g] = new Set(studentRows.filter((s) => s.group === g).map((s) => s.phone)).size;
-  }
+  // 반별 실제로 받는 학부모 수 (형제는 한 번만, 그만둔 학생 제외)
+  const phoneOf = new Map(studentRows.map((s) => [s.id, s.phone]));
+  const targets = [
+    { id: "all", name: "전체", count: new Set(studentRows.map((s) => s.phone)).size },
+    ...classRows.sort(byTimeName).map((c) => ({
+      id: c.id,
+      name: c.name,
+      count: new Set(
+        memberRows.filter((m) => m.classId === c.id && phoneOf.has(m.studentId)).map((m) => phoneOf.get(m.studentId)),
+      ).size,
+    })),
+  ];
 
   const fmt = new Intl.DateTimeFormat("ko-KR", {
     timeZone: "Asia/Seoul",
@@ -36,7 +52,7 @@ export default async function NoticePage() {
     <main className="px-3 pt-4">
       <PageTitle title="단체 공지" sub="휴원·시험 일정처럼 여러 학부모님께 한 번에" />
 
-      <NoticeForm academyName={academy.name} counts={counts} />
+      <NoticeForm academyName={academy.name} targets={targets} />
 
       <h2 className="mt-6 px-1 text-[13px] font-semibold text-slate-500">보낸 공지</h2>
       {history.length === 0 ? (

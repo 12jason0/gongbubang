@@ -5,7 +5,7 @@ import { db, attendance, messageLogs, students } from "@/db";
 import { requireAcademy } from "@/lib/session";
 import { isValidMonth, shiftMonth, thisMonthKST } from "@/lib/date";
 import { isLongMessage } from "@/lib/sms";
-import { byGroupGradeName } from "@/lib/templates";
+import { byGradeName } from "@/lib/templates";
 
 const KIND_LABEL: Record<string, string> = { ATTENDANCE: "등원", FEEDBACK: "피드백", NOTICE: "공지" };
 
@@ -43,7 +43,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
   // 다니는 학생 + 이번 달 기록이 있는 그만둔 학생
   const rows = studentRows
     .filter((s) => s.active || tally.has(s.id))
-    .sort(byGroupGradeName)
+    .sort(byGradeName)
     .map((s) => ({ ...s, ...(tally.get(s.id) ?? { present: 0, absent: 0 }) }));
 
   // 문자 사용량 (월 관리비·문자비 계산 근거)

@@ -4,35 +4,45 @@ import { useState, useTransition, type FormEvent } from "react";
 import { Pencil, Plus, UserMinus, UserPlus, X } from "lucide-react";
 import { addStudent, setStudentActive, updateStudent, type StudentFormResult } from "@/app/actions";
 import { formatPhone } from "@/lib/phone";
-import { GROUPS } from "@/lib/templates";
 import { PageTitle } from "./PageTitle";
 
-type S = { id: string; name: string; grade: string; group: string; parentPhone: string; active: boolean };
+type S = { id: string; name: string; grade: string; parentPhone: string; active: boolean; classIds: string[] };
+type C = { id: string; name: string; days: string; time: string };
 
 const input =
   "w-full rounded-xl border-0 bg-slate-50 px-3 py-3 text-[15px] ring-1 ring-black/5 outline-none focus:bg-white focus:ring-2 focus:ring-gold";
 
-function StudentFields({ s }: { s?: S }) {
+function StudentFields({ s, classes }: { s?: S; classes: C[] }) {
   return (
-    <div className="grid grid-cols-2 gap-2">
-      <input name="name" defaultValue={s?.name} placeholder="이름" className={input} />
-      <input name="grade" defaultValue={s?.grade} placeholder="학년 (초5)" className={input} />
-      <select name="group" defaultValue={s?.group ?? ""} className={input}>
-        <option value="" disabled>
-          반 선택
-        </option>
-        {GROUPS.map((g) => (
-          <option key={g}>{g}</option>
-        ))}
-      </select>
-      <input
-        name="parentPhone"
-        defaultValue={s ? formatPhone(s.parentPhone) : ""}
-        placeholder="학부모 번호"
-        inputMode="tel"
-        className={input}
-      />
-    </div>
+    <>
+      <div className="grid grid-cols-2 gap-2">
+        <input name="name" defaultValue={s?.name} placeholder="이름" className={input} />
+        <input name="grade" defaultValue={s?.grade} placeholder="학년 (초5)" className={input} />
+        <input
+          name="parentPhone"
+          defaultValue={s ? formatPhone(s.parentPhone) : ""}
+          placeholder="학부모 휴대폰 번호"
+          inputMode="tel"
+          className={`${input} col-span-2`}
+        />
+      </div>
+      <p className="mt-3 mb-1.5 text-[12px] font-semibold text-slate-500">듣는 반 (여러 개 선택 가능)</p>
+      {classes.length === 0 ? (
+        <p className="text-xs text-slate-400">아직 반이 없어요. 위의 &lsquo;반&rsquo; 탭에서 먼저 만들어 주세요.</p>
+      ) : (
+        <div className="flex flex-wrap gap-1.5">
+          {classes.map((c) => (
+            <label
+              key={c.id}
+              className="cursor-pointer rounded-full bg-slate-100 px-3 py-1.5 text-[13px] font-medium text-slate-500 has-checked:bg-brand has-checked:text-white"
+            >
+              <input type="checkbox" name="classIds" value={c.id} defaultChecked={s?.classIds.includes(c.id)} className="sr-only" />
+              {c.name}
+            </label>
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -61,7 +71,7 @@ function useStudentForm(
   return { res, pending, onSubmit };
 }
 
-function AddForm({ onClose }: { onClose: () => void }) {
+function AddForm({ onClose, classes }: { onClose: () => void; classes: C[] }) {
   const { res, pending, onSubmit } = useStudentForm(addStudent, (form) => form.reset());
 
   return (
@@ -72,7 +82,7 @@ function AddForm({ onClose }: { onClose: () => void }) {
           <X size={20} />
         </button>
       </div>
-      <StudentFields />
+      <StudentFields classes={classes} />
       <button
         disabled={pending}
         className="mt-3 w-full rounded-xl bg-brand py-3 text-[15px] font-semibold text-white disabled:opacity-60"
@@ -84,13 +94,13 @@ function AddForm({ onClose }: { onClose: () => void }) {
   );
 }
 
-function EditForm({ s, onDone }: { s: S; onDone: () => void }) {
+function EditForm({ s, onDone, classes }: { s: S; onDone: () => void; classes: C[] }) {
   const { res, pending, onSubmit } = useStudentForm(updateStudent, () => onDone());
 
   return (
     <form onSubmit={onSubmit} className="px-4 pb-4">
       <input type="hidden" name="id" value={s.id} />
-      <StudentFields s={s} />
+      <StudentFields s={s} classes={classes} />
       <div className="mt-2 flex gap-2">
         <button type="button" onClick={onDone} className="flex-1 rounded-xl bg-slate-100 py-2.5 text-sm font-medium">
           취소
@@ -107,7 +117,7 @@ function EditForm({ s, onDone }: { s: S; onDone: () => void }) {
   );
 }
 
-function StudentItem({ s }: { s: S }) {
+function StudentItem({ s, classes }: { s: S; classes: C[] }) {
   const [editing, setEditing] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -119,9 +129,18 @@ function StudentItem({ s }: { s: S }) {
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-semibold">
-            {s.name} <span className="text-xs font-medium text-slate-400">{s.grade} · {s.group}</span>
+            {s.name} <span className="text-xs font-medium text-slate-400">{s.grade}</span>
           </p>
-          <p className="text-[13px] text-slate-500 tabular-nums">{formatPhone(s.parentPhone)}</p>
+          <p className="truncate text-[12px] text-slate-500">
+            <span className="tabular-nums">{formatPhone(s.parentPhone)}</span>
+            <span className="text-slate-400">
+              {" · "}
+              {classes
+                .filter((c) => s.classIds.includes(c.id))
+                .map((c) => c.name)
+                .join(", ") || "반 없음"}
+            </span>
+          </p>
         </div>
         {s.active && !editing && (
           <button
@@ -141,12 +160,12 @@ function StudentItem({ s }: { s: S }) {
           {s.active ? <UserMinus size={17} /> : <><UserPlus size={15} /> 다시 등록</>}
         </button>
       </div>
-      {editing && <EditForm s={s} onDone={() => setEditing(false)} />}
+      {editing && <EditForm s={s} classes={classes} onDone={() => setEditing(false)} />}
     </li>
   );
 }
 
-export function StudentManager({ students }: { students: S[] }) {
+export function StudentManager({ students, classes }: { students: S[]; classes: C[] }) {
   const [adding, setAdding] = useState(students.length === 0);
   const active = students.filter((s) => s.active);
   const inactive = students.filter((s) => !s.active);
@@ -155,7 +174,7 @@ export function StudentManager({ students }: { students: S[] }) {
     <>
       <PageTitle
         title="학생"
-        sub={`다니는 학생 ${active.length}명 · 학부모 번호로 문자가 가요`}
+        sub="학부모 번호로 등원 문자·피드백·공지가 가요"
         right={
           !adding && (
             <button
@@ -167,11 +186,11 @@ export function StudentManager({ students }: { students: S[] }) {
           )
         }
       />
-      {adding && <AddForm onClose={() => setAdding(false)} />}
+      {adding && <AddForm classes={classes} onClose={() => setAdding(false)} />}
 
       <ul className="divide-y divide-black/5 rounded-2xl bg-white ring-1 ring-black/5">
         {active.map((s) => (
-          <StudentItem key={s.id} s={s} />
+          <StudentItem key={s.id} s={s} classes={classes} />
         ))}
       </ul>
 
@@ -180,7 +199,7 @@ export function StudentManager({ students }: { students: S[] }) {
           <p className="mt-5 px-1 text-[13px] font-semibold text-slate-400">그만둔 학생 · 출결 기록은 남아 있어요</p>
           <ul className="mt-2 divide-y divide-black/5 rounded-2xl bg-white ring-1 ring-black/5">
             {inactive.map((s) => (
-              <StudentItem key={s.id} s={s} />
+              <StudentItem key={s.id} s={s} classes={classes} />
             ))}
           </ul>
         </>

@@ -4,10 +4,10 @@ import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { and, eq, isNull, ne, inArray } from "drizzle-orm";
-import { db, academies, students, attendance, notes, notices } from "@/db";
+import { db, academies, students, attendance, notes, notices, classes, classStudents } from "@/db";
 import { createSession, deleteSession, requireAcademy } from "@/lib/session";
 import { sendMessages, smsBytes } from "@/lib/sms";
-import { attendanceText, feedbackText, noticeText, GROUPS } from "@/lib/templates";
+import { attendanceText, feedbackText, noticeText, parseDays } from "@/lib/templates";
 import { isValidDate, timeKST, todayKST } from "@/lib/date";
 import { isValidMobile, normalizePhone } from "@/lib/phone";
 
@@ -94,7 +94,7 @@ export async function setAttendance(
 
     if (claimed.length === 1) {
       const [result] = await sendMessages(academy, "ATTENDANCE", [
-        { to: student.parentPhone, text: attendanceText(academy.name, student.name, timeKST()), studentId },
+        { to: student.parentPhone, text: attendanceText(academy.attendanceTemplate, academy.name, student.name, timeKST()), studentId },
       ]);
       if (result.ok) {
         sms = result.test ? "test" : "sent";
@@ -171,7 +171,7 @@ export async function sendFeedbacks(date: string) {
     "FEEDBACK",
     targets.map((n) => {
       const s = byId.get(n.studentId)!;
-      return { to: s.parentPhone, text: feedbackText(academy.name, s.name, n.content), studentId: s.id };
+      return { to: s.parentPhone, text: feedbackText(academy.feedbackTemplate, academy.name, s.name, n.content), studentId: s.id };
     }),
   );
 
@@ -196,21 +196,33 @@ export type NoticeResult = { ok: boolean; message: string } | null;
 
 export async function sendNotice(_prev: NoticeResult, formData: FormData): Promise<NoticeResult> {
   const academy = await requireAcademy();
-  const target = String(formData.get("target") ?? "전체");
+  const target = String(formData.get("target") ?? "all"); // "all" 또는 반 id
   const content = String(formData.get("content") ?? "").trim();
 
   if (!content) return { ok: false, message: "공지 내용을 입력해 주세요." };
-  if (target !== "전체" && !GROUPS.includes(target as (typeof GROUPS)[number])) {
-    return { ok: false, message: "받는 반을 다시 선택해 주세요." };
-  }
   const text = noticeText(academy.name, content);
   if (smsBytes(text) > 2000) return { ok: false, message: "공지가 너무 길어요. 한글 약 1,000자까지 보낼 수 있어요." };
 
-  const where =
-    target === "전체"
-      ? and(eq(students.academyId, academy.id), eq(students.active, true))
-      : and(eq(students.academyId, academy.id), eq(students.active, true), eq(students.group, target));
-  const rows = await db.select({ phone: students.parentPhone }).from(students).where(where);
+  let targetName = "전체";
+  let rows: { phone: string }[];
+  if (target === "all") {
+    rows = await db
+      .select({ phone: students.parentPhone })
+      .from(students)
+      .where(and(eq(students.academyId, academy.id), eq(students.active, true)));
+  } else {
+    const [cls] = await db
+      .select()
+      .from(classes)
+      .where(and(eq(classes.id, target), eq(classes.academyId, academy.id)));
+    if (!cls) return { ok: false, message: "받는 반을 다시 선택해 주세요." };
+    targetName = cls.name;
+    rows = await db
+      .select({ phone: students.parentPhone })
+      .from(classStudents)
+      .innerJoin(students, eq(students.id, classStudents.studentId))
+      .where(and(eq(classStudents.classId, cls.id), eq(students.active, true)));
+  }
 
   // 형제가 같이 다니면 같은 번호로 두 번 가지 않게
   const phones = [...new Set(rows.map((r) => r.phone))];
@@ -225,7 +237,7 @@ export async function sendNotice(_prev: NoticeResult, formData: FormData): Promi
 
   await db.insert(notices).values({
     academyId: academy.id,
-    target,
+    target: targetName,
     content,
     recipientCount: phones.length,
     failedCount: failed,
@@ -241,33 +253,51 @@ export async function sendNotice(_prev: NoticeResult, formData: FormData): Promi
 
 // ───────────────────────── 학생 관리 ─────────────────────────
 
-export type StudentFormResult = { ok: boolean; message: string } | null;
+export type FormResult = { ok: boolean; message: string } | null;
+export type StudentFormResult = FormResult;
 
 function readStudentForm(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const grade = String(formData.get("grade") ?? "").trim();
-  const group = String(formData.get("group") ?? "");
   const parentPhone = normalizePhone(String(formData.get("parentPhone") ?? ""));
+  const classIds = formData.getAll("classIds").map(String);
 
   if (!name) return { error: "학생 이름을 입력해 주세요." } as const;
   if (!grade) return { error: "학년을 입력해 주세요. (예: 초5)" } as const;
-  if (!GROUPS.includes(group as (typeof GROUPS)[number])) return { error: "반을 선택해 주세요." } as const;
   if (!isValidMobile(parentPhone)) return { error: "학부모 휴대폰 번호를 확인해 주세요. (예: 010-1234-5678)" } as const;
-  return { data: { name, grade, group, parentPhone } } as const;
+  return { data: { name, grade, parentPhone }, classIds } as const;
 }
 
-export async function addStudent(_prev: StudentFormResult, formData: FormData): Promise<StudentFormResult> {
+/** 학생의 반을 통째로 다시 지정 (이 공부방의 반만 허용) */
+async function setStudentClasses(academyId: string, studentId: string, classIds: string[]) {
+  const valid = classIds.length
+    ? await db
+        .select({ id: classes.id })
+        .from(classes)
+        .where(and(eq(classes.academyId, academyId), inArray(classes.id, classIds)))
+    : [];
+  await db.delete(classStudents).where(eq(classStudents.studentId, studentId));
+  if (valid.length) {
+    await db.insert(classStudents).values(valid.map((c) => ({ classId: c.id, studentId })));
+  }
+}
+
+export async function addStudent(_prev: FormResult, formData: FormData): Promise<FormResult> {
   const academy = await requireAcademy();
   const parsed = readStudentForm(formData);
   if ("error" in parsed) return { ok: false, message: parsed.error! };
 
-  await db.insert(students).values({ academyId: academy.id, ...parsed.data });
+  const [created] = await db
+    .insert(students)
+    .values({ academyId: academy.id, ...parsed.data })
+    .returning({ id: students.id });
+  await setStudentClasses(academy.id, created.id, parsed.classIds);
   revalidatePath("/students");
   revalidatePath("/");
   return { ok: true, message: `${parsed.data.name} 학생을 추가했어요.` };
 }
 
-export async function updateStudent(_prev: StudentFormResult, formData: FormData): Promise<StudentFormResult> {
+export async function updateStudent(_prev: FormResult, formData: FormData): Promise<FormResult> {
   const academy = await requireAcademy();
   const id = String(formData.get("id") ?? "");
   const parsed = readStudentForm(formData);
@@ -279,6 +309,7 @@ export async function updateStudent(_prev: StudentFormResult, formData: FormData
     .where(and(eq(students.id, id), eq(students.academyId, academy.id)))
     .returning({ id: students.id });
   if (updated.length === 0) return { ok: false, message: "학생을 찾을 수 없어요." };
+  await setStudentClasses(academy.id, id, parsed.classIds);
 
   revalidatePath("/students");
   revalidatePath("/");
@@ -294,4 +325,72 @@ export async function setStudentActive(studentId: string, active: boolean) {
     .where(and(eq(students.id, studentId), eq(students.academyId, academy.id)));
   revalidatePath("/students");
   revalidatePath("/");
+}
+
+// ───────────────────────── 반 관리 ─────────────────────────
+
+function readClassForm(formData: FormData) {
+  const name = String(formData.get("name") ?? "").trim().slice(0, 30);
+  const days = parseDays(formData.getAll("days").map(String).join(","));
+  const time = String(formData.get("time") ?? "").trim();
+  if (!name) return { error: "반 이름을 입력해 주세요. (예: 초등 영어 A)" } as const;
+  if (time && !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return { error: "시작 시각을 확인해 주세요." } as const;
+  return { data: { name, days: [...new Set(days)].sort().join(","), time } } as const;
+}
+
+export async function addClass(_prev: FormResult, formData: FormData): Promise<FormResult> {
+  const academy = await requireAcademy();
+  const parsed = readClassForm(formData);
+  if ("error" in parsed) return { ok: false, message: parsed.error! };
+  await db.insert(classes).values({ academyId: academy.id, ...parsed.data });
+  revalidatePath("/students");
+  revalidatePath("/");
+  return { ok: true, message: `${parsed.data.name} 반을 만들었어요.` };
+}
+
+export async function updateClass(_prev: FormResult, formData: FormData): Promise<FormResult> {
+  const academy = await requireAcademy();
+  const id = String(formData.get("id") ?? "");
+  const parsed = readClassForm(formData);
+  if ("error" in parsed) return { ok: false, message: parsed.error! };
+  const updated = await db
+    .update(classes)
+    .set(parsed.data)
+    .where(and(eq(classes.id, id), eq(classes.academyId, academy.id)))
+    .returning({ id: classes.id });
+  if (updated.length === 0) return { ok: false, message: "반을 찾을 수 없어요." };
+  revalidatePath("/students");
+  revalidatePath("/");
+  return { ok: true, message: "저장했어요." };
+}
+
+/** 반 삭제 — 학생과 출결 기록은 그대로, 반 배정만 사라짐 */
+export async function deleteClass(classId: string) {
+  const academy = await requireAcademy();
+  await db.delete(classes).where(and(eq(classes.id, classId), eq(classes.academyId, academy.id)));
+  revalidatePath("/students");
+  revalidatePath("/");
+}
+
+// ───────────────────────── 설정 ─────────────────────────
+
+export async function saveSettings(_prev: FormResult, formData: FormData): Promise<FormResult> {
+  const academy = await requireAcademy();
+  const name = String(formData.get("name") ?? "").trim();
+  const attendanceTemplate = String(formData.get("attendanceTemplate") ?? "").trim();
+  const feedbackTemplate = String(formData.get("feedbackTemplate") ?? "").trim();
+
+  if (!name || name.length > 20) return { ok: false, message: "학원 이름은 1~20자로 입력해 주세요." };
+  if (!attendanceTemplate.includes("{이름}")) return { ok: false, message: "등원 문자에 {이름} 이 들어가야 해요." };
+  if (!feedbackTemplate.includes("{메모}")) return { ok: false, message: "피드백 문자에 {메모} 가 들어가야 해요." };
+  if (attendanceTemplate.length > 300 || feedbackTemplate.length > 300) {
+    return { ok: false, message: "문구는 300자 이내로 써 주세요." };
+  }
+
+  await db
+    .update(academies)
+    .set({ name, attendanceTemplate, feedbackTemplate })
+    .where(eq(academies.id, academy.id));
+  revalidatePath("/", "layout");
+  return { ok: true, message: "저장했어요. 다음 문자부터 바뀐 문구로 나가요." };
 }

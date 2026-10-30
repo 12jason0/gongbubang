@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, ClipboardCheck, Megaphone, Users } from "lucide-react";
+import { CalendarDays, ClipboardCheck, Megaphone, Settings, Users } from "lucide-react";
 
 const TABS = [
   { href: "/", label: "출석부", Icon: ClipboardCheck },
   { href: "/notice", label: "공지", Icon: Megaphone },
   { href: "/stats", label: "월별", Icon: CalendarDays },
-  { href: "/students", label: "학생", Icon: Users },
+  { href: "/students", label: "학생·반", Icon: Users },
+  { href: "/settings", label: "설정", Icon: Settings },
 ];
 
 export function BottomNav() {

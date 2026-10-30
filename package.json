@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "db:push": "drizzle-kit push",
-    "seed": "tsx --env-file=.env scripts/seed.ts"
+    "seed": "tsx --env-file=.env scripts/seed.ts",
+    "seed:reset": "tsx --env-file=.env scripts/seed.ts --reset"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

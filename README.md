@@ -10,10 +10,13 @@
 
 | 화면 | 하는 일 |
 |---|---|
-| 출석부 | 날짜별 출석/결석 체크, 출석 시 등원 문자, 학생별 수업 메모, 피드백 일괄 발송 |
-| 공지 | 전체/초등/중등/고등 학부모님께 단체 문자 (형제는 한 번만), 보낸 공지 기록 |
+| 출석부 | 그날 요일에 수업 있는 반 학생만 자동으로 표시, 출석 시 등원 문자, 수업 메모, 피드백 일괄 발송 |
+| 공지 | 전체 또는 반을 골라 단체 문자 (형제는 한 번만), 보낸 공지 기록 |
 | 월별 | 학생별 월 출석·결석 횟수, 이번 달 문자 사용량(단문/장문) |
-| 학생 | 학생 추가·수정, 그만둔 학생 숨기기 (기록은 남음) |
+| 학생·반 | 반 만들기(이름·요일·시각), 학생 추가·수정·반 배정(여러 반 가능), 그만둔 학생 숨기기 |
+| 설정 | 학원 이름, 등원·피드백 문자 문구 (`{학원}` `{이름}` `{시각}` `{메모}`), 로그아웃 |
+
+원장님마다 반 구성·문구가 달라도 코드는 그대로 — 전부 원장님이 화면에서 설정한다.
 
 ## 문자 규칙 (중복·실수 방지)
 
@@ -33,7 +36,8 @@ npm install
 cp .env.example .env      # 윈도우: copy .env.example .env
 # .env 열어서 DATABASE_URL, SESSION_SECRET, SEED_PASSWORD 채우기
 npm run db:push           # DB 테이블 만들기
-npm run seed              # 원장님 계정 만들기 (+ 예시 학생 5명)
+npm run seed              # 원장님 계정 만들기 (+ 예시 반 5개·학생 8명)
+npm run seed:reset        # 예시 데이터를 지우고 다시 넣기 (테스트용)
 npm run dev               # http://localhost:3000
 ```
 
@@ -70,13 +74,14 @@ src/
     (app)/page.tsx          출석부
     (app)/notice/page.tsx   단체 공지
     (app)/stats/page.tsx    월별 출결 + 문자 사용량
-    (app)/students/page.tsx 학생 관리
+    (app)/students/page.tsx 학생·반 관리
+    (app)/settings/page.tsx 학원 이름·문자 문구
     login/page.tsx          로그인
     actions.ts              모든 저장·발송 로직 (서버)
   components/               화면 조각 (출석 줄, 피드백 버튼, 공지 폼, 학생 관리)
-  db/schema.ts              테이블 6개
+  db/schema.ts              테이블 8개 (반·반 학생 포함)
   lib/sms.ts                솔라피 발송 + 테스트 모드
-  lib/templates.ts          학부모 문자 문구 ← 문구 바꿀 땐 여기만
+  lib/templates.ts          기본 문자 문구, 요일·정렬 도우미
   lib/date.ts               한국 시간 계산
   proxy.ts                  로그인 안 했으면 로그인 화면으로
 scripts/seed.ts             원장님 계정 만들기

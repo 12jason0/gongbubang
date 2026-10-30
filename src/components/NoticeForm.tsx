@@ -3,7 +3,6 @@
 import { useState, useTransition } from "react";
 import { Send } from "lucide-react";
 import { sendNotice, type NoticeResult } from "@/app/actions";
-import { GROUPS } from "@/lib/templates";
 
 function bytes(text: string) {
   let n = 0;
@@ -11,10 +10,16 @@ function bytes(text: string) {
   return n;
 }
 
-export function NoticeForm({ academyName, counts }: { academyName: string; counts: Record<string, number> }) {
+export function NoticeForm({
+  academyName,
+  targets,
+}: {
+  academyName: string;
+  targets: { id: string; name: string; count: number }[];
+}) {
   const [res, setRes] = useState<NoticeResult>(null);
   const [pending, startTransition] = useTransition();
-  const [target, setTarget] = useState("전체");
+  const [target, setTarget] = useState("all");
   const [content, setContent] = useState("");
   const [confirming, setConfirming] = useState(false);
 
@@ -33,23 +38,23 @@ export function NoticeForm({ academyName, counts }: { academyName: string; count
   const full = `[${academyName}] ${content.trim()}`;
   const b = bytes(full);
   const isLong = b > 90;
-  const recipients = counts[target] ?? 0;
+  const selected = targets.find((t) => t.id === target) ?? targets[0];
+  const recipients = selected.count;
 
   return (
     <div className="rounded-2xl bg-white p-4 ring-1 ring-black/5">
       <p className="text-[13px] font-semibold text-slate-500">받는 분</p>
-      <div className="mt-2 grid grid-cols-4 gap-1.5">
-        {["전체", ...GROUPS].map((g) => (
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {targets.map((t) => (
           <button
             type="button"
-            key={g}
-            onClick={() => setTarget(g)}
-            className={`rounded-xl py-2 text-center ${
-              g === target ? "bg-brand text-white" : "bg-slate-100 text-slate-500"
+            key={t.id}
+            onClick={() => setTarget(t.id)}
+            className={`rounded-full px-3.5 py-2 text-[13px] font-semibold ${
+              t.id === target ? "bg-brand text-white" : "bg-slate-100 text-slate-500"
             }`}
           >
-            <span className="block text-[13px] font-semibold">{g}</span>
-            <span className={`block text-[11px] ${g === target ? "text-gold" : "text-slate-400"}`}>{counts[g] ?? 0}명</span>
+            {t.name} <span className={t.id === target ? "text-gold" : "text-slate-400"}>{t.count}명</span>
           </button>
         ))}
       </div>
@@ -78,7 +83,7 @@ export function NoticeForm({ academyName, counts }: { academyName: string; count
       {confirming ? (
         <div className="mt-4 rounded-xl bg-gold-soft p-3">
           <p className="text-center text-sm">
-            <b>{target}</b> 학부모님 <b>{recipients}명</b>께 보낼까요?
+            <b>{selected.name}</b> 학부모님 <b>{recipients}명</b>께 보낼까요?
           </p>
           <div className="mt-2.5 flex gap-2">
             <button type="button" onClick={() => setConfirming(false)} className="flex-1 rounded-xl bg-white py-3 text-sm font-medium">

@@ -14,6 +14,9 @@ export const academies = pgTable("academies", {
   loginId: text("login_id").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   senderPhone: text("sender_phone").notNull(), // 솔라피에 등록한 발신번호 (원장님 번호)
+  // 문자 문구 (비어 있으면 기본 문구). {학원} {이름} {시각} {메모} 를 바꿔 넣는다
+  attendanceTemplate: text("attendance_template"),
+  feedbackTemplate: text("feedback_template"),
   createdAt: createdAt(),
 });
 
@@ -24,12 +27,36 @@ export const students = pgTable(
     academyId: text("academy_id").notNull().references(() => academies.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     grade: text("grade").notNull(), // 예: 초5, 중2
-    group: text("group").notNull(), // 반: 초등 / 중등 / 고등
     parentPhone: text("parent_phone").notNull(), // 숫자만. 예: 01012345678
     active: boolean("active").notNull().default(true), // 그만둔 학생은 false (기록은 남김)
     createdAt: createdAt(),
   },
   (t) => [index("students_academy_idx").on(t.academyId, t.active)],
+);
+
+// 반 — 원장님이 직접 만든다 (예: 초등 영어 A, 중1 수학)
+export const classes = pgTable(
+  "classes",
+  {
+    id: id(),
+    academyId: text("academy_id").notNull().references(() => academies.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    days: text("days").notNull().default(""), // 수업 요일. 0=일 1=월 … 6=토, 쉼표로. 예: "1,3,5"
+    time: text("time").notNull().default(""), // 시작 시각 "16:30" (표시·정렬용, 비워도 됨)
+    active: boolean("active").notNull().default(true),
+    createdAt: createdAt(),
+  },
+  (t) => [index("classes_academy_idx").on(t.academyId, t.active)],
+);
+
+// 반 ↔ 학생 (한 학생이 여러 반 가능)
+export const classStudents = pgTable(
+  "class_students",
+  {
+    classId: text("class_id").notNull().references(() => classes.id, { onDelete: "cascade" }),
+    studentId: text("student_id").notNull().references(() => students.id, { onDelete: "cascade" }),
+  },
+  (t) => [uniqueIndex("class_students_uq").on(t.classId, t.studentId), index("class_students_student_idx").on(t.studentId)],
 );
 
 // 하루에 학생당 한 줄. date 는 한국 날짜 "2026-10-30" 문자열 (시간대 꼬임 방지)
@@ -74,7 +101,7 @@ export const notices = pgTable(
   {
     id: id(),
     academyId: text("academy_id").notNull().references(() => academies.id, { onDelete: "cascade" }),
-    target: text("target").notNull(), // 전체 / 초등 / 중등 / 고등
+    target: text("target").notNull(), // "전체" 또는 반 이름
     content: text("content").notNull(),
     recipientCount: integer("recipient_count").notNull(),
     failedCount: integer("failed_count").notNull().default(0),
@@ -101,3 +128,4 @@ export const messageLogs = pgTable(
 );
 
 export type Student = typeof students.$inferSelect;
+export type ClassRow = typeof classes.$inferSelect;

@@ -26,7 +26,13 @@ export async function requireAcademy() {
   if (!academyId) redirect("/login");
 
   const [academy] = await db
-    .select({ id: academies.id, name: academies.name, senderPhone: academies.senderPhone })
+    .select({
+      id: academies.id,
+      name: academies.name,
+      senderPhone: academies.senderPhone,
+      attendanceTemplate: academies.attendanceTemplate,
+      feedbackTemplate: academies.feedbackTemplate,
+    })
     .from(academies)
     .where(eq(academies.id, academyId));
   if (!academy) redirect("/login");
