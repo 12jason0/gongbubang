@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { and, eq, isNull } from "drizzle-orm";
 import { db, messageLogs } from "@/db";
 
 /**
@@ -36,7 +37,7 @@ function authHeader(apiKey: string, apiSecret: string) {
   return `HMAC-SHA256 apiKey=${apiKey}, date=${date}, salt=${salt}, signature=${signature}`;
 }
 
-type Outgoing = { to: string; text: string; studentId?: string | null };
+type Outgoing = { to: string; text: string; studentId?: string | null; refDate?: string | null };
 
 /**
  * 여러 통을 한 번에 보내고, 받는 사람별 성공/실패를 돌려준다.
@@ -66,10 +67,65 @@ export async function sendMessages(
       text: m.text,
       status: results[i].test ? "TEST" : results[i].ok ? "SENT" : "FAILED",
       error: results[i].error ?? null,
+      refDate: m.refDate ?? null,
     })),
   );
 
+  // 같은 학생·같은 날짜 문자가 이번에 나갔으면, 전에 실패했던 기록은 "해결됨"
+  for (const [i, m] of messages.entries()) {
+    if (!results[i].ok || !m.studentId || !m.refDate) continue;
+    await db
+      .update(messageLogs)
+      .set({ resolvedAt: new Date() })
+      .where(
+        and(
+          eq(messageLogs.academyId, academy.id),
+          eq(messageLogs.studentId, m.studentId),
+          eq(messageLogs.kind, kind),
+          eq(messageLogs.refDate, m.refDate),
+          eq(messageLogs.status, "FAILED"),
+          isNull(messageLogs.resolvedAt),
+        ),
+      );
+  }
+
   return results;
+}
+
+// ───── 잔액 ─────
+
+const BALANCE_URL = "https://api.solapi.com/cash/v1/balance";
+const BALANCE_TTL = 5 * 60 * 1000; // 출석부 열 때마다 묻지 않게 5분 기억
+let balanceCache: { at: number; won: number | null } | null = null;
+
+/** 이 금액(원) 밑으로 내려가면 출석부 위에 경고. 장문 45원 기준 약 100통 */
+export const LOW_BALANCE_WON = Number(process.env.SOLAPI_LOW_BALANCE ?? 5000);
+
+/**
+ * 솔라피 남은 금액(원). 잔액 + 포인트 (둘 다 문자 보내는 데 쓰임).
+ * 테스트 모드이거나 조회에 실패하면 null — 그때는 경고를 띄우지 않는다.
+ * GET /cash/v1/balance → { balance, point, ... } (솔라피 공식 Node SDK cashService.getBalance 기준)
+ */
+export async function getBalanceWon(): Promise<number | null> {
+  if (isTestMode()) return null;
+  if (balanceCache && Date.now() - balanceCache.at < BALANCE_TTL) return balanceCache.won;
+  let won: number | null = null;
+  try {
+    const res = await fetch(BALANCE_URL, {
+      headers: { Authorization: authHeader(process.env.SOLAPI_API_KEY!, process.env.SOLAPI_API_SECRET!) },
+      signal: AbortSignal.timeout(3000), // 솔라피가 느려도 출석부는 바로 열리게
+    });
+    const body = (await res.json().catch(() => null)) as { balance?: unknown; point?: unknown } | null;
+    if (res.ok && typeof body?.balance === "number") {
+      won = body.balance + (typeof body.point === "number" ? body.point : 0);
+    } else {
+      console.error("솔라피 잔액 조회 실패", res.status, body);
+    }
+  } catch (e) {
+    console.error("솔라피 잔액 조회 실패", e);
+  }
+  balanceCache = { at: Date.now(), won };
+  return won;
 }
 
 async function callSolapi(from: string, messages: Outgoing[]): Promise<SendResult[]> {

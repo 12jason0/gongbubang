@@ -147,6 +147,8 @@ export const messageLogs = pgTable(
     text: text("text").notNull(),
     status: text("status").notNull(), // SENT / FAILED / TEST (솔라피 키 없을 때)
     error: text("error"),
+    refDate: text("ref_date"), // 등원·피드백 문자가 가리키는 출석부 날짜 "2026-10-30" (다시 보내기용)
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }), // 실패 문자를 다시 보냈거나 더 보낼 필요 없어진 시각
     createdAt: createdAt(),
   },
   (t) => [index("message_logs_academy_idx").on(t.academyId, t.createdAt)],

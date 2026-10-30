@@ -3,10 +3,11 @@
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { and, eq, isNull, ne, inArray } from "drizzle-orm";
-import { db, academies, students, attendance, notes, notices, classes, classStudents, payments } from "@/db";
+import { and, eq, inArray, isNull, ne } from "drizzle-orm";
+import { db, academies, students, attendance, notes, notices, classes, classStudents, payments, messageLogs } from "@/db";
 import { createSession, deleteSession, requireAcademy } from "@/lib/session";
 import { sendMessages, smsBytes } from "@/lib/sms";
+import { unresolvedFailures } from "@/lib/failed";
 import { attendanceText, feedbackText, noticeText, parseDays } from "@/lib/templates";
 import { isValidDate, isValidMonth, spokenTimeKST, todayKST } from "@/lib/date";
 import { isPaymentMethod, parseWon } from "@/lib/money";
@@ -91,7 +92,7 @@ export async function setAttendance(
 
     if (claimed.length === 1) {
       const [result] = await sendMessages(academy, "ATTENDANCE", [
-        { to: student.parentPhone, text: attendanceText(academy, student.name, spokenTimeKST()), studentId },
+        { to: student.parentPhone, text: attendanceText(academy, student.name, spokenTimeKST()), studentId, refDate: date },
       ]);
       if (result.ok) {
         sms = result.test ? "test" : "sent";
@@ -168,7 +169,7 @@ export async function sendFeedbacks(date: string) {
     "FEEDBACK",
     targets.map((n) => {
       const s = byId.get(n.studentId)!;
-      return { to: s.parentPhone, text: feedbackText(academy, s.name, n.content), studentId: s.id };
+      return { to: s.parentPhone, text: feedbackText(academy, s.name, n.content), studentId: s.id, refDate: date };
     }),
   );
 
@@ -185,6 +186,91 @@ export async function sendFeedbacks(date: string) {
     test: results.some((r) => r.test),
     error: results.find((r) => !r.ok)?.error,
   };
+}
+
+// ───────────────────────── 실패한 문자 다시 보내기 ─────────────────────────
+
+/**
+ * 실패한 문자를 다시 보낸다. 중복 방지:
+ * - 실패 기록을 먼저 "해결됨"으로 찍어서 확보 (두 번 눌러도 한 번만)
+ * - 등원: 오늘 출석이고 아직 문자 안 나간 줄만 notifiedAt 을 찍고 보냄 (실패하면 되돌림)
+ * - 피드백: 아직 안 보낸 메모만 sentAt 을 찍고 지금 메모로 보냄 (실패하면 되돌림)
+ * - 공지: 실패한 번호로 같은 내용 다시
+ */
+export async function resendFailedMessages() {
+  const academy = await requireAcademy();
+  const logs = await db.select().from(messageLogs).where(unresolvedFailures(academy.id)).orderBy(messageLogs.createdAt);
+
+  let sent = 0;
+  let failed = 0;
+  let skipped = 0; // 이미 나갔거나(다른 경로로 재발송) 출석이 취소돼서 보낼 필요 없음
+  const today = todayKST();
+
+  for (const log of logs) {
+    const mine = await db
+      .update(messageLogs)
+      .set({ resolvedAt: new Date() })
+      .where(and(eq(messageLogs.id, log.id), isNull(messageLogs.resolvedAt)))
+      .returning({ id: messageLogs.id });
+    if (mine.length === 0) continue;
+
+    const student = log.studentId ? await getOwnStudent(academy.id, log.studentId) : null;
+
+    if (log.kind === "ATTENDANCE" && student && log.refDate === today) {
+      const [row] = await db
+        .update(attendance)
+        .set({ notifiedAt: new Date() })
+        .where(
+          and(
+            eq(attendance.studentId, student.id),
+            eq(attendance.date, today),
+            eq(attendance.status, "PRESENT"),
+            isNull(attendance.notifiedAt),
+          ),
+        )
+        .returning({ id: attendance.id });
+      if (!row) {
+        skipped++;
+        continue;
+      }
+      // 원래 문구 그대로 (처음 출석 누른 시각이 들어 있음)
+      const [r] = await sendMessages(academy, "ATTENDANCE", [{ to: student.parentPhone, text: log.text, studentId: student.id, refDate: today }]);
+      if (r.ok) sent++;
+      else {
+        failed++;
+        await db.update(attendance).set({ notifiedAt: null }).where(eq(attendance.id, row.id));
+      }
+    } else if (log.kind === "FEEDBACK" && student && log.refDate) {
+      const [note] = await db
+        .update(notes)
+        .set({ sentAt: new Date() })
+        .where(and(eq(notes.studentId, student.id), eq(notes.date, log.refDate), isNull(notes.sentAt), ne(notes.content, "")))
+        .returning();
+      if (!note || !student.active) {
+        if (note) await db.update(notes).set({ sentAt: null }).where(eq(notes.id, note.id));
+        skipped++;
+        continue;
+      }
+      const [r] = await sendMessages(academy, "FEEDBACK", [
+        { to: student.parentPhone, text: feedbackText(academy, student.name, note.content), studentId: student.id, refDate: log.refDate },
+      ]);
+      if (r.ok) sent++;
+      else {
+        failed++;
+        await db.update(notes).set({ sentAt: null }).where(eq(notes.id, note.id));
+      }
+    } else if (log.kind === "NOTICE") {
+      const [r] = await sendMessages(academy, "NOTICE", [{ to: log.to, text: log.text }]);
+      if (r.ok) sent++;
+      else failed++;
+    } else {
+      skipped++;
+    }
+  }
+
+  revalidatePath("/");
+  revalidatePath("/stats");
+  return { sent, failed, skipped };
 }
 
 // ───────────────────────── 단체 공지 ─────────────────────────
