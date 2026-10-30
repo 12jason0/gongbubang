@@ -8,7 +8,7 @@ import { db, academies, students, attendance, notes, notices, classes, classStud
 import { createSession, deleteSession, requireAcademy } from "@/lib/session";
 import { sendMessages, smsBytes } from "@/lib/sms";
 import { attendanceText, feedbackText, noticeText, parseDays } from "@/lib/templates";
-import { isValidDate, timeKST, todayKST } from "@/lib/date";
+import { isValidDate, spokenTimeKST, todayKST } from "@/lib/date";
 import { isValidMobile, normalizePhone } from "@/lib/phone";
 
 // ───────────────────────── 로그인 ─────────────────────────
@@ -90,7 +90,7 @@ export async function setAttendance(
 
     if (claimed.length === 1) {
       const [result] = await sendMessages(academy, "ATTENDANCE", [
-        { to: student.parentPhone, text: attendanceText(academy.attendanceTemplate, academy.name, student.name, timeKST()), studentId },
+        { to: student.parentPhone, text: attendanceText(academy, student.name, spokenTimeKST()), studentId },
       ]);
       if (result.ok) {
         sms = result.test ? "test" : "sent";
@@ -167,7 +167,7 @@ export async function sendFeedbacks(date: string) {
     "FEEDBACK",
     targets.map((n) => {
       const s = byId.get(n.studentId)!;
-      return { to: s.parentPhone, text: feedbackText(academy.feedbackTemplate, academy.name, s.name, n.content), studentId: s.id };
+      return { to: s.parentPhone, text: feedbackText(academy, s.name, n.content), studentId: s.id };
     }),
   );
 
@@ -372,21 +372,27 @@ export async function deleteClass(classId: string) {
 
 export async function saveSettings(_prev: FormResult, formData: FormData): Promise<FormResult> {
   const academy = await requireAcademy();
-  const name = String(formData.get("name") ?? "").trim();
-  const attendanceTemplate = String(formData.get("attendanceTemplate") ?? "").trim();
-  const feedbackTemplate = String(formData.get("feedbackTemplate") ?? "").trim();
+  // 한 줄 칸이라 줄바꿈은 빼고 받는다
+  const field = (k: string) => String(formData.get(k) ?? "").replace(/\s+/g, " ").trim();
+  const wording = {
+    name: field("name"),
+    attendanceEnding: field("attendanceEnding"),
+    attendanceExtra: field("attendanceExtra"),
+    feedbackTitle: field("feedbackTitle"),
+    feedbackClosing: field("feedbackClosing"),
+  };
 
-  if (!name || name.length > 20) return { ok: false, message: "학원 이름은 1~20자로 입력해 주세요." };
-  if (!attendanceTemplate.includes("{이름}")) return { ok: false, message: "등원 문자에 {이름} 이 들어가야 해요." };
-  if (!feedbackTemplate.includes("{메모}")) return { ok: false, message: "피드백 문자에 {메모} 가 들어가야 해요." };
-  if (attendanceTemplate.length > 300 || feedbackTemplate.length > 300) {
-    return { ok: false, message: "문구는 300자 이내로 써 주세요." };
+  if (!wording.name || wording.name.length > 20) return { ok: false, message: "학원 이름은 1~20자로 입력해 주세요." };
+  if (!wording.attendanceEnding) return { ok: false, message: "등원 문자 끝 문장을 입력해 주세요. (예: 등원했습니다.)" };
+  if (!wording.feedbackTitle) return { ok: false, message: "피드백 문자 첫 줄을 입력해 주세요. (예: 오늘 수업 피드백)" };
+  if (wording.attendanceEnding.length > 30 || wording.feedbackTitle.length > 30) {
+    return { ok: false, message: "끝 문장·첫 줄은 30자 이내로 써 주세요." };
+  }
+  if (wording.attendanceExtra.length > 60 || wording.feedbackClosing.length > 60) {
+    return { ok: false, message: "덧붙일 말·마지막 인사는 60자 이내로 써 주세요." };
   }
 
-  await db
-    .update(academies)
-    .set({ name, attendanceTemplate, feedbackTemplate })
-    .where(eq(academies.id, academy.id));
+  await db.update(academies).set(wording).where(eq(academies.id, academy.id));
   revalidatePath("/", "layout");
   return { ok: true, message: "저장했어요. 다음 문자부터 바뀐 문구로 나가요." };
 }

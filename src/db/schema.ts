@@ -14,10 +14,11 @@ export const academies = pgTable("academies", {
   loginId: text("login_id").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   senderPhone: text("sender_phone").notNull(), // 솔라피에 등록한 발신번호 (원장님 번호)
-  // 문자 문구 (비어 있으면 기본 문구). {학원} {이름} {시각} {메모} 를 바꿔 넣는다
-  attendanceTemplate: text("attendance_template"),
-  feedbackTemplate: text("feedback_template"),
-  createdAt: createdAt(),
+  // 문자 문구 — 원장님은 빈칸만 채우고, 학생 이름·시각·메모 자리는 코드가 정한다 (lib/templates.ts)
+  attendanceEnding: text("attendance_ending").notNull().default("등원했습니다."), // 등원 문자 끝 문장
+  attendanceExtra: text("attendance_extra").notNull().default(""), // 등원 문자 덧붙일 말 (선택)
+  feedbackTitle: text("feedback_title").notNull().default("오늘 수업 피드백"), // 피드백 문자 첫 줄
+  feedbackClosing: text("feedback_closing").notNull().default(""), // 피드백 문자 마지막 인사 (선택)  createdAt: createdAt(),
 });
 
 export const students = pgTable(

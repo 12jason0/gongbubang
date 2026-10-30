@@ -1,21 +1,31 @@
 // 학부모에게 가는 문자 문구 + 반·요일 도우미
-// 문구는 원장님이 설정 화면에서 바꿀 수 있고, 비어 있으면 아래 기본 문구를 쓴다.
+// 원장님은 설정 화면에서 빈칸(끝 문장·덧붙일 말·첫 줄·마지막 인사)만 고치고,
+// 학원 이름·학생 이름·시각·메모가 들어가는 자리는 여기서 정한다. (서버 발송과 설정 미리보기가 같은 함수를 씀)
 
-export const DEFAULT_ATTENDANCE_TEMPLATE = "[{학원}] {이름} 학생 {시각}에 등원했습니다.";
-export const DEFAULT_FEEDBACK_TEMPLATE = "[{학원}] {이름} 학생 오늘 수업 피드백\n\n{메모}";
+export const DEFAULT_ATTENDANCE_ENDING = "등원했습니다.";
+export const DEFAULT_FEEDBACK_TITLE = "오늘 수업 피드백";
 
-type Vars = { 학원: string; 이름?: string; 시각?: string; 메모?: string };
+/** 원장님이 고칠 수 있는 칸 (academies 테이블과 같은 이름) */
+export type MessageWording = {
+  name: string; // 학원 이름 — 문자 맨 앞 [ ]
+  attendanceEnding: string;
+  attendanceExtra: string;
+  feedbackTitle: string;
+  feedbackClosing: string;
+};
 
-export function renderTemplate(template: string, vars: Vars) {
-  return template.replace(/\{(학원|이름|시각|메모)\}/g, (_, k: keyof Vars) => (vars[k] ?? "").trim());
+/** [현샘영수] 김하늘 학생 4시 5분에 등원했습니다. (덧붙일 말) */
+export function attendanceText(w: MessageWording, studentName: string, time: string) {
+  const ending = w.attendanceEnding.trim() || DEFAULT_ATTENDANCE_ENDING;
+  const extra = w.attendanceExtra.trim();
+  return `[${w.name}] ${studentName} 학생 ${time}에 ${ending}${extra ? ` ${extra}` : ""}`;
 }
 
-export function attendanceText(tpl: string | null | undefined, academyName: string, studentName: string, time: string) {
-  return renderTemplate(tpl || DEFAULT_ATTENDANCE_TEMPLATE, { 학원: academyName, 이름: studentName, 시각: time });
-}
-
-export function feedbackText(tpl: string | null | undefined, academyName: string, studentName: string, memo: string) {
-  return renderTemplate(tpl || DEFAULT_FEEDBACK_TEMPLATE, { 학원: academyName, 이름: studentName, 메모: memo });
+/** [현샘영수] 김하늘 학생 오늘 수업 피드백 / (메모) / (마지막 인사) */
+export function feedbackText(w: MessageWording, studentName: string, memo: string) {
+  const title = w.feedbackTitle.trim() || DEFAULT_FEEDBACK_TITLE;
+  const closing = w.feedbackClosing.trim();
+  return `[${w.name}] ${studentName} 학생 ${title}\n\n${memo.trim()}${closing ? `\n\n${closing}` : ""}`;
 }
 
 export function noticeText(academyName: string, content: string) {

@@ -30,8 +30,10 @@ export async function requireAcademy() {
       id: academies.id,
       name: academies.name,
       senderPhone: academies.senderPhone,
-      attendanceTemplate: academies.attendanceTemplate,
-      feedbackTemplate: academies.feedbackTemplate,
+      attendanceEnding: academies.attendanceEnding,
+      attendanceExtra: academies.attendanceExtra,
+      feedbackTitle: academies.feedbackTitle,
+      feedbackClosing: academies.feedbackClosing,
     })
     .from(academies)
     .where(eq(academies.id, academyId));

@@ -2,7 +2,6 @@ import { LogOut } from "lucide-react";
 import { requireAcademy } from "@/lib/session";
 import { isTestMode } from "@/lib/sms";
 import { formatPhone } from "@/lib/phone";
-import { DEFAULT_ATTENDANCE_TEMPLATE, DEFAULT_FEEDBACK_TEMPLATE } from "@/lib/templates";
 import { SettingsForm } from "@/components/SettingsForm";
 import { PageTitle } from "@/components/PageTitle";
 import { logout } from "../../actions";
@@ -16,9 +15,13 @@ export default async function SettingsPage() {
       <PageTitle title="설정" sub="학원 이름과 학부모님께 가는 문자 문구" />
 
       <SettingsForm
-        name={academy.name}
-        attendanceTemplate={academy.attendanceTemplate || DEFAULT_ATTENDANCE_TEMPLATE}
-        feedbackTemplate={academy.feedbackTemplate || DEFAULT_FEEDBACK_TEMPLATE}
+        initial={{
+          name: academy.name,
+          attendanceEnding: academy.attendanceEnding,
+          attendanceExtra: academy.attendanceExtra,
+          feedbackTitle: academy.feedbackTitle,
+          feedbackClosing: academy.feedbackClosing,
+        }}
       />
 
       <section className="mt-3 rounded-2xl bg-white p-4 text-sm ring-1 ring-black/5">
