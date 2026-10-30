@@ -20,9 +20,7 @@ export default async function StudentsPage() {
   rows.sort(byGroupGradeName);
 
   return (
-    <main className="px-3 py-4">
-      <h1 className="px-1 text-lg font-bold">학생 관리</h1>
-      <p className="px-1 text-xs text-slate-400">학부모 번호로 등원 문자·피드백·공지가 가요</p>
+    <main className="px-3 pt-4">
       <StudentManager students={rows} />
     </main>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Send } from "lucide-react";
 import { sendNotice, type NoticeResult } from "@/app/actions";
 import { GROUPS } from "@/lib/templates";
 
@@ -35,48 +36,52 @@ export function NoticeForm({ academyName, counts }: { academyName: string; count
   const recipients = counts[target] ?? 0;
 
   return (
-    <div className="mt-3 rounded-2xl bg-white p-3">
-      <p className="text-sm font-semibold">받는 분</p>
-      <div className="mt-2 flex flex-wrap gap-2">
+    <div className="rounded-2xl bg-white p-4 ring-1 ring-black/5">
+      <p className="text-[13px] font-semibold text-slate-500">받는 분</p>
+      <div className="mt-2 grid grid-cols-4 gap-1.5">
         {["전체", ...GROUPS].map((g) => (
           <button
             type="button"
             key={g}
             onClick={() => setTarget(g)}
-            className={`rounded-full px-3.5 py-1.5 text-sm ${
+            className={`rounded-xl py-2 text-center ${
               g === target ? "bg-brand text-white" : "bg-slate-100 text-slate-500"
             }`}
           >
-            {g} {counts[g] ?? 0}
+            <span className="block text-[13px] font-semibold">{g}</span>
+            <span className={`block text-[11px] ${g === target ? "text-gold" : "text-slate-400"}`}>{counts[g] ?? 0}명</span>
           </button>
         ))}
       </div>
 
+      <p className="mt-4 text-[13px] font-semibold text-slate-500">내용</p>
       <textarea
         value={content}
         onChange={(e) => setContent(e.target.value)}
-        rows={5}
-        placeholder={"예) 11월 15일(토)은 휴원입니다. 보강 일정은 따로 안내드리겠습니다."}
-        className="mt-3 w-full resize-none rounded-xl border border-slate-200 px-3 py-2 text-[15px] outline-none focus:border-brand"
+        rows={4}
+        placeholder={"11월 15일(토)은 휴원입니다.\n보강 일정은 따로 안내드리겠습니다."}
+        className="mt-2 w-full resize-none rounded-xl border-0 bg-slate-50 px-3 py-2.5 text-[15px] leading-relaxed ring-1 ring-black/5 outline-none focus:bg-white focus:ring-2 focus:ring-gold"
       />
-      <p className="text-right text-xs text-slate-400">
-        {isLong ? "장문" : "단문"} · {b}/{isLong ? 2000 : 90}바이트
+      <p className="text-right text-[11px] text-slate-400">
+        <span className={isLong ? "text-[#8a6d35]" : ""}>{isLong ? "장문" : "단문"}</span> · {b}/{isLong ? 2000 : 90}바이트
       </p>
 
       {content.trim() && (
-        <div className="mt-2 rounded-xl bg-slate-50 p-3 text-sm">
-          <p className="mb-1 text-xs text-slate-400">학부모님이 받는 문자</p>
-          <p className="whitespace-pre-wrap">{full}</p>
+        <div className="mt-2">
+          <p className="mb-1.5 text-[11px] text-slate-400">학부모님 휴대폰에는 이렇게 보여요</p>
+          <div className="max-w-[85%] rounded-2xl rounded-tl-md bg-slate-100 px-3.5 py-2.5 text-[14px] leading-relaxed whitespace-pre-wrap">
+            {full}
+          </div>
         </div>
       )}
 
       {confirming ? (
-        <div className="mt-3 rounded-xl bg-brand-soft p-3">
+        <div className="mt-4 rounded-xl bg-gold-soft p-3">
           <p className="text-center text-sm">
             <b>{target}</b> 학부모님 <b>{recipients}명</b>께 보낼까요?
           </p>
-          <div className="mt-2 flex gap-2">
-            <button type="button" onClick={() => setConfirming(false)} className="flex-1 rounded-xl bg-white py-3 text-sm">
+          <div className="mt-2.5 flex gap-2">
+            <button type="button" onClick={() => setConfirming(false)} className="flex-1 rounded-xl bg-white py-3 text-sm font-medium">
               취소
             </button>
             <button
@@ -94,13 +99,13 @@ export function NoticeForm({ academyName, counts }: { academyName: string; count
           type="button"
           disabled={!content.trim() || recipients === 0 || b > 2000}
           onClick={() => setConfirming(true)}
-          className="mt-3 w-full rounded-xl bg-brand py-3 text-sm font-semibold text-white disabled:opacity-40"
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-3.5 text-[15px] font-semibold text-white disabled:opacity-30"
         >
-          공지 보내기
+          <Send size={16} className="text-gold" /> 공지 보내기
         </button>
       )}
 
-      {res && <p className={`mt-2 text-sm ${res.ok ? "text-emerald-600" : "text-rose-600"}`}>{res.message}</p>}
+      {res && <p className={`mt-2 text-center text-sm ${res.ok ? "text-emerald-600" : "text-rose-600"}`}>{res.message}</p>}
     </div>
   );
 }

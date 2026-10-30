@@ -1,3 +1,4 @@
+import { LogOut } from "lucide-react";
 import { requireAcademy } from "@/lib/session";
 import { isTestMode } from "@/lib/sms";
 import { logout } from "../actions";
@@ -8,18 +9,24 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const testMode = isTestMode();
 
   return (
-    <div className="mx-auto min-h-dvh max-w-md bg-[#f5f6f8] pb-24">
-      <header className="sticky top-0 z-10 flex items-center justify-between bg-brand px-4 py-3 text-white">
-        <span className="text-base font-bold">{academy.name}</span>
-        <form action={logout}>
-          <button className="text-xs text-white/70">로그아웃</button>
+    <div className="mx-auto min-h-dvh max-w-md bg-canvas pb-24">
+      <header className="sticky top-0 z-20 flex h-14 items-center gap-2 bg-brand px-4 text-white">
+        <span className="h-5 w-1 rounded-full bg-gold" aria-hidden />
+        <span className="text-[17px] font-bold tracking-tight">{academy.name}</span>
+        {testMode && (
+          <span
+            title="솔라피 키가 없어 문자는 실제로 나가지 않고 기록만 남아요"
+            className="rounded-full bg-amber-400/20 px-2 py-0.5 text-[11px] font-semibold text-amber-200"
+          >
+            테스트 모드
+          </span>
+        )}
+        <form action={logout} className="ml-auto">
+          <button aria-label="로그아웃" className="flex h-9 w-9 items-center justify-center rounded-lg text-white/60">
+            <LogOut size={18} />
+          </button>
         </form>
       </header>
-      {testMode && (
-        <p className="bg-amber-100 px-4 py-2 text-xs text-amber-800">
-          테스트 모드 — 문자는 실제로 나가지 않고 기록만 남아요 (솔라피 키 미설정)
-        </p>
-      )}
       {children}
       <BottomNav />
     </div>
