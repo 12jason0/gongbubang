@@ -5,6 +5,12 @@ import { Pencil, Plus, UserMinus, UserPlus, X } from "lucide-react";
 import { addStudent, setStudentActive, updateStudent, type StudentFormResult } from "@/app/actions";
 import { formatPhone } from "@/lib/phone";
 import { PageTitle } from "./PageTitle";
+import { useToast } from "./Toast";
+
+// 줄 오른쪽 작은 버튼 (아이콘 + 글자). 휴대폰에선 아래 탭처럼 아이콘 위·글자 아래로 좁게
+const ROW_BTN =
+  "flex h-11 min-w-11 shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg px-1.5 text-[11px] text-slate-500 active:bg-black/5 disabled:opacity-50 md:h-9 md:flex-row md:gap-1 md:px-2 md:text-[13px]";
+const CLOSE_BTN = "flex h-9 items-center gap-1 rounded-lg px-2 text-[13px] text-slate-500 active:bg-black/5";
 
 type S = { id: string; name: string; grade: string; parentPhone: string; active: boolean; classIds: string[] };
 type C = { id: string; name: string; days: string; time: string };
@@ -80,8 +86,8 @@ function AddForm({ onClose, classes }: { onClose?: () => void; classes: C[] }) {
       <div className="mb-3 flex items-center justify-between">
         <p className="text-[15px] font-semibold">새 학생</p>
         {onClose && (
-          <button type="button" onClick={onClose} aria-label="닫기" className="text-slate-400">
-            <X size={20} />
+          <button type="button" onClick={onClose} className={CLOSE_BTN}>
+            <X size={15} /> 닫기
           </button>
         )}
       </div>
@@ -123,6 +129,21 @@ function EditForm({ s, onDone, classes }: { s: S; onDone: () => void; classes: C
 function StudentItem({ s, classes }: { s: S; classes: C[] }) {
   const [editing, setEditing] = useState(false);
   const [pending, startTransition] = useTransition();
+  const toast = useToast();
+
+  function toggleActive(active: boolean) {
+    startTransition(async () => {
+      await setStudentActive(s.id, active);
+      toast({
+        text: `${s.name} ${active ? "다시 등록했어요" : "그만둔 학생으로 옮겼어요"}`,
+        sub: active ? undefined : "출결 기록은 남아 있어요",
+        undo: async () => {
+          await setStudentActive(s.id, !active);
+          toast({ text: `${s.name} 되돌렸어요` });
+        },
+      });
+    });
+  }
 
   return (
     <li className={s.active ? "" : "opacity-60"}>
@@ -146,21 +167,12 @@ function StudentItem({ s, classes }: { s: S; classes: C[] }) {
           </p>
         </div>
         {s.active && !editing && (
-          <button
-            onClick={() => setEditing(true)}
-            aria-label="수정"
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 active:bg-black/5"
-          >
-            <Pencil size={17} />
+          <button onClick={() => setEditing(true)} className={ROW_BTN}>
+            <Pencil size={15} /> 수정
           </button>
         )}
-        <button
-          disabled={pending}
-          onClick={() => startTransition(() => setStudentActive(s.id, !s.active))}
-          aria-label={s.active ? "그만둠" : "다시 등록"}
-          className="flex h-9 items-center gap-1 rounded-lg px-2 text-xs text-slate-400 active:bg-black/5"
-        >
-          {s.active ? <UserMinus size={17} /> : <><UserPlus size={15} /> 다시 등록</>}
+        <button disabled={pending} onClick={() => toggleActive(!s.active)} className={ROW_BTN}>
+          {s.active ? <><UserMinus size={15} /> 그만둠</> : <><UserPlus size={15} /> 다시 등록</>}
         </button>
       </div>
       {editing && <EditForm s={s} classes={classes} onDone={() => setEditing(false)} />}
@@ -184,7 +196,7 @@ export function StudentManager({ students, classes }: { students: S[]; classes: 
           !adding && (
             <button
               onClick={() => setAdding(true)}
-              className="flex items-center gap-1 rounded-xl bg-brand px-3 py-2 text-[13px] font-semibold text-white lg:hidden"
+              className="flex items-center gap-1 shrink-0 rounded-xl bg-brand px-3 py-2 text-[13px] font-semibold whitespace-nowrap text-white lg:hidden"
             >
               <Plus size={16} className="text-gold" /> 추가
             </button>

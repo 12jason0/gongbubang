@@ -8,6 +8,7 @@ import { isLongMessage } from "@/lib/sms";
 import { byGradeName } from "@/lib/templates";
 
 const KIND_LABEL: Record<string, string> = { ATTENDANCE: "등원", FEEDBACK: "피드백", NOTICE: "공지" };
+const NAV_BTN = "flex h-11 w-[84px] items-center gap-0.5 rounded-xl px-1.5 text-[13px] text-slate-500 active:bg-black/5";
 
 export default async function StatsPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
   const academy = await requireAcademy();
@@ -36,7 +37,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
   for (const a of attRows) {
     const t = tally.get(a.studentId) ?? { present: 0, absent: 0 };
     if (a.status === "PRESENT") t.present++;
-    else t.absent++;
+    else if (a.status === "ABSENT") t.absent++;
     tally.set(a.studentId, t);
   }
 
@@ -64,24 +65,19 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
       <div className="flex items-center justify-between">
         <Link
           href={`/stats?month=${shiftMonth(month, -1)}`}
-          aria-label="이전 달"
-          className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 active:bg-black/5"
+          className={NAV_BTN}
         >
-          <ChevronLeft size={24} />
+          <ChevronLeft size={20} /> 이전 달
         </Link>
         <p className="text-[19px] font-bold tracking-tight">
           {y}년 {m}월
         </p>
         {month < current ? (
-          <Link
-            href={`/stats?month=${shiftMonth(month, 1)}`}
-            aria-label="다음 달"
-            className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 active:bg-black/5"
-          >
-            <ChevronRight size={24} />
+          <Link href={`/stats?month=${shiftMonth(month, 1)}`} className={`${NAV_BTN} justify-end`}>
+            다음 달 <ChevronRight size={20} />
           </Link>
         ) : (
-          <span className="h-11 w-11" />
+          <span className="h-11 w-[84px]" />
         )}
       </div>
 

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, History, Users } from "lucide-react";
+import { CheckCircle2, ChevronLeft, ChevronRight, History, ListChecks, Send, Users } from "lucide-react";
 import { and, eq } from "drizzle-orm";
 import { db, students, attendance, notes, classes, classStudents } from "@/db";
 import { requireAcademy } from "@/lib/session";
@@ -7,6 +7,8 @@ import { formatDateLabel, isValidDate, shiftDate, timeKST, todayKST } from "@/li
 import { byGradeName, byTimeName, parseDays, weekdayOf } from "@/lib/templates";
 import { AttendanceRow, type RowData } from "@/components/AttendanceRow";
 import { FeedbackBar } from "@/components/FeedbackBar";
+
+const DAY_BTN = "flex h-11 w-[72px] items-center gap-0.5 rounded-xl px-1 text-[13px] text-slate-500 active:bg-black/5";
 
 export default async function AttendancePage({
   searchParams,
@@ -76,7 +78,7 @@ export default async function AttendancePage({
       grade: s.grade,
       classLabel: labels.join(" · ") || "반 없음",
       classIds: cids,
-      status: (a?.status as RowData["status"]) ?? null,
+      status: (a?.status || null) as RowData["status"], // "" = 문자 나간 뒤 체크만 지운 줄
       notifiedTime: a?.notifiedAt ? timeKST(a.notifiedAt) : null,
       note: n?.content ?? "",
       noteSentTime: n?.sentAt ? timeKST(n.sentAt) : null,
@@ -108,18 +110,35 @@ export default async function AttendancePage({
     ...dayClasses.map((c) => ({ key: c.id, label: c.time ? `${c.name} ${c.time}` : c.name, n: pick(c.id).length })),
   ];
 
+  // 오늘 할 일 한 줄: 출석 체크 → 피드백 보내기 → 끝
+  const anyFeedbackSent = all.some((r) => r.noteSentTime);
+  const todo =
+    remaining > 0
+      ? { Icon: ListChecks, tone: "text-gold", text: <>출석 체크 <b className="text-brand">{remaining}명</b> 남았어요</> }
+      : pendingFeedback > 0
+        ? { Icon: Send, tone: "text-gold", text: <>피드백 <b className="text-brand">{pendingFeedback}명</b> 보낼 차례예요<span className="hidden md:inline"> · 아래 버튼을 눌러 주세요</span></> }
+        : anyFeedbackSent
+          ? { Icon: CheckCircle2, tone: "text-emerald-500", text: <>오늘 할 일을 다 했어요. 수고하셨어요!</> }
+          : { Icon: CheckCircle2, tone: "text-emerald-500", text: <>출석 체크 끝 · 메모를 쓰면 학부모님께 피드백을 보낼 수 있어요</> };
+
   return (
     <main className="px-3 pt-3">
+      {isToday && rows.length > 0 && (
+        <p className="mb-2 flex items-center gap-2 rounded-xl bg-white px-3.5 py-2.5 text-[15px] font-medium ring-1 ring-black/5">
+          <todo.Icon size={18} className={`shrink-0 ${todo.tone}`} />
+          <span>{todo.text}</span>
+        </p>
+      )}
+
       {/* PC: 날짜와 요약을 한 줄에 */}
       <div className="md:grid md:grid-cols-2 md:items-center md:gap-3">
       {/* 날짜 */}
       <div className="flex items-center justify-between md:rounded-2xl md:bg-white md:px-2 md:py-1.5 md:ring-1 md:ring-black/5">
         <Link
           href={q(shiftDate(date, -1), null)}
-          aria-label="전날"
-          className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 active:bg-black/5"
+          className={DAY_BTN}
         >
-          <ChevronLeft size={24} />
+          <ChevronLeft size={20} /> 전날
         </Link>
         <div className="flex items-center gap-2">
           <p className="text-[19px] font-bold tracking-tight">{formatDateLabel(date)}</p>
@@ -132,14 +151,10 @@ export default async function AttendancePage({
           )}
         </div>
         {isToday ? (
-          <span className="h-11 w-11" />
+          <span className="h-11 w-[72px]" />
         ) : (
-          <Link
-            href={q(shiftDate(date, 1), null)}
-            aria-label="다음날"
-            className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 active:bg-black/5"
-          >
-            <ChevronRight size={24} />
+          <Link href={q(shiftDate(date, 1), null)} className={`${DAY_BTN} justify-end`}>
+            다음날 <ChevronRight size={20} />
           </Link>
         )}
       </div>

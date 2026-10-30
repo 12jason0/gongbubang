@@ -46,7 +46,8 @@ async function getOwnStudent(academyId: string, studentId: string) {
 /**
  * 출석/결석 체크.
  * - 오늘 날짜에 "출석"을 누르면 학부모에게 등원 문자 (하루 한 번만)
- * - 같은 버튼을 다시 누르면 체크 해제 (단, 문자가 이미 나갔으면 해제 안 됨 — 결석으로 바꾸는 건 가능)
+ * - 같은 버튼을 다시 누르면 체크 해제. 등원 문자가 이미 나갔으면 줄은 남기고 상태만 비움
+ *   (보낸 시각이 남아 있어서 다시 출석을 눌러도 문자는 또 안 나감)
  * - 지난 날짜를 고치는 건 기록만 바뀌고 문자는 안 나감
  */
 export async function setAttendance(
@@ -60,15 +61,10 @@ export async function setAttendance(
   if (!student) return { ok: false, sms: "none", error: "학생을 찾을 수 없어요." };
 
   if (status === null) {
-    // 문자 안 나간 기록만 지울 수 있음
-    const deleted = await db
-      .delete(attendance)
-      .where(and(eq(attendance.studentId, studentId), eq(attendance.date, date), isNull(attendance.notifiedAt)))
-      .returning({ id: attendance.id });
+    const where = and(eq(attendance.studentId, studentId), eq(attendance.date, date));
+    await db.delete(attendance).where(and(where, isNull(attendance.notifiedAt)));
+    await db.update(attendance).set({ status: "" }).where(where); // 남은 건 문자 나간 줄뿐 — 상태만 비움
     revalidatePath("/");
-    if (deleted.length === 0) {
-      return { ok: false, sms: "none", error: "이미 등원 문자가 나가서 체크를 지울 수 없어요. 결석으로는 바꿀 수 있어요." };
-    }
     return { ok: true, sms: "none" };
   }
 

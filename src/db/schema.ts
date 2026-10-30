@@ -67,7 +67,7 @@ export const attendance = pgTable(
     academyId: text("academy_id").notNull().references(() => academies.id, { onDelete: "cascade" }),
     studentId: text("student_id").notNull().references(() => students.id, { onDelete: "cascade" }),
     date: text("date").notNull(),
-    status: text("status").notNull(), // PRESENT(출석) / ABSENT(결석)
+    status: text("status").notNull(), // PRESENT(출석) / ABSENT(결석) / ""(문자 나간 뒤 체크만 지움)
     checkedAt: timestamp("checked_at", { withTimezone: true }).notNull().defaultNow(),
     notifiedAt: timestamp("notified_at", { withTimezone: true }), // 등원 문자 보낸 시각. 있으면 다시 안 보냄
   },

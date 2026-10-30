@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Check, MessageSquareText, NotebookPen, RotateCw, X } from "lucide-react";
 import { saveNote, setAttendance } from "@/app/actions";
+import { useToast } from "./Toast";
 
 export type RowData = {
   id: string;
@@ -16,6 +17,9 @@ export type RowData = {
 };
 
 type Msg = { text: string; tone: "ok" | "warn" | "err"; retry?: boolean };
+type Status = RowData["status"];
+
+const STATUS_DONE: Record<string, string> = { PRESENT: "출석 처리됨", ABSENT: "결석 처리됨" };
 
 export function AttendanceRow({ row, date }: { row: RowData; date: string }) {
   const [status, setStatus] = useState(row.status);
@@ -26,6 +30,7 @@ export function AttendanceRow({ row, date }: { row: RowData; date: string }) {
   const [savedNote, setSavedNote] = useState(row.note);
   const [noteState, setNoteState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [open, setOpen] = useState(false);
+  const toast = useToast();
 
   function press(next: "PRESENT" | "ABSENT", retry = false) {
     const target = status === next && !retry ? null : next; // 같은 버튼 다시 누르면 체크 해제
@@ -39,22 +44,63 @@ export function AttendanceRow({ row, date }: { row: RowData; date: string }) {
         setMsg({ text: res.error ?? "저장하지 못했어요.", tone: "err" });
         return;
       }
-      if (res.sms === "sent") setMsg({ text: "학부모님께 등원 문자를 보냈어요", tone: "ok" });
-      if (res.sms === "test") setMsg({ text: "등원 문자 기록됨 (테스트 모드)", tone: "warn" });
       if (res.sms === "failed") setMsg({ text: `등원 문자 실패: ${res.error ?? ""}`, tone: "err", retry: true });
+
+      // 등원 문자가 (지금 또는 아까) 나갔으면 되돌려도 문자는 거둬들일 수 없다
+      const smsOut = res.sms === "sent" || res.sms === "test" || !!row.notifiedTime;
+      toast({
+        text: `${row.name} ${target ? STATUS_DONE[target] : "체크 지움"}`,
+        sub:
+          res.sms === "sent"
+            ? "등원 문자 보냄 · 되돌려도 문자는 취소되지 않아요"
+            : res.sms === "test"
+              ? "등원 문자 기록됨 (테스트 모드) · 되돌려도 취소되지 않아요"
+              : target === "PRESENT" && row.notifiedTime
+                ? `등원 문자는 ${row.notifiedTime}에 이미 보냈어요 (다시 안 나가요)`
+                : undefined,
+        undo: () => revert(before, smsOut),
+      });
+    });
+  }
+
+  function revert(before: Status, smsOut: boolean) {
+    setStatus(before);
+    setMsg(null);
+    startTransition(async () => {
+      const res = await setAttendance(row.id, date, before);
+      if (!res.ok) {
+        toast({ text: res.error ?? "되돌리지 못했어요.", tone: "err" });
+        return;
+      }
+      toast({ text: `${row.name} 되돌렸어요`, sub: smsOut ? "이미 나간 등원 문자는 취소되지 않아요" : undefined });
     });
   }
 
   async function persistNote() {
     if (note.trim() === savedNote.trim()) return;
+    const before = savedNote;
     setNoteState("saving");
     const res = await saveNote(row.id, date, note);
-    if (res.ok) {
-      setSavedNote(note);
-      setNoteState("saved");
-    } else {
+    if (!res.ok) {
       setNoteState("error");
+      return;
     }
+    setSavedNote(note);
+    setNoteState("saved");
+    toast({
+      text: `${row.name} 메모 ${note.trim() ? "저장됨" : "지움"}`,
+      undo: async () => {
+        const r = await saveNote(row.id, date, before);
+        if (!r.ok) {
+          toast({ text: r.error ?? "되돌리지 못했어요.", tone: "err" });
+          return;
+        }
+        setNote(before);
+        setSavedNote(before);
+        setNoteState("idle");
+        toast({ text: `${row.name} 메모를 되돌렸어요` });
+      },
+    });
   }
 
   const hasNote = !!savedNote.trim() || !!row.noteSentTime;
@@ -86,7 +132,7 @@ export function AttendanceRow({ row, date }: { row: RowData; date: string }) {
             {row.name}
             <span className="ml-1.5 text-xs font-medium text-slate-400">{row.grade}</span>
           </p>
-          <p className="mt-0.5 flex items-center gap-2 text-[11px] leading-tight text-slate-400">
+          <p className="mt-0.5 flex items-center gap-2 overflow-hidden text-[11px] leading-tight whitespace-nowrap text-slate-400">
             {row.notifiedTime ? (
               <span className="text-emerald-600">문자 {row.notifiedTime}</span>
             ) : status === "ABSENT" ? (
@@ -97,20 +143,20 @@ export function AttendanceRow({ row, date }: { row: RowData; date: string }) {
             {row.noteSentTime ? (
               <span className="text-brand">· 피드백 보냄</span>
             ) : hasNote ? (
-              <span className="text-[#8a6d35]">· 메모 있음</span>
+              <span className="text-[#8a6d35]">· 메모</span>
             ) : null}
           </p>
         </button>
 
         <button
           onClick={() => setOpen((o) => !o)}
-          aria-label="수업 메모"
-          className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
-            open ? "bg-brand text-white" : "text-slate-400 active:bg-black/5"
+          className={`relative flex h-10 shrink-0 items-center gap-1 rounded-xl px-2 text-[13px] font-medium ${
+            open ? "bg-brand text-white" : "text-slate-500 active:bg-black/5"
           }`}
         >
-          <NotebookPen size={19} />
-          {hasNote && !open && <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-gold" />}
+          <NotebookPen size={16} />
+          메모
+          {hasNote && !open && <span className="absolute top-1 right-0.5 h-2 w-2 rounded-full bg-gold" />}
         </button>
 
         {/* 출석 / 결석 */}
@@ -118,7 +164,7 @@ export function AttendanceRow({ row, date }: { row: RowData; date: string }) {
           <button
             onClick={() => press("PRESENT")}
             disabled={pending}
-            className={`h-9 w-[52px] rounded-lg text-[13px] font-semibold transition ${
+            className={`h-9 w-[64px] rounded-lg text-[14px] font-bold transition ${
               status === "PRESENT" ? "bg-emerald-500 text-white shadow-sm" : "text-slate-500"
             }`}
           >
@@ -127,7 +173,7 @@ export function AttendanceRow({ row, date }: { row: RowData; date: string }) {
           <button
             onClick={() => press("ABSENT")}
             disabled={pending}
-            className={`h-9 w-[52px] rounded-lg text-[13px] font-semibold transition ${
+            className={`h-9 w-[42px] rounded-lg text-[12px] font-semibold transition ${
               status === "ABSENT" ? "bg-rose-500 text-white shadow-sm" : "text-slate-500"
             }`}
           >

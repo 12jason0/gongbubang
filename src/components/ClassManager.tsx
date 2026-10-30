@@ -6,6 +6,11 @@ import { addClass, deleteClass, updateClass, type FormResult } from "@/app/actio
 import { DAY_LABELS, WEEK_ORDER, formatDays, parseDays } from "@/lib/templates";
 import { PageTitle } from "./PageTitle";
 
+// 줄 오른쪽 작은 버튼 (아이콘 + 글자). 휴대폰에선 아래 탭처럼 아이콘 위·글자 아래로 좁게
+const ROW_BTN =
+  "flex h-11 min-w-11 shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg px-1.5 text-[11px] text-slate-500 active:bg-black/5 disabled:opacity-50 md:h-9 md:flex-row md:gap-1 md:px-2 md:text-[13px]";
+const CLOSE_BTN = "flex h-9 items-center gap-1 rounded-lg px-2 text-[13px] text-slate-500 active:bg-black/5";
+
 type C = { id: string; name: string; days: string; time: string; count: number };
 
 const input =
@@ -66,8 +71,8 @@ function AddClassForm({ onClose }: { onClose?: () => void }) {
       <div className="mb-3 flex items-center justify-between">
         <p className="text-[15px] font-semibold">새 반</p>
         {onClose && (
-          <button type="button" onClick={onClose} aria-label="닫기" className="text-slate-400">
-            <X size={20} />
+          <button type="button" onClick={onClose} className={CLOSE_BTN}>
+            <X size={15} /> 닫기
           </button>
         )}
       </div>
@@ -103,19 +108,11 @@ function ClassItem({ c }: { c: C }) {
         </div>
         {!editing && (
           <>
-            <button
-              onClick={() => setEditing(true)}
-              aria-label="수정"
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 active:bg-black/5"
-            >
-              <Pencil size={17} />
+            <button onClick={() => setEditing(true)} className={ROW_BTN}>
+              <Pencil size={15} /> 수정
             </button>
-            <button
-              onClick={() => setConfirmDelete(true)}
-              aria-label="삭제"
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 active:bg-black/5"
-            >
-              <Trash2 size={17} />
+            <button onClick={() => setConfirmDelete(true)} className={ROW_BTN}>
+              <Trash2 size={15} /> 삭제
             </button>
           </>
         )}
@@ -173,7 +170,7 @@ export function ClassManager({ classes }: { classes: C[] }) {
           !adding && (
             <button
               onClick={() => setAdding(true)}
-              className="flex items-center gap-1 rounded-xl bg-brand px-3 py-2 text-[13px] font-semibold text-white lg:hidden"
+              className="flex items-center gap-1 shrink-0 rounded-xl bg-brand px-3 py-2 text-[13px] font-semibold whitespace-nowrap text-white lg:hidden"
             >
               <Plus size={16} className="text-gold" /> 반 추가
             </button>

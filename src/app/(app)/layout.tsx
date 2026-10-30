@@ -1,6 +1,7 @@
 import { requireAcademy } from "@/lib/session";
 import { isTestMode } from "@/lib/sms";
 import { BottomNav, SideNav } from "@/components/BottomNav";
+import { ToastProvider } from "@/components/Toast";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const academy = await requireAcademy();
@@ -23,7 +24,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </header>
       <SideNav academyName={academy.name} testMode={testMode} />
       {/* PC에서는 본문을 넓게, 너무 퍼지지 않게 가운데 */}
-      <div className="md:mx-auto md:max-w-6xl md:px-5 md:pt-4">{children}</div>
+      <div className="md:mx-auto md:max-w-6xl md:px-5 md:pt-4">
+        <ToastProvider>{children}</ToastProvider>
+      </div>
       <BottomNav />
     </div>
   );
