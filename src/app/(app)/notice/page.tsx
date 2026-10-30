@@ -52,9 +52,14 @@ export default async function NoticePage() {
     <main className="px-3 pt-4">
       <PageTitle title="단체 공지" sub="휴원·시험 일정처럼 여러 학부모님께 한 번에" />
 
-      <NoticeForm academyName={academy.name} targets={targets} />
+      {/* PC: 왼쪽 쓰기, 오른쪽 보낸 공지 */}
+      <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-5">
+      <div className="lg:sticky lg:top-4">
+        <NoticeForm academyName={academy.name} targets={targets} />
+      </div>
 
-      <h2 className="mt-6 px-1 text-[13px] font-semibold text-slate-500">보낸 공지</h2>
+      <section>
+      <h2 className="mt-6 px-1 text-[13px] font-semibold text-slate-500 lg:mt-0 lg:pb-0.5">보낸 공지</h2>
       {history.length === 0 ? (
         <div className="mt-2 flex flex-col items-center rounded-2xl bg-white py-10 text-center ring-1 ring-black/5">
           <Inbox className="text-slate-300" size={28} />
@@ -75,6 +80,8 @@ export default async function NoticePage() {
           ))}
         </ul>
       )}
+      </section>
+      </div>
     </main>
   );
 }

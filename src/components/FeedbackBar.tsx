@@ -22,7 +22,7 @@ export function FeedbackBar({ date, pending }: { date: string; pending: number }
   }
 
   return (
-    <div className="fixed inset-x-0 bottom-[60px] z-10 mx-auto max-w-md px-3 pb-2">
+    <div className="fixed inset-x-0 bottom-[60px] z-10 mx-auto max-w-md px-3 pb-2 md:bottom-4 md:left-56">
       {msg && pending === 0 ? (
         <button
           onClick={() => setMsg(null)}

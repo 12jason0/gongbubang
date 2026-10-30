@@ -12,7 +12,7 @@ export default async function SettingsPage() {
   const testMode = isTestMode();
 
   return (
-    <main className="px-3 pt-4">
+    <main className="px-3 pt-4 md:max-w-2xl">
       <PageTitle title="설정" sub="학원 이름과 학부모님께 가는 문자 문구" />
 
       <SettingsForm

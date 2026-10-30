@@ -110,8 +110,10 @@ export default async function AttendancePage({
 
   return (
     <main className="px-3 pt-3">
+      {/* PC: 날짜와 요약을 한 줄에 */}
+      <div className="md:grid md:grid-cols-2 md:items-center md:gap-3">
       {/* 날짜 */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between md:rounded-2xl md:bg-white md:px-2 md:py-1.5 md:ring-1 md:ring-black/5">
         <Link
           href={q(shiftDate(date, -1), null)}
           aria-label="전날"
@@ -143,7 +145,7 @@ export default async function AttendancePage({
       </div>
 
       {/* 요약 */}
-      <section className="mt-1 rounded-2xl bg-white px-4 py-3 ring-1 ring-black/5">
+      <section className="mt-1 rounded-2xl bg-white px-4 py-3 ring-1 ring-black/5 md:mt-0">
         <div className="flex items-center gap-4">
           <Stat label="출석" value={present} className="text-emerald-600" />
           <Stat label="결석" value={absent} className="text-rose-500" />
@@ -155,6 +157,7 @@ export default async function AttendancePage({
           <div className="bg-rose-400" style={{ width: `${pct(absent)}%` }} />
         </div>
       </section>
+      </div>
 
       {!isToday && (
         <p className="mt-2 flex items-center gap-1.5 rounded-xl bg-slate-200/60 px-3 py-2 text-xs text-slate-600">
@@ -198,7 +201,7 @@ export default async function AttendancePage({
           </Link>
         </div>
       ) : rows.length === 0 ? null : (
-        <ul className="mt-2.5 divide-y divide-black/5 overflow-hidden rounded-2xl bg-white ring-1 ring-black/5">
+        <ul className="mt-2.5 divide-y divide-black/5 overflow-hidden rounded-2xl bg-white ring-1 ring-black/5 lg:grid lg:grid-cols-2 lg:divide-y-0">
           {rows.map((r) => (
             <AttendanceRow key={`${r.id}-${date}-${r.noteSentTime ?? ""}`} row={r} date={date} />
           ))}

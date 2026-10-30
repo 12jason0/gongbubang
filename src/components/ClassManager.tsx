@@ -58,15 +58,18 @@ function Result({ r }: { r: FormResult }) {
   return <p className={`mt-2 text-sm ${r.ok ? "text-emerald-600" : "text-rose-600"}`}>{r.message}</p>;
 }
 
-function AddClassForm({ onClose }: { onClose: () => void }) {
+// onClose 없으면 닫기 버튼 없음 (PC 오른쪽에 늘 떠 있는 폼)
+function AddClassForm({ onClose }: { onClose?: () => void }) {
   const { res, pending, onSubmit } = useForm(addClass, (f) => f.reset());
   return (
     <form onSubmit={onSubmit} className="mb-3 rounded-2xl bg-white p-4 ring-2 ring-gold/60">
       <div className="mb-3 flex items-center justify-between">
         <p className="text-[15px] font-semibold">새 반</p>
-        <button type="button" onClick={onClose} aria-label="닫기" className="text-slate-400">
-          <X size={20} />
-        </button>
+        {onClose && (
+          <button type="button" onClick={onClose} aria-label="닫기" className="text-slate-400">
+            <X size={20} />
+          </button>
+        )}
       </div>
       <ClassFields />
       <button disabled={pending} className="mt-3 w-full rounded-xl bg-brand py-3 text-[15px] font-semibold text-white disabled:opacity-60">
@@ -160,7 +163,9 @@ function ClassItem({ c }: { c: C }) {
 export function ClassManager({ classes }: { classes: C[] }) {
   const [adding, setAdding] = useState(classes.length === 0);
   return (
-    <>
+    // PC: 왼쪽 목록, 오른쪽 추가 폼
+    <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-5">
+      <div>
       <PageTitle
         title="반"
         sub="요일을 정해 두면 그날 출석부에 그 반 학생만 보여요"
@@ -168,14 +173,18 @@ export function ClassManager({ classes }: { classes: C[] }) {
           !adding && (
             <button
               onClick={() => setAdding(true)}
-              className="flex items-center gap-1 rounded-xl bg-brand px-3 py-2 text-[13px] font-semibold text-white"
+              className="flex items-center gap-1 rounded-xl bg-brand px-3 py-2 text-[13px] font-semibold text-white lg:hidden"
             >
               <Plus size={16} className="text-gold" /> 반 추가
             </button>
           )
         }
       />
-      {adding && <AddClassForm onClose={() => setAdding(false)} />}
+      {adding && (
+        <div className="lg:hidden">
+          <AddClassForm onClose={() => setAdding(false)} />
+        </div>
+      )}
       {classes.length > 0 && (
         <ul className="divide-y divide-black/5 rounded-2xl bg-white ring-1 ring-black/5">
           {classes.map((c) => (
@@ -184,6 +193,11 @@ export function ClassManager({ classes }: { classes: C[] }) {
         </ul>
       )}
       <p className="mt-3 px-1 text-xs text-slate-400">학생을 반에 넣으려면 &lsquo;학생&rsquo; 탭에서 학생을 수정하세요.</p>
-    </>
+      </div>
+
+      <aside className="hidden lg:sticky lg:top-4 lg:block">
+        <AddClassForm />
+      </aside>
+    </div>
   );
 }

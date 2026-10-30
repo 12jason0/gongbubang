@@ -47,7 +47,7 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
 
   return (
     <main className="px-3 pt-3">
-      <div className="mb-3 flex rounded-xl bg-black/5 p-1">
+      <div className="mb-3 flex rounded-xl bg-black/5 p-1 md:max-w-xs">
         <Link href="/students" className={tabCls(tab === "students")}>
           학생 <span className="text-slate-400">{activeIds.size}</span>
         </Link>

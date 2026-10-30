@@ -71,16 +71,19 @@ function useStudentForm(
   return { res, pending, onSubmit };
 }
 
-function AddForm({ onClose, classes }: { onClose: () => void; classes: C[] }) {
+// onClose 없으면 닫기 버튼 없음 (PC 오른쪽에 늘 떠 있는 폼)
+function AddForm({ onClose, classes }: { onClose?: () => void; classes: C[] }) {
   const { res, pending, onSubmit } = useStudentForm(addStudent, (form) => form.reset());
 
   return (
     <form onSubmit={onSubmit} className="mb-3 rounded-2xl bg-white p-4 ring-2 ring-gold/60">
       <div className="mb-3 flex items-center justify-between">
         <p className="text-[15px] font-semibold">새 학생</p>
-        <button type="button" onClick={onClose} aria-label="닫기" className="text-slate-400">
-          <X size={20} />
-        </button>
+        {onClose && (
+          <button type="button" onClick={onClose} aria-label="닫기" className="text-slate-400">
+            <X size={20} />
+          </button>
+        )}
       </div>
       <StudentFields classes={classes} />
       <button
@@ -171,7 +174,9 @@ export function StudentManager({ students, classes }: { students: S[]; classes: 
   const inactive = students.filter((s) => !s.active);
 
   return (
-    <>
+    // PC: 왼쪽 목록, 오른쪽 추가 폼
+    <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-5">
+      <div>
       <PageTitle
         title="학생"
         sub="학부모 번호로 등원 문자·피드백·공지가 가요"
@@ -179,14 +184,18 @@ export function StudentManager({ students, classes }: { students: S[]; classes: 
           !adding && (
             <button
               onClick={() => setAdding(true)}
-              className="flex items-center gap-1 rounded-xl bg-brand px-3 py-2 text-[13px] font-semibold text-white"
+              className="flex items-center gap-1 rounded-xl bg-brand px-3 py-2 text-[13px] font-semibold text-white lg:hidden"
             >
               <Plus size={16} className="text-gold" /> 추가
             </button>
           )
         }
       />
-      {adding && <AddForm classes={classes} onClose={() => setAdding(false)} />}
+      {adding && (
+        <div className="lg:hidden">
+          <AddForm classes={classes} onClose={() => setAdding(false)} />
+        </div>
+      )}
 
       <ul className="divide-y divide-black/5 rounded-2xl bg-white ring-1 ring-black/5">
         {active.map((s) => (
@@ -204,6 +213,11 @@ export function StudentManager({ students, classes }: { students: S[]; classes: 
           </ul>
         </>
       )}
-    </>
+      </div>
+
+      <aside className="hidden lg:sticky lg:top-4 lg:block">
+        <AddForm classes={classes} />
+      </aside>
+    </div>
   );
 }

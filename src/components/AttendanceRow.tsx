@@ -61,7 +61,10 @@ export function AttendanceRow({ row, date }: { row: RowData; date: string }) {
   const tint = status === "PRESENT" ? "bg-emerald-50/70" : status === "ABSENT" ? "bg-rose-50/70" : "";
 
   return (
-    <li className={`transition-colors ${tint}`}>
+    // PC(lg) 2열: 첫 줄(두 칸) 빼고 위 선, 왼쪽 칸은 오른쪽 선
+    <li
+      className={`transition-colors ${tint} lg:border-black/5 lg:odd:border-r lg:[&:nth-child(n+3)]:border-t`}
+    >
       <div className="flex items-center gap-2.5 px-3 py-2">
         {/* 상태 동그라미 */}
         <span
