@@ -373,10 +373,13 @@ export async function addStudent(_prev: FormResult, formData: FormData): Promise
   const academy = await requireAcademy();
   const parsed = readStudentForm(formData);
   if ("error" in parsed) return { ok: false, message: parsed.error! };
+  if (formData.get("consent") !== "on") {
+    return { ok: false, message: "학부모님께 개인정보 수집·문자 수신 동의를 받은 뒤 체크해 주세요." };
+  }
 
   const [created] = await db
     .insert(students)
-    .values({ academyId: academy.id, ...parsed.data })
+    .values({ academyId: academy.id, ...parsed.data, consentAt: new Date() })
     .returning({ id: students.id });
   await setStudentClasses(academy.id, created.id, parsed.classIds);
   revalidatePath("/students");

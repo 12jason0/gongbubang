@@ -91,7 +91,11 @@ function useStudentForm(
 
 // onClose 없으면 닫기 버튼 없음 (PC 오른쪽에 늘 떠 있는 폼)
 function AddForm({ onClose, classes }: { onClose?: () => void; classes: C[] }) {
-  const { res, pending, onSubmit } = useStudentForm(addStudent, (form) => form.reset());
+  const [consent, setConsent] = useState(false);
+  const { res, pending, onSubmit } = useStudentForm(addStudent, (form) => {
+    form.reset();
+    setConsent(false); // 다음 학생도 동의를 따로 받았는지 확인
+  });
 
   return (
     <form onSubmit={onSubmit} className="mb-3 rounded-2xl bg-white p-4 ring-2 ring-gold/60">
@@ -104,11 +108,29 @@ function AddForm({ onClose, classes }: { onClose?: () => void; classes: C[] }) {
         )}
       </div>
       <StudentFields classes={classes} />
+      <label className="mt-3 flex cursor-pointer items-start gap-2.5 rounded-xl bg-gold-soft px-3 py-2.5 text-[13px] text-[#6b5428]">
+        <input
+          type="checkbox"
+          name="consent"
+          checked={consent}
+          onChange={(e) => setConsent(e.target.checked)}
+          className="mt-0.5 h-5 w-5 shrink-0 accent-brand"
+        />
+        <span>
+          <b>학부모님께 개인정보 수집·문자 수신 동의를 받았어요</b>
+          <span className="mt-0.5 block text-[12px] text-[#8a6d35]">
+            동의 안내 문구는 설정 화면에서 복사해 보낼 수 있어요 ·{" "}
+            <a href="/privacy" target="_blank" className="underline">
+              처리방침 보기
+            </a>
+          </span>
+        </span>
+      </label>
       <button
-        disabled={pending}
-        className="mt-3 w-full rounded-xl bg-brand py-3 text-[15px] font-semibold text-white disabled:opacity-60"
+        disabled={pending || !consent}
+        className="mt-3 w-full rounded-xl bg-brand py-3 text-[15px] font-semibold text-white disabled:opacity-40"
       >
-        {pending ? "추가 중…" : "추가"}
+        {pending ? "추가 중…" : consent ? "추가" : "동의를 받았으면 위에 체크해 주세요"}
       </button>
       <Result r={res} />
     </form>

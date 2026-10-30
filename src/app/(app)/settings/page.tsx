@@ -4,6 +4,7 @@ import { isTestMode } from "@/lib/sms";
 import { formatPhone } from "@/lib/phone";
 import { SettingsForm } from "@/components/SettingsForm";
 import { PageTitle } from "@/components/PageTitle";
+import { ConsentNotice } from "@/components/ConsentNotice";
 import { logout } from "../../actions";
 
 export default async function SettingsPage() {
@@ -24,6 +25,10 @@ export default async function SettingsPage() {
           registrationNo: academy.registrationNo,
         }}
       />
+
+      <div className="mt-3">
+        <ConsentNotice academyId={academy.id} academyName={academy.name} />
+      </div>
 
       <section className="mt-3 rounded-2xl bg-white p-4 text-sm ring-1 ring-black/5">
         <div className="flex items-center justify-between">

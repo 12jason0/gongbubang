@@ -5,7 +5,9 @@ import { SESSION_COOKIE, verifyToken } from "@/lib/token";
 export async function proxy(request: NextRequest) {
   const academyId = await verifyToken(request.cookies.get(SESSION_COOKIE)?.value);
   const isLogin = request.nextUrl.pathname === "/login";
+  const isPublic = request.nextUrl.pathname === "/privacy"; // 학부모님도 보는 개인정보 처리방침
 
+  if (isPublic) return NextResponse.next();
   if (!academyId && !isLogin) {
     return NextResponse.redirect(new URL("/login", request.url));
   }

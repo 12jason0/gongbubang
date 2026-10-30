@@ -31,6 +31,7 @@ export const students = pgTable(
     grade: text("grade").notNull(), // 예: 초5, 중2
     parentPhone: text("parent_phone").notNull(), // 숫자만. 예: 01012345678
     birthDate: text("birth_date"), // 생년월일 "2014-03-02" (선택, 영수증 원부용)
+    consentAt: timestamp("consent_at", { withTimezone: true }), // 원장님이 "학부모 동의 받았어요"를 체크한 시각 (추가할 때)
     active: boolean("active").notNull().default(true), // 그만둔 학생은 false (기록은 남김)
     createdAt: createdAt(),
   },
