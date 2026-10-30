@@ -1,8 +1,17 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { Send } from "lucide-react";
 import { sendNotice, type NoticeResult } from "@/app/actions";
+import { formatDateLabel, shiftDate, todayKST } from "@/lib/date";
+import { useToast } from "./Toast";
+
+// 자주 쓰는 공지 — 누르면 내일 날짜로 채우고 날짜 부분을 골라 둬서 바로 고쳐 쓰면 된다
+const PRESETS = [
+  { label: "휴원 안내", text: (d: string) => `${d}은 휴원입니다.\n보강 일정은 따로 안내드리겠습니다.` },
+  { label: "보강 안내", text: (d: string) => `${d} 오후 4시에 보강 수업이 있습니다.\n참석이 어려우시면 미리 연락 부탁드립니다.` },
+  { label: "시험 일정", text: (d: string) => `${d}부터 학교 시험 기간입니다.\n시험 대비 수업은 평소 시간에 진행합니다.` },
+];
 
 function bytes(text: string) {
   let n = 0;
@@ -22,6 +31,24 @@ export function NoticeForm({
   const [target, setTarget] = useState("all");
   const [content, setContent] = useState("");
   const [confirming, setConfirming] = useState(false);
+  const textRef = useRef<HTMLTextAreaElement>(null);
+  const toast = useToast();
+
+  function applyPreset(p: (typeof PRESETS)[number]) {
+    const before = content;
+    const date = formatDateLabel(shiftDate(todayKST(), 1)).replace(" (", "("); // "11월 1일(토)"
+    setContent(p.text(date));
+    setConfirming(false);
+    setRes(null);
+    // 날짜 부분을 선택해 둬서 바로 덮어쓰게
+    requestAnimationFrame(() => {
+      textRef.current?.focus();
+      textRef.current?.setSelectionRange(0, date.length);
+    });
+    if (before.trim()) {
+      toast({ text: `${p.label} 문구를 넣었어요`, sub: "쓰던 내용은 되돌리기로 살릴 수 있어요", undo: () => setContent(before) });
+    }
+  }
 
   function send() {
     const fd = new FormData();
@@ -60,7 +87,21 @@ export function NoticeForm({
       </div>
 
       <p className="mt-4 text-[13px] font-semibold text-slate-500">내용</p>
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        <span className="text-[12px] text-slate-400">자주 쓰는 문구</span>
+        {PRESETS.map((p) => (
+          <button
+            type="button"
+            key={p.label}
+            onClick={() => applyPreset(p)}
+            className="rounded-lg bg-gold-soft px-3 py-1.5 text-[13px] font-semibold text-[#8a6d35] active:bg-gold/30"
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
       <textarea
+        ref={textRef}
         value={content}
         onChange={(e) => setContent(e.target.value)}
         rows={4}
