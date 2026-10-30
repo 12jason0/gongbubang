@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, MessageSquare, Wallet } from "lucide-react";
+import { ChevronLeft, ChevronRight, MessageSquare, Printer, Wallet } from "lucide-react";
 import { and, desc, eq, gte, like, lt } from "drizzle-orm";
 import { db, attendance, messageLogs, students, payments, classes, classStudents } from "@/db";
 import { requireAcademy } from "@/lib/session";
-import { isValidMonth, shiftMonth, thisMonthKST, todayKST } from "@/lib/date";
+import { isValidMonth, quarterOf, shiftMonth, thisMonthKST, todayKST } from "@/lib/date";
 import { isLongMessage } from "@/lib/sms";
 import { formatWon } from "@/lib/money";
 import { byGradeName } from "@/lib/templates";
@@ -137,6 +137,12 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
             납부 {paidBy.size}명{unpaid > 0 && <span className="font-semibold text-rose-500"> · 미납 {unpaid}명</span>}
           </p>
         </div>
+        <Link
+          href={`/ledger?q=${quarterOf(`${month}-01`)}`}
+          className="ml-auto flex shrink-0 items-center gap-1 rounded-xl bg-brand-soft px-3 py-2 text-[13px] font-semibold text-brand"
+        >
+          <Printer size={15} /> 영수증 원부
+        </Link>
       </section>
 
       <section className="mt-3 rounded-2xl bg-white ring-1 ring-black/5 lg:col-start-1 lg:row-span-3 lg:row-start-1 lg:mt-0">

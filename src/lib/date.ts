@@ -58,6 +58,26 @@ export function shiftDate(date: string, days: number): string {
   return t.toISOString().slice(0, 10);
 }
 
+// ── 분기 ── "2026-4" = 2026년 4분기 (10~12월)
+export function quarterOf(date: string): string {
+  return `${date.slice(0, 4)}-${Math.ceil(Number(date.slice(5, 7)) / 3)}`;
+}
+
+export function isValidQuarter(s: string | undefined): s is string {
+  return !!s && /^\d{4}-[1-4]$/.test(s);
+}
+
+/** "2026-4" → { from: "2026-10-01", to: "2027-01-01", months: ["2026-10","2026-11","2026-12"] } (to 는 포함 안 함) */
+export function quarterRange(q: string) {
+  const [y, n] = q.split("-").map(Number);
+  const first = `${y}-${String(n * 3 - 2).padStart(2, "0")}`;
+  return { from: `${first}-01`, to: `${shiftMonth(first, 3)}-01`, months: [0, 1, 2].map((i) => shiftMonth(first, i)) };
+}
+
+export function shiftQuarter(q: string, n: number): string {
+  return quarterOf(`${shiftMonth(quarterRange(q).from.slice(0, 7), n * 3)}-01`);
+}
+
 /** 월 앞/뒤로 "2026-10" → "2026-11" */
 export function shiftMonth(month: string, n: number): string {
   const [y, m] = month.split("-").map(Number);

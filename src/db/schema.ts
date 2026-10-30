@@ -14,6 +14,7 @@ export const academies = pgTable("academies", {
   loginId: text("login_id").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   senderPhone: text("sender_phone").notNull(), // 솔라피에 등록한 발신번호 (원장님 번호)
+  registrationNo: text("registration_no").notNull().default(""), // 개인과외교습자 신고번호 (영수증 원부용)
   // 문자 문구 — 원장님은 빈칸만 채우고, 학생 이름·시각·메모 자리는 코드가 정한다 (lib/templates.ts)
   attendanceEnding: text("attendance_ending").notNull().default("등원했습니다."), // 등원 문자 끝 문장
   attendanceExtra: text("attendance_extra").notNull().default(""), // 등원 문자 덧붙일 말 (선택)

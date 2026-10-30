@@ -432,7 +432,13 @@ export async function saveSettings(_prev: FormResult, formData: FormData): Promi
     return { ok: false, message: "덧붙일 말·마지막 인사는 60자 이내로 써 주세요." };
   }
 
-  await db.update(academies).set(wording).where(eq(academies.id, academy.id));
+  const registrationNo = field("registrationNo");
+  if (registrationNo.length > 40) return { ok: false, message: "신고번호를 확인해 주세요." };
+
+  await db
+    .update(academies)
+    .set({ ...wording, registrationNo })
+    .where(eq(academies.id, academy.id));
   revalidatePath("/", "layout");
   return { ok: true, message: "저장했어요. 다음 문자부터 바뀐 문구로 나가요." };
 }

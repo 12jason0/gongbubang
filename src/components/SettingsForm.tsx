@@ -71,13 +71,15 @@ function Preview({ text, auto }: { text: string; auto: string }) {
   );
 }
 
-export function SettingsForm({ initial }: { initial: MessageWording }) {
+type Settings = MessageWording & { registrationNo: string };
+
+export function SettingsForm({ initial }: { initial: Settings }) {
   const [w, setW] = useState(initial);
   const [res, setRes] = useState<FormResult>(null);
   const [pending, start] = useTransition();
-  const set = (k: keyof MessageWording) => (v: string) => setW((prev) => ({ ...prev, [k]: v }));
+  const set = (k: keyof Settings) => (v: string) => setW((prev) => ({ ...prev, [k]: v }));
 
-  const dirty = (Object.keys(initial) as (keyof MessageWording)[]).some((k) => w[k] !== initial[k]);
+  const dirty = (Object.keys(initial) as (keyof Settings)[]).some((k) => w[k] !== initial[k]);
   const shown = { ...w, name: w.name.trim() || "학원 이름" };
 
   function save() {
@@ -91,6 +93,14 @@ export function SettingsForm({ initial }: { initial: MessageWording }) {
       <section className="rounded-2xl bg-white p-4 ring-1 ring-black/5">
         <Field label="학원 이름 (문자 맨 앞 이름)" value={w.name} onChange={set("name")} max={20} />
         <p className="mt-1 text-[11px] text-slate-400">모든 문자 맨 앞 [ ] 안에 들어가요</p>
+        <Field
+          label="개인과외교습자 신고번호"
+          value={w.registrationNo}
+          onChange={set("registrationNo")}
+          placeholder="예: 제2026-1234호"
+          max={40}
+        />
+        <p className="mt-1 text-[11px] text-slate-400">교습비 영수증 원부(월별 화면에서 인쇄)에 들어가요</p>
       </section>
 
       <section className="rounded-2xl bg-white p-4 ring-1 ring-black/5">

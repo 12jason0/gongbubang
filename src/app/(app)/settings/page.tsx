@@ -21,6 +21,7 @@ export default async function SettingsPage() {
           attendanceExtra: academy.attendanceExtra,
           feedbackTitle: academy.feedbackTitle,
           feedbackClosing: academy.feedbackClosing,
+          registrationNo: academy.registrationNo,
         }}
       />
 

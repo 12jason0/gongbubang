@@ -30,6 +30,7 @@ export async function requireAcademy() {
       id: academies.id,
       name: academies.name,
       senderPhone: academies.senderPhone,
+      registrationNo: academies.registrationNo,
       attendanceEnding: academies.attendanceEnding,
       attendanceExtra: academies.attendanceExtra,
       feedbackTitle: academies.feedbackTitle,
