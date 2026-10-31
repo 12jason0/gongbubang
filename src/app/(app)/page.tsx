@@ -5,7 +5,8 @@ import { db, students, attendance, notes, classes, classStudents } from "@/db";
 import { requireAcademy } from "@/lib/session";
 import { formatDateLabel, isValidDate, shiftDate, timeKST, todayKST } from "@/lib/date";
 import { byGradeName, byTimeName, parseDays, weekdayOf } from "@/lib/templates";
-import { AttendanceRow, type RowData } from "@/components/AttendanceRow";
+import type { RowData } from "@/components/AttendanceRow";
+import { AttendanceList } from "@/components/AttendanceList";
 import { FeedbackBar } from "@/components/FeedbackBar";
 import { SmsStatus } from "@/components/SmsStatus";
 import { LOW_BALANCE_WON, getBalanceWon, isTestMode } from "@/lib/sms";
@@ -67,10 +68,15 @@ export default async function AttendancePage({
   const attBy = new Map(attRows.map((a) => [a.studentId, a]));
   const noteBy = new Map(noteRows.map((n) => [n.studentId, n]));
 
-  const all: (RowData & { classIds: string[] })[] = studentRows.sort(byGradeName).map((s) => {
+  const all: (RowData & { classIds: string[]; startTime: string })[] = studentRows.sort(byGradeName).map((s) => {
     const a = attBy.get(s.id);
     const n = noteBy.get(s.id);
     const cids = classesOf.get(s.id) ?? [];
+    // 이 날 가장 이른 수업 시각 (정렬용, 없으면 맨 뒤)
+    const startTime = dayClasses
+      .filter((c) => cids.includes(c.id))
+      .map((c) => c.time || "99")
+      .sort()[0] ?? "99";
     // 이 날 수업 있는 반을 앞에
     const labels = cids
       .map((id) => classById.get(id))
@@ -83,6 +89,7 @@ export default async function AttendancePage({
       grade: s.grade,
       classLabel: labels.join(" · ") || "반 없음",
       classIds: cids,
+      startTime,
       status: (a?.status || null) as RowData["status"], // "" = 문자 나간 뒤 체크만 지운 줄
       notifiedTime: a?.notifiedAt ? timeKST(a.notifiedAt) : null,
       note: n?.content ?? "",
@@ -93,7 +100,10 @@ export default async function AttendancePage({
   const pick = (f: string) =>
     f === "all" ? all : f === "today" ? all.filter((r) => inDayClass(r.id)) : all.filter((r) => r.classIds.includes(f));
   // 수업 없는 날 출석한 학생도 "오늘 수업"에서 빠지지 않게
-  const rows = filter === "today" ? all.filter((r) => inDayClass(r.id) || r.status) : pick(filter);
+  const rows = (filter === "today" ? all.filter((r) => inDayClass(r.id) || r.status) : pick(filter)).sort(
+    // 체크 안 한 학생 먼저 → 그날 수업 이른 순 → 학년·이름 (화면을 열 때만 정렬, 누르는 동안은 고정)
+    (a, b) => Number(!!a.status) - Number(!!b.status) || a.startTime.localeCompare(b.startTime) || byGradeName(a, b),
+  );
 
   const present = rows.filter((r) => r.status === "PRESENT").length;
   const absent = rows.filter((r) => r.status === "ABSENT").length;
@@ -223,11 +233,7 @@ export default async function AttendancePage({
           </Link>
         </div>
       ) : rows.length === 0 ? null : (
-        <ul className="mt-2.5 divide-y divide-black/5 overflow-hidden rounded-2xl bg-white ring-1 ring-black/5 lg:grid lg:grid-cols-2 lg:divide-y-0">
-          {rows.map((r) => (
-            <AttendanceRow key={`${r.id}-${date}-${r.noteSentTime ?? ""}`} row={r} date={date} />
-          ))}
-        </ul>
+        <AttendanceList key={`${date}-${filter}`} rows={rows} date={date} />
       )}
       <div className="h-20" />
 

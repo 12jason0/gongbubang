@@ -12,6 +12,7 @@ import { attendanceText, feedbackText, noticeText, parseDays } from "@/lib/templ
 import { isValidDate, isValidMonth, spokenTimeKST, todayKST } from "@/lib/date";
 import { isPaymentMethod, parseWon } from "@/lib/money";
 import { isValidMobile, normalizePhone } from "@/lib/phone";
+import { parseRoster, rosterKey, ROSTER_MAX_LINES } from "@/lib/roster";
 
 // ───────────────────────── 로그인 ─────────────────────────
 
@@ -407,6 +408,76 @@ export async function updateStudent(_prev: FormResult, formData: FormData): Prom
 }
 
 /** 그만둔 학생은 지우지 않고 숨김 (지난 출결 기록 보존) */
+/**
+ * 명단 붙여넣기로 여러 명 한 번에 추가.
+ * - 줄 해석은 화면 미리보기와 같은 parseRoster 를 다시 돌린다 (화면 값을 믿지 않음)
+ * - 오류 줄은 건너뛰고, 이미 등록된 학생(이름+학부모 번호, 그만둔 학생 포함)도 건너뜀
+ * - 고른 반은 추가되는 학생 모두에게 배정
+ */
+export async function addStudentsBulk(_prev: FormResult, formData: FormData): Promise<FormResult> {
+  const academy = await requireAcademy();
+  if (formData.get("consent") !== "on") {
+    return { ok: false, message: "학부모님께 개인정보 수집·문자 수신 동의를 받은 뒤 체크해 주세요." };
+  }
+  const rows = parseRoster(String(formData.get("roster") ?? ""));
+  if (rows.length > ROSTER_MAX_LINES) return { ok: false, message: `한 번에 ${ROSTER_MAX_LINES}명까지 넣을 수 있어요.` };
+  const okRows = rows.filter((r) => r.ok);
+  if (okRows.length === 0) return { ok: false, message: "추가할 수 있는 학생이 없어요. 빨간 줄을 확인해 주세요." };
+
+  const existing = await db
+    .select({ name: students.name, parentPhone: students.parentPhone })
+    .from(students)
+    .where(eq(students.academyId, academy.id));
+  const have = new Set(existing.map((s) => rosterKey(s.name, s.parentPhone)));
+  const fresh = okRows.filter((r) => !have.has(rosterKey(r.name, r.parentPhone)));
+  const skippedDup = okRows.length - fresh.length;
+  const skippedErr = rows.length - okRows.length;
+
+  if (fresh.length > 0) {
+    const classIds = formData.getAll("classIds").map(String);
+    const validClasses = classIds.length
+      ? await db
+          .select({ id: classes.id })
+          .from(classes)
+          .where(and(eq(classes.academyId, academy.id), inArray(classes.id, classIds)))
+      : [];
+    const consentAt = new Date();
+
+    await db.transaction(async (tx) => {
+      const created = await tx
+        .insert(students)
+        .values(
+          fresh.map((r) => ({
+            academyId: academy.id,
+            name: r.name,
+            grade: r.grade,
+            parentPhone: r.parentPhone,
+            birthDate: r.birthDate,
+            consentAt,
+          })),
+        )
+        .returning({ id: students.id });
+      if (validClasses.length) {
+        await tx
+          .insert(classStudents)
+          .values(created.flatMap((s) => validClasses.map((c) => ({ classId: c.id, studentId: s.id }))));
+      }
+    });
+    revalidatePath("/students");
+    revalidatePath("/");
+  }
+
+  const skipped = [
+    skippedDup ? `이미 있는 학생 ${skippedDup}명` : "",
+    skippedErr ? `확인이 필요한 줄 ${skippedErr}개` : "",
+  ].filter(Boolean);
+  if (fresh.length === 0) return { ok: false, message: `새로 추가할 학생이 없어요 (${skipped.join(", ")}).` };
+  return {
+    ok: true,
+    message: `${fresh.length}명을 추가했어요.${skipped.length ? ` 건너뜀: ${skipped.join(", ")}` : ""}`,
+  };
+}
+
 export async function setStudentActive(studentId: string, active: boolean) {
   const academy = await requireAcademy();
   await db
