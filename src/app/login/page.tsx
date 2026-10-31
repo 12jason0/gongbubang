@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, type FormEvent } from "react";
+import Link from "next/link";
 import { ClipboardCheck } from "lucide-react";
 import { login } from "../actions";
 
@@ -26,7 +27,7 @@ export default function LoginPage() {
         <ClipboardCheck size={28} />
       </span>
       <h1 className="mt-5 text-[28px] font-bold tracking-tight">출석부</h1>
-      <p className="mt-1 text-[15px] text-slate-500">출석만 누르면 학부모님께 문자가 가요</p>
+      <p className="mt-1 text-[15px] text-slate-500">출석만 누르면 학부모님께 카톡이 가요</p>
 
       <form onSubmit={onSubmit} className="mt-8 space-y-2.5">
         <input name="loginId" autoComplete="username" placeholder="아이디" className={input} />
@@ -40,6 +41,13 @@ export default function LoginPage() {
           {pending ? "확인 중…" : "로그인"}
         </button>
       </form>
+
+      <p className="mt-6 text-center text-[14px] text-slate-500">
+        처음이세요?{" "}
+        <Link href="/signup" className="font-semibold text-brand underline">
+          2주 무료로 시작하기
+        </Link>
+      </p>
     </main>
   );
 }

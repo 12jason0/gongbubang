@@ -1,4 +1,7 @@
-import { LogOut } from "lucide-react";
+import Link from "next/link";
+import { ChevronRight, CreditCard, LogOut } from "lucide-react";
+import { planState, formatUntil } from "@/lib/plan";
+import { formatWon } from "@/lib/money";
 import { requireAcademy } from "@/lib/session";
 import { isTestMode, usesAlimtalk } from "@/lib/sms";
 import { ALIMTALK_TEMPLATES } from "@/lib/alimtalk";
@@ -20,6 +23,24 @@ export default async function SettingsPage() {
   return (
     <main className="px-3 pt-4 md:max-w-2xl">
       <PageTitle title="설정" sub="학원 이름과 학부모님께 가는 문자 문구" />
+
+      <Link href="/billing" className="mb-3 flex items-center gap-3 rounded-2xl bg-white p-4 ring-1 ring-black/5">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand text-gold">
+          <CreditCard size={19} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] font-semibold">이용권·충전</span>
+          <span className="block truncate text-[13px] text-slate-500">
+            {(() => {
+              const st = planState(academy);
+              const period =
+                st.kind === "UNLIMITED" ? "기한 없음" : st.kind === "EXPIRED" ? "이용 기간 끝남" : `${formatUntil(st.until)}까지`;
+              return `${period} · 충전금 ${formatWon(academy.creditWon)}`;
+            })()}
+          </span>
+        </span>
+        <ChevronRight size={18} className="shrink-0 text-slate-300" />
+      </Link>
 
       <SettingsForm
         initial={{

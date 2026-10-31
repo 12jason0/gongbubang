@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
-import { and, eq, isNull } from "drizzle-orm";
-import { db, messageLogs } from "@/db";
+import { and, eq, gte, isNull, sql } from "drizzle-orm";
+import { db, messageLogs, academies, creditLedger } from "@/db";
+import { MESSAGE_PRICE } from "./pricing";
 import { alimtalkConfig, renderAlimtalk, solapiVariables, type AlimtalkKey, type AlimtalkVars } from "./alimtalk";
 
 /**
@@ -62,6 +63,49 @@ function prepare(m: Outgoing): Prepared {
   return { channel: "SMS", to: m.to, text: m.text };
 }
 
+// ───── 충전금 ─────
+
+const KIND_LABEL: Record<MessageKind, string> = { ATTENDANCE: "등원", FEEDBACK: "피드백", NOTICE: "공지", PAYMENT: "원비 안내" };
+
+/** 한 통에 차감할 금액(원) */
+export function priceOf(m: { channel: Channel; text: string }) {
+  if (m.channel === "ALIMTALK") return MESSAGE_PRICE.ALIMTALK;
+  return isLongMessage(m.text) ? MESSAGE_PRICE.LMS : MESSAGE_PRICE.SMS;
+}
+
+/** 테스트 모드(솔라피 키 없음)에서는 실제로 안 나가니 차감도 안 함. 로컬 시험용으로 CHARGE_IN_TEST_MODE=true 면 차감 */
+export function shouldCharge() {
+  return !isTestMode() || process.env.CHARGE_IN_TEST_MODE === "true";
+}
+
+/** 잔액이 충분할 때만 한 번에 빼고 내역을 남긴다. 모자라면 false (아무것도 안 뺌) */
+export async function takeCredit(academyId: string, won: number, memo: string): Promise<boolean> {
+  if (won <= 0) return true;
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(academies)
+      .set({ creditWon: sql`${academies.creditWon} - ${won}` })
+      .where(and(eq(academies.id, academyId), gte(academies.creditWon, won)))
+      .returning({ balance: academies.creditWon });
+    if (!row) return false;
+    await tx.insert(creditLedger).values({ academyId, amount: -won, balanceAfter: row.balance, kind: "USE", memo });
+    return true;
+  });
+}
+
+/** 충전금 넣기 (충전·환불·관리자 조정) */
+export async function addCredit(academyId: string, won: number, kind: "CHARGE" | "REFUND" | "ADMIN", memo: string) {
+  if (won === 0) return;
+  await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(academies)
+      .set({ creditWon: sql`${academies.creditWon} + ${won}` })
+      .where(eq(academies.id, academyId))
+      .returning({ balance: academies.creditWon });
+    if (row) await tx.insert(creditLedger).values({ academyId, amount: won, balanceAfter: row.balance, kind, memo });
+  });
+}
+
 /** 이 종류가 지금 알림톡으로 나가는지 (화면 표시용) */
 export function usesAlimtalk(key: AlimtalkKey) {
   return alimtalkConfig(key) !== null;
@@ -79,12 +123,23 @@ export async function sendMessages(
   if (messages.length === 0) return [];
 
   const prepared = messages.map(prepare);
+  const prices = prepared.map(priceOf);
+  const charge = shouldCharge();
+  const total = prices.reduce((a, b) => a + b, 0);
   let results: SendResult[];
 
-  if (isTestMode()) {
+  if (charge && !(await takeCredit(academy.id, total, `${KIND_LABEL[kind]} ${messages.length}건`))) {
+    // 충전금이 모자라면 한 통도 안 보냄 (실패로 남아서 충전 후 "다시 보내기" 가능)
+    const error = `충전금이 부족해요 (필요 ${total.toLocaleString("ko-KR")}원) — 설정 › 이용권·충전에서 충전해 주세요`;
+    results = messages.map(() => ({ ok: false, test: false, error }));
+  } else if (isTestMode()) {
     results = messages.map(() => ({ ok: true, test: true }));
   } else {
     results = await callSolapi(academy.senderPhone, prepared);
+    // 접수 단계에서 실패한 건은 돌려줌
+    const refund = prices.filter((_, i) => !results[i].ok).reduce((a, b) => a + b, 0);
+    const failedN = results.filter((r) => !r.ok).length;
+    if (charge && refund > 0) await addCredit(academy.id, refund, "REFUND", `${KIND_LABEL[kind]} 실패 ${failedN}건`);
   }
 
   await db.insert(messageLogs).values(

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db, academies } from "@/db";
 import { SESSION_COOKIE, SESSION_MAX_AGE, signToken, verifyToken } from "./token";
+import { isActive } from "./plan";
 
 export async function createSession(academyId: string) {
   // https 로 접속했을 때만 secure (내 컴퓨터에서 http 로 테스트할 때도 로그인되게)
@@ -35,6 +36,9 @@ export async function requireAcademy() {
       attendanceExtra: academies.attendanceExtra,
       feedbackTitle: academies.feedbackTitle,
       feedbackClosing: academies.feedbackClosing,
+      serviceUntil: academies.serviceUntil,
+      plan: academies.plan,
+      creditWon: academies.creditWon,
     })
     .from(academies)
     .where(eq(academies.id, academyId));
@@ -43,3 +47,13 @@ export async function requireAcademy() {
 }
 
 export type CurrentAcademy = Awaited<ReturnType<typeof requireAcademy>>;
+
+/**
+ * 바꾸는 동작(출석·발송·학생 추가 등)용. 이용 기간이 끝났으면 결제 화면으로 보낸다.
+ * 보기·원부 인쇄·설정·결제는 기간이 끝나도 되게 requireAcademy 를 그대로 쓴다.
+ */
+export async function requireActiveAcademy() {
+  const academy = await requireAcademy();
+  if (!isActive(academy)) redirect("/billing?expired=1");
+  return academy;
+}

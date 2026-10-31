@@ -9,7 +9,7 @@ import type { RowData } from "@/components/AttendanceRow";
 import { AttendanceList } from "@/components/AttendanceList";
 import { FeedbackBar } from "@/components/FeedbackBar";
 import { SmsStatus } from "@/components/SmsStatus";
-import { LOW_BALANCE_WON, getBalanceWon, isTestMode } from "@/lib/sms";
+import { isTestMode } from "@/lib/sms";
 import { countFailedMessages } from "@/lib/failed";
 
 const DAY_BTN = "flex h-11 w-[72px] items-center gap-0.5 rounded-xl px-1 text-[13px] text-slate-500 active:bg-black/5";
@@ -26,7 +26,7 @@ export default async function AttendancePage({
   const isToday = date === today;
   const weekday = weekdayOf(date);
 
-  const [studentRows, classRows, memberRows, attRows, noteRows, balance, failed] = await Promise.all([
+  const [studentRows, classRows, memberRows, attRows, noteRows, failed] = await Promise.all([
     db
       .select()
       .from(students)
@@ -42,7 +42,6 @@ export default async function AttendancePage({
       .where(eq(classes.academyId, academy.id)),
     db.select().from(attendance).where(and(eq(attendance.academyId, academy.id), eq(attendance.date, date))),
     db.select().from(notes).where(and(eq(notes.academyId, academy.id), eq(notes.date, date))),
-    getBalanceWon(),
     countFailedMessages(academy.id),
   ]);
 
@@ -138,7 +137,8 @@ export default async function AttendancePage({
 
   return (
     <main className="px-3 pt-3">
-      <SmsStatus testMode={isTestMode()} balance={balance} low={balance !== null && balance < LOW_BALANCE_WON} failed={failed} />
+      {/* 충전금 부족은 맨 위 PlanBanner 가 알려줌 (솔라피 잔액은 두나가 관리) */}
+      <SmsStatus testMode={isTestMode()} balance={null} low={false} failed={failed} />
 
       {isToday && rows.length > 0 && (
         <p className="mb-2 flex items-center gap-2 rounded-xl bg-white px-3.5 py-2.5 text-[15px] font-medium ring-1 ring-black/5">

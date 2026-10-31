@@ -1,5 +1,8 @@
 import { requireAcademy } from "@/lib/session";
-import { isTestMode } from "@/lib/sms";
+import { isTestMode, shouldCharge } from "@/lib/sms";
+import { planState } from "@/lib/plan";
+import { LOW_CREDIT_WON } from "@/lib/pricing";
+import { PlanBanner } from "@/components/PlanBanner";
 import { BottomNav, SideNav } from "@/components/BottomNav";
 import { ToastProvider } from "@/components/Toast";
 
@@ -25,6 +28,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <SideNav academyName={academy.name} testMode={testMode} />
       {/* PC에서는 본문을 넓게, 너무 퍼지지 않게 가운데 */}
       <div className="md:mx-auto md:max-w-6xl md:px-5 md:pt-4">
+        <PlanBanner
+          state={planState(academy)}
+          credit={academy.creditWon}
+          lowCredit={shouldCharge() && academy.creditWon < LOW_CREDIT_WON}
+        />
         <ToastProvider>{children}</ToastProvider>
       </div>
       <BottomNav />

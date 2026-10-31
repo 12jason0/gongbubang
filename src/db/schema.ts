@@ -20,6 +20,11 @@ export const academies = pgTable("academies", {
   attendanceExtra: text("attendance_extra").notNull().default(""), // 등원 문자 덧붙일 말 (선택)
   feedbackTitle: text("feedback_title").notNull().default("오늘 수업 피드백"), // 피드백 문자 첫 줄
   feedbackClosing: text("feedback_closing").notNull().default(""), // 피드백 문자 마지막 인사 (선택)
+  // 이용 기간·결제
+  ownerPhone: text("owner_phone").notNull().default(""), // 원장님 연락처 (가입 때 입력, 두나가 연락용)
+  serviceUntil: timestamp("service_until", { withTimezone: true }), // 이 시각까지 사용 가능. null = 기한 없음(관리자·데모 계정)
+  plan: text("plan").notNull().default("TRIAL"), // TRIAL(무료 체험) / PAID(이용권 결제한 적 있음)
+  creditWon: integer("credit_won").notNull().default(0), // 카톡·문자 충전금 잔액(원). 발송할 때마다 차감
   createdAt: createdAt(),
 });
 
@@ -155,6 +160,38 @@ export const messageLogs = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index("message_logs_academy_idx").on(t.academyId, t.createdAt)],
+);
+
+// 충전금 내역 — 충전(+) / 발송 차감(-) / 실패 환불(+) / 관리자 조정
+export const creditLedger = pgTable(
+  "credit_ledger",
+  {
+    id: id(),
+    academyId: text("academy_id").notNull().references(() => academies.id, { onDelete: "cascade" }),
+    amount: integer("amount").notNull(), // + 들어옴 / - 나감 (원)
+    balanceAfter: integer("balance_after").notNull(),
+    kind: text("kind").notNull(), // CHARGE / USE / REFUND / ADMIN
+    memo: text("memo").notNull().default(""), // 예: "등원 3건", "카드 충전"
+    createdAt: createdAt(),
+  },
+  (t) => [index("credit_ledger_academy_idx").on(t.academyId, t.createdAt)],
+);
+
+// 결제 주문 (토스페이먼츠). id 가 그대로 토스 orderId
+export const orders = pgTable(
+  "orders",
+  {
+    id: id(),
+    academyId: text("academy_id").notNull().references(() => academies.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(), // SUBSCRIPTION(1개월 이용권) / CREDIT(충전금)
+    amount: integer("amount").notNull(), // 결제 금액(원). 승인할 때 토스가 돌려준 금액과 같아야 함
+    status: text("status").notNull().default("READY"), // READY → CONFIRMING → DONE / FAILED
+    paymentKey: text("payment_key"),
+    failReason: text("fail_reason"),
+    createdAt: createdAt(),
+    doneAt: timestamp("done_at", { withTimezone: true }),
+  },
+  (t) => [index("orders_academy_idx").on(t.academyId, t.createdAt)],
 );
 
 export type Student = typeof students.$inferSelect;

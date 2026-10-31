@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import { db, academies, students, attendance, notes, notices, classes, classStudents, payments, messageLogs } from "@/db";
-import { createSession, deleteSession, requireAcademy } from "@/lib/session";
+import { createSession, deleteSession, requireAcademy, requireActiveAcademy } from "@/lib/session";
 import { sendMessages, smsBytes } from "@/lib/sms";
 import { unresolvedFailures } from "@/lib/failed";
 import { attendanceText, feedbackText, monthLabel, noticeText, parseDays, paymentText } from "@/lib/templates";
@@ -14,6 +14,8 @@ import { feedbackLink } from "@/lib/alimtalk";
 import { isPaymentMethod, parseWon } from "@/lib/money";
 import { isValidMobile, normalizePhone } from "@/lib/phone";
 import { parseRoster, rosterKey, ROSTER_MAX_LINES } from "@/lib/roster";
+import { TRIAL_DAYS } from "@/lib/pricing";
+import { billingReady, createOrderRow, orderName, priceFor, type OrderKind } from "@/lib/billing";
 
 // ───────────────────────── 로그인 ─────────────────────────
 
@@ -33,6 +35,47 @@ export async function login(_prev: string | null, formData: FormData): Promise<s
 export async function logout() {
   await deleteSession();
   redirect("/login");
+}
+
+// ───────────────────────── 회원가입 (원장님이 직접) ─────────────────────────
+
+/**
+ * 가입하면 바로 로그인되고 무료 체험(TRIAL_DAYS일)이 시작된다.
+ * 카톡·문자는 체험 중에도 충전금에서 차감 (충전금 0원으로 시작).
+ * 문자 대체발송·문자 공지에 쓰는 발신번호는 공용 번호(DEFAULT_SENDER_PHONE) — 원장님 번호는 연락용으로만 보관.
+ */
+export async function signup(_prev: string | null, formData: FormData): Promise<string | null> {
+  const name = String(formData.get("name") ?? "").trim();
+  const loginId = String(formData.get("loginId") ?? "").trim().toLowerCase();
+  const password = String(formData.get("password") ?? "");
+  const ownerPhone = normalizePhone(String(formData.get("ownerPhone") ?? ""));
+
+  if (!name || name.length > 20) return "공부방 이름을 1~20자로 입력해 주세요.";
+  if (!/^[a-z0-9_]{4,20}$/.test(loginId)) return "아이디는 영문 소문자·숫자 4~20자로 만들어 주세요.";
+  if (password.length < 8) return "비밀번호는 8자 이상으로 만들어 주세요.";
+  if (!isValidMobile(ownerPhone)) return "원장님 휴대폰 번호를 확인해 주세요.";
+  if (formData.get("agree") !== "on") return "이용약관과 개인정보 처리방침에 동의해 주세요.";
+
+  const [taken] = await db.select({ id: academies.id }).from(academies).where(eq(academies.loginId, loginId));
+  if (taken) return "이미 쓰고 있는 아이디예요. 다른 아이디로 해 주세요.";
+
+  const [created] = await db
+    .insert(academies)
+    .values({
+      name,
+      loginId,
+      passwordHash: await bcrypt.hash(password, 10),
+      ownerPhone,
+      senderPhone: (process.env.DEFAULT_SENDER_PHONE ?? "").replace(/\D/g, ""),
+      plan: "TRIAL",
+      serviceUntil: new Date(Date.now() + TRIAL_DAYS * 86_400_000),
+    })
+    .onConflictDoNothing({ target: academies.loginId })
+    .returning({ id: academies.id });
+  if (!created) return "이미 쓰고 있는 아이디예요. 다른 아이디로 해 주세요.";
+
+  await createSession(created.id);
+  redirect("/students");
 }
 
 // ───────────────────────── 출석 ─────────────────────────
@@ -97,7 +140,7 @@ export async function setAttendance(
   date: string,
   status: "PRESENT" | "ABSENT" | null,
 ): Promise<{ ok: boolean; sms: SmsState; error?: string }> {
-  const academy = await requireAcademy();
+  const academy = await requireActiveAcademy();
   if (!isValidDate(date)) return { ok: false, sms: "none", error: "날짜가 올바르지 않아요." };
   const student = await getOwnStudent(academy.id, studentId);
   if (!student) return { ok: false, sms: "none", error: "학생을 찾을 수 없어요." };
@@ -151,7 +194,7 @@ export async function setAttendance(
 
 /** 메모 저장. 이미 학부모에게 보낸 메모는 고칠 수 없음 */
 export async function saveNote(studentId: string, date: string, content: string) {
-  const academy = await requireAcademy();
+  const academy = await requireActiveAcademy();
   if (!isValidDate(date)) return { ok: false, error: "날짜가 올바르지 않아요." };
   if (!(await getOwnStudent(academy.id, studentId))) return { ok: false, error: "학생을 찾을 수 없어요." };
 
@@ -176,7 +219,7 @@ export async function saveNote(studentId: string, date: string, content: string)
 
 /** 그날 아직 안 보낸 메모를 학부모들에게 한 번에 발송 */
 export async function sendFeedbacks(date: string) {
-  const academy = await requireAcademy();
+  const academy = await requireActiveAcademy();
   if (!isValidDate(date)) return { ok: false, sent: 0, failed: 0, test: false, error: "날짜가 올바르지 않아요." };
 
   // 보낼 메모를 먼저 "보냄"으로 찍어서 확보 (두 번 눌러도 중복 발송 안 됨)
@@ -233,7 +276,7 @@ export async function sendFeedbacks(date: string) {
  * - 공지: 실패한 번호로 같은 내용 다시
  */
 export async function resendFailedMessages() {
-  const academy = await requireAcademy();
+  const academy = await requireActiveAcademy();
   const logs = await db.select().from(messageLogs).where(unresolvedFailures(academy.id)).orderBy(messageLogs.createdAt);
 
   let sent = 0;
@@ -328,7 +371,7 @@ export async function resendFailedMessages() {
  * - 결제는 원장님이 지금처럼 결제선생 등으로 받음. 여기서는 안내만
  */
 export async function sendPaymentReminders(month: string, studentIds: string[]) {
-  const academy = await requireAcademy();
+  const academy = await requireActiveAcademy();
   if (!isValidMonth(month) || month > thisMonthKST()) return { ok: false, sent: 0, failed: 0, test: false, error: "이번 달까지만 안내할 수 있어요." };
   if (studentIds.length === 0) return { ok: false, sent: 0, failed: 0, test: false, error: "안내할 학생을 골라 주세요." };
 
@@ -365,7 +408,7 @@ export async function sendPaymentReminders(month: string, studentIds: string[]) 
 export type NoticeResult = { ok: boolean; message: string } | null;
 
 export async function sendNotice(_prev: NoticeResult, formData: FormData): Promise<NoticeResult> {
-  const academy = await requireAcademy();
+  const academy = await requireActiveAcademy();
   const target = String(formData.get("target") ?? "all"); // "all" 또는 반 id
   const content = String(formData.get("content") ?? "").trim();
 
@@ -457,7 +500,7 @@ async function setStudentClasses(academyId: string, studentId: string, classIds:
 }
 
 export async function addStudent(_prev: FormResult, formData: FormData): Promise<FormResult> {
-  const academy = await requireAcademy();
+  const academy = await requireActiveAcademy();
   const parsed = readStudentForm(formData);
   if ("error" in parsed) return { ok: false, message: parsed.error! };
   if (formData.get("consent") !== "on") {
@@ -475,7 +518,7 @@ export async function addStudent(_prev: FormResult, formData: FormData): Promise
 }
 
 export async function updateStudent(_prev: FormResult, formData: FormData): Promise<FormResult> {
-  const academy = await requireAcademy();
+  const academy = await requireActiveAcademy();
   const id = String(formData.get("id") ?? "");
   const parsed = readStudentForm(formData);
   if ("error" in parsed) return { ok: false, message: parsed.error! };
@@ -501,7 +544,7 @@ export async function updateStudent(_prev: FormResult, formData: FormData): Prom
  * - 고른 반은 추가되는 학생 모두에게 배정
  */
 export async function addStudentsBulk(_prev: FormResult, formData: FormData): Promise<FormResult> {
-  const academy = await requireAcademy();
+  const academy = await requireActiveAcademy();
   if (formData.get("consent") !== "on") {
     return { ok: false, message: "학부모님께 개인정보 수집·문자 수신 동의를 받은 뒤 체크해 주세요." };
   }
@@ -565,7 +608,7 @@ export async function addStudentsBulk(_prev: FormResult, formData: FormData): Pr
 }
 
 export async function setStudentActive(studentId: string, active: boolean) {
-  const academy = await requireAcademy();
+  const academy = await requireActiveAcademy();
   await db
     .update(students)
     .set({ active })
@@ -578,7 +621,7 @@ export async function setStudentActive(studentId: string, active: boolean) {
 
 /** 납부 기록 추가 (결제선생·카드·계좌이체·현금 모두 원장님이 직접 입력, 선납은 앞으로의 달로) */
 export async function addPayment(_prev: FormResult, formData: FormData): Promise<FormResult> {
-  const academy = await requireAcademy();
+  const academy = await requireActiveAcademy();
   const studentId = String(formData.get("studentId") ?? "");
   const paidOn = String(formData.get("paidOn") ?? "");
   const period = String(formData.get("period") ?? "");
@@ -604,7 +647,7 @@ export async function addPayment(_prev: FormResult, formData: FormData): Promise
 }
 
 export async function deletePayment(paymentId: string) {
-  const academy = await requireAcademy();
+  const academy = await requireActiveAcademy();
   await db.delete(payments).where(and(eq(payments.id, paymentId), eq(payments.academyId, academy.id)));
   revalidatePath("/stats");
 }
@@ -621,7 +664,7 @@ function readClassForm(formData: FormData) {
 }
 
 export async function addClass(_prev: FormResult, formData: FormData): Promise<FormResult> {
-  const academy = await requireAcademy();
+  const academy = await requireActiveAcademy();
   const parsed = readClassForm(formData);
   if ("error" in parsed) return { ok: false, message: parsed.error! };
   await db.insert(classes).values({ academyId: academy.id, ...parsed.data });
@@ -631,7 +674,7 @@ export async function addClass(_prev: FormResult, formData: FormData): Promise<F
 }
 
 export async function updateClass(_prev: FormResult, formData: FormData): Promise<FormResult> {
-  const academy = await requireAcademy();
+  const academy = await requireActiveAcademy();
   const id = String(formData.get("id") ?? "");
   const parsed = readClassForm(formData);
   if ("error" in parsed) return { ok: false, message: parsed.error! };
@@ -648,7 +691,7 @@ export async function updateClass(_prev: FormResult, formData: FormData): Promis
 
 /** 반 삭제 — 학생과 출결 기록은 그대로, 반 배정만 사라짐 */
 export async function deleteClass(classId: string) {
-  const academy = await requireAcademy();
+  const academy = await requireActiveAcademy();
   await db.delete(classes).where(and(eq(classes.id, classId), eq(classes.academyId, academy.id)));
   revalidatePath("/students");
   revalidatePath("/");
@@ -687,4 +730,28 @@ export async function saveSettings(_prev: FormResult, formData: FormData): Promi
     .where(eq(academies.id, academy.id));
   revalidatePath("/", "layout");
   return { ok: true, message: "저장했어요. 다음 문자부터 바뀐 문구로 나가요." };
+}
+
+// ───────────────────────── 결제 (이용권·충전금) ─────────────────────────
+
+/**
+ * 결제창을 열기 전에 주문을 만든다. 금액은 서버가 정하고, 화면은 받은 값 그대로 결제창에 넘긴다.
+ * 이용 기간이 끝나도 결제는 돼야 하므로 requireAcademy.
+ */
+export async function createOrder(kind: OrderKind, requested: number) {
+  const academy = await requireAcademy();
+  if (!billingReady()) return { ok: false as const, error: "결제 준비 중이에요. 관리자에게 문의해 주세요." };
+  if (kind !== "SUBSCRIPTION" && kind !== "CREDIT") return { ok: false as const, error: "잘못된 요청이에요." };
+  const amount = priceFor(kind, requested);
+  if (!amount) return { ok: false as const, error: "충전 금액을 다시 골라 주세요." };
+
+  const orderId = await createOrderRow(academy.id, kind, amount);
+  return {
+    ok: true as const,
+    orderId,
+    amount,
+    orderName: orderName(kind, amount),
+    clientKey: process.env.TOSS_CLIENT_KEY!,
+    customerKey: academy.id,
+  };
 }
