@@ -57,13 +57,17 @@ function Field({
   );
 }
 
-function Preview({ text, auto }: { text: string; auto: string }) {
+function Preview({ text, auto, kakao }: { text: string; auto: string; kakao?: boolean }) {
   return (
     <div className="mt-4">
       <p className="mb-1.5 text-[11px] text-slate-400">
-        학부모님 휴대폰에는 이렇게 보여요 · {bytes(text) > 90 ? "장문" : "단문"}
+        학부모님 휴대폰에는 이렇게 보여요 · {kakao ? "카카오 알림톡" : bytes(text) > 90 ? "장문" : "단문"}
       </p>
-      <div className="max-w-[92%] rounded-2xl rounded-tl-md bg-slate-100 px-3.5 py-2.5 text-[14px] leading-relaxed whitespace-pre-wrap">
+      <div
+        className={`max-w-[92%] rounded-2xl rounded-tl-md px-3.5 py-2.5 text-[14px] leading-relaxed whitespace-pre-wrap ${
+          kakao ? "bg-[#fef01b]/25 ring-1 ring-[#fef01b]/60" : "bg-slate-100"
+        }`}
+      >
         {text}
       </div>
       <p className="mt-1.5 text-[12px] text-[#8a6d35]">{auto}</p>
@@ -73,7 +77,16 @@ function Preview({ text, auto }: { text: string; auto: string }) {
 
 type Settings = MessageWording & { registrationNo: string };
 
-export function SettingsForm({ initial }: { initial: Settings }) {
+/** 알림톡으로 나가는 종류의 템플릿 본문 (없으면 문자) — 서버에서 넘겨받음 */
+type KakaoBodies = { attendance?: string; feedback?: string };
+
+const fill = (body: string, vars: Record<string, string>) => body.replace(/#\{([^}]+)\}/g, (_, k: string) => vars[k] ?? "");
+
+function KakaoNote({ children }: { children: React.ReactNode }) {
+  return <p className="mt-3 rounded-xl bg-gold-soft px-3 py-2.5 text-[12px] leading-relaxed text-[#6b5428]">{children}</p>;
+}
+
+export function SettingsForm({ initial, kakao = {} }: { initial: Settings; kakao?: KakaoBodies }) {
   const [w, setW] = useState(initial);
   const [res, setRes] = useState<FormResult>(null);
   const [pending, start] = useTransition();
@@ -104,8 +117,22 @@ export function SettingsForm({ initial }: { initial: Settings }) {
       </section>
 
       <section className="rounded-2xl bg-white p-4 ring-1 ring-black/5">
-        <h2 className="text-[15px] font-bold">등원 문자</h2>
+        <h2 className="text-[15px] font-bold">등원 {kakao.attendance ? "알림" : "문자"}</h2>
         <p className="mt-0.5 text-[12px] text-slate-500">출석을 누르면 학부모님께 바로 가요</p>
+        {kakao.attendance ? (
+          <>
+            <KakaoNote>
+              카카오 알림톡은 카카오가 승인한 문구로만 보낼 수 있어서 등원 알림 문구는 고정이에요.
+              카톡이 없는 학부모님께는 같은 내용이 문자로 가요.
+            </KakaoNote>
+            <Preview
+              text={fill(kakao.attendance, { 학원: shown.name, 이름: SAMPLE.name, 시각: SAMPLE.time })}
+              auto="학원 이름·학생 이름·시각은 자동으로 들어가요"
+              kakao
+            />
+          </>
+        ) : (
+        <>
         <Field
           label="끝 문장"
           value={w.attendanceEnding}
@@ -122,11 +149,19 @@ export function SettingsForm({ initial }: { initial: Settings }) {
           max={60}
         />
         <Preview text={attendanceText(shown, SAMPLE.name, SAMPLE.time)} auto="학생 이름과 시각은 자동으로 들어가요" />
+        </>
+        )}
       </section>
 
       <section className="rounded-2xl bg-white p-4 ring-1 ring-black/5">
-        <h2 className="text-[15px] font-bold">수업 피드백 문자</h2>
+        <h2 className="text-[15px] font-bold">수업 피드백 {kakao.feedback ? "알림" : "문자"}</h2>
         <p className="mt-0.5 text-[12px] text-slate-500">출석부에서 &lsquo;피드백 보내기&rsquo;를 누르면 가요</p>
+        {kakao.feedback && (
+          <KakaoNote>
+            카카오 알림톡으로는 &ldquo;피드백이 도착했어요 + 주소&rdquo;만 가고, 학부모님이 주소를 누르면 메모 전체가 보여요.
+            아래 첫 줄·마지막 인사는 그 화면에 들어가요.
+          </KakaoNote>
+        )}
         <Field
           label="첫 줄"
           value={w.feedbackTitle}
@@ -142,7 +177,15 @@ export function SettingsForm({ initial }: { initial: Settings }) {
           placeholder="예: 궁금하신 점은 언제든 연락 주세요."
           max={60}
         />
-        <Preview text={feedbackText(shown, SAMPLE.name, SAMPLE.memo)} auto="학생 이름과 그날 수업 메모는 자동으로 들어가요" />
+        {kakao.feedback ? (
+          <Preview
+            text={fill(kakao.feedback, { 학원: shown.name, 이름: SAMPLE.name, 날짜: "10월 30일 (금)", 링크: "https://…/f/…" })}
+            auto="주소를 누르면 그날 수업 메모 전체가 화면으로 보여요"
+            kakao
+          />
+        ) : (
+          <Preview text={feedbackText(shown, SAMPLE.name, SAMPLE.memo)} auto="학생 이름과 그날 수업 메모는 자동으로 들어가요" />
+        )}
       </section>
 
       <button

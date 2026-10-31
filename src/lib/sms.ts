@@ -1,15 +1,19 @@
 import crypto from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { db, messageLogs } from "@/db";
+import { alimtalkConfig, renderAlimtalk, solapiVariables, type AlimtalkKey, type AlimtalkVars } from "./alimtalk";
 
 /**
  * 솔라피(https://solapi.com) 문자 발송
  * - SOLAPI_API_KEY / SOLAPI_API_SECRET 이 비어 있으면 "테스트 모드":
  *   실제 문자는 안 나가고 MessageLog 에 TEST 로만 남는다.
  * - 짧으면 단문(SMS), 90바이트(한글 약 45자)를 넘으면 솔라피가 자동으로 장문(LMS)으로 보낸다.
+ * - 메시지에 alimtalk 가 붙어 있고 그 종류의 템플릿 ID 가 설정돼 있으면 카카오 알림톡으로 보낸다 (lib/alimtalk.ts).
+ *   알림톡이 실패하면(카톡 없음 등) 솔라피가 같은 내용을 발신번호로 문자 대체 발송한다.
  */
 
-export type MessageKind = "ATTENDANCE" | "FEEDBACK" | "NOTICE";
+export type MessageKind = "ATTENDANCE" | "FEEDBACK" | "NOTICE" | "PAYMENT";
+export type Channel = "SMS" | "ALIMTALK";
 
 export type SendResult = { ok: boolean; test: boolean; error?: string };
 
@@ -37,7 +41,31 @@ function authHeader(apiKey: string, apiSecret: string) {
   return `HMAC-SHA256 apiKey=${apiKey}, date=${date}, salt=${salt}, signature=${signature}`;
 }
 
-type Outgoing = { to: string; text: string; studentId?: string | null; refDate?: string | null };
+type Outgoing = {
+  to: string;
+  text: string; // 문자로 보낼 때의 글
+  alimtalk?: { key: AlimtalkKey; vars: AlimtalkVars }; // 알림톡으로 보낼 수 있으면 이걸로
+  studentId?: string | null;
+  refDate?: string | null;
+};
+
+/** 실제로 나갈 모양: 알림톡 설정이 있으면 알림톡, 없으면 문자 */
+type Prepared =
+  | { channel: "SMS"; to: string; text: string }
+  | { channel: "ALIMTALK"; to: string; text: string; pfId: string; templateId: string; vars: AlimtalkVars };
+
+function prepare(m: Outgoing): Prepared {
+  const cfg = m.alimtalk ? alimtalkConfig(m.alimtalk.key) : null;
+  if (m.alimtalk && cfg) {
+    return { channel: "ALIMTALK", to: m.to, text: renderAlimtalk(m.alimtalk.key, m.alimtalk.vars), vars: m.alimtalk.vars, ...cfg };
+  }
+  return { channel: "SMS", to: m.to, text: m.text };
+}
+
+/** 이 종류가 지금 알림톡으로 나가는지 (화면 표시용) */
+export function usesAlimtalk(key: AlimtalkKey) {
+  return alimtalkConfig(key) !== null;
+}
 
 /**
  * 여러 통을 한 번에 보내고, 받는 사람별 성공/실패를 돌려준다.
@@ -50,12 +78,13 @@ export async function sendMessages(
 ): Promise<SendResult[]> {
   if (messages.length === 0) return [];
 
+  const prepared = messages.map(prepare);
   let results: SendResult[];
 
   if (isTestMode()) {
     results = messages.map(() => ({ ok: true, test: true }));
   } else {
-    results = await callSolapi(academy.senderPhone, messages);
+    results = await callSolapi(academy.senderPhone, prepared);
   }
 
   await db.insert(messageLogs).values(
@@ -64,7 +93,8 @@ export async function sendMessages(
       studentId: m.studentId ?? null,
       to: m.to,
       kind,
-      text: m.text,
+      channel: prepared[i].channel,
+      text: prepared[i].text,
       status: results[i].test ? "TEST" : results[i].ok ? "SENT" : "FAILED",
       error: results[i].error ?? null,
       refDate: m.refDate ?? null,
@@ -128,7 +158,19 @@ export async function getBalanceWon(): Promise<number | null> {
   return won;
 }
 
-async function callSolapi(from: string, messages: Outgoing[]): Promise<SendResult[]> {
+/** 솔라피 요청 본문의 메시지 한 통 (알림톡은 text 를 넣으면 안 됨 — variables 와 함께 못 씀) */
+export function solapiMessage(from: string, m: Prepared) {
+  if (m.channel === "ALIMTALK") {
+    return {
+      to: m.to,
+      from, // 알림톡 실패 시 이 번호로 문자 대체 발송 (솔라피에 등록된 번호여야 함)
+      kakaoOptions: { pfId: m.pfId, templateId: m.templateId, variables: solapiVariables(m.vars), disableSms: false },
+    };
+  }
+  return { to: m.to, from, text: m.text };
+}
+
+async function callSolapi(from: string, messages: Prepared[]): Promise<SendResult[]> {
   const apiKey = process.env.SOLAPI_API_KEY!;
   const apiSecret = process.env.SOLAPI_API_SECRET!;
 
@@ -140,7 +182,7 @@ async function callSolapi(from: string, messages: Outgoing[]): Promise<SendResul
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        messages: messages.map((m) => ({ to: m.to, from, text: m.text })),
+        messages: messages.map((m) => solapiMessage(from, m)),
       }),
     });
 

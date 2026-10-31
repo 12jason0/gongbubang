@@ -28,6 +28,16 @@ export function feedbackText(w: MessageWording, studentName: string, memo: strin
   return `[${w.name}] ${studentName} 학생 ${title}\n\n${memo.trim()}${closing ? `\n\n${closing}` : ""}`;
 }
 
+/** [현샘영수] 김하늘 학생 10월분 교습비 납부 안내드립니다. … (알림톡 PAYMENT 템플릿과 같은 내용의 문자판) */
+export function paymentText(academyName: string, studentName: string, monthLabel: string) {
+  return `[${academyName}] ${studentName} 학생의 ${monthLabel} 교습비 납부 안내드립니다. 이미 납부하셨다면 이 안내는 넘기셔도 됩니다.`;
+}
+
+/** "2026-10" → "10월분" */
+export function monthLabel(month: string) {
+  return `${Number(month.slice(5, 7))}월분`;
+}
+
 export function noticeText(academyName: string, content: string) {
   return `[${academyName}] ${content.trim()}`;
 }

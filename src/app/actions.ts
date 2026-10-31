@@ -8,8 +8,9 @@ import { db, academies, students, attendance, notes, notices, classes, classStud
 import { createSession, deleteSession, requireAcademy } from "@/lib/session";
 import { sendMessages, smsBytes } from "@/lib/sms";
 import { unresolvedFailures } from "@/lib/failed";
-import { attendanceText, feedbackText, noticeText, parseDays } from "@/lib/templates";
-import { isValidDate, isValidMonth, spokenTimeKST, todayKST } from "@/lib/date";
+import { attendanceText, feedbackText, monthLabel, noticeText, parseDays, paymentText } from "@/lib/templates";
+import { formatDateLabel, isValidDate, isValidMonth, spokenTimeKST, thisMonthKST, todayKST } from "@/lib/date";
+import { feedbackLink } from "@/lib/alimtalk";
 import { isPaymentMethod, parseWon } from "@/lib/money";
 import { isValidMobile, normalizePhone } from "@/lib/phone";
 import { parseRoster, rosterKey, ROSTER_MAX_LINES } from "@/lib/roster";
@@ -44,6 +45,44 @@ async function getOwnStudent(academyId: string, studentId: string) {
     .from(students)
     .where(and(eq(students.id, studentId), eq(students.academyId, academyId)));
   return s ?? null;
+}
+
+// ── 학부모님께 가는 메시지 한 통 (문자판 + 알림톡판). 어느 쪽으로 나갈지는 lib/sms.ts 가 정함 ──
+
+type Wording = Parameters<typeof attendanceText>[0];
+type StudentLite = { id: string; name: string; parentPhone: string };
+
+function attendanceMessage(academy: Wording, s: StudentLite, time: string, date: string) {
+  return {
+    to: s.parentPhone,
+    text: attendanceText(academy, s.name, time),
+    alimtalk: { key: "ATTENDANCE" as const, vars: { 학원: academy.name, 이름: s.name, 시각: time } },
+    studentId: s.id,
+    refDate: date,
+  };
+}
+
+function feedbackMessage(academy: Wording, s: StudentLite, note: { id: string; content: string; date: string }) {
+  return {
+    to: s.parentPhone,
+    text: feedbackText(academy, s.name, note.content),
+    alimtalk: {
+      key: "FEEDBACK" as const,
+      vars: { 학원: academy.name, 이름: s.name, 날짜: formatDateLabel(note.date), 링크: feedbackLink(note.id) },
+    },
+    studentId: s.id,
+    refDate: note.date,
+  };
+}
+
+function paymentMessage(academy: Wording, s: StudentLite, month: string) {
+  return {
+    to: s.parentPhone,
+    text: paymentText(academy.name, s.name, monthLabel(month)),
+    alimtalk: { key: "PAYMENT" as const, vars: { 학원: academy.name, 이름: s.name, 월: monthLabel(month) } },
+    studentId: s.id,
+    refDate: month,
+  };
 }
 
 /**
@@ -92,9 +131,7 @@ export async function setAttendance(
       .returning({ id: attendance.id });
 
     if (claimed.length === 1) {
-      const [result] = await sendMessages(academy, "ATTENDANCE", [
-        { to: student.parentPhone, text: attendanceText(academy, student.name, spokenTimeKST()), studentId, refDate: date },
-      ]);
+      const [result] = await sendMessages(academy, "ATTENDANCE", [attendanceMessage(academy, student, spokenTimeKST(), date)]);
       if (result.ok) {
         sms = result.test ? "test" : "sent";
       } else {
@@ -168,10 +205,7 @@ export async function sendFeedbacks(date: string) {
   const results = await sendMessages(
     academy,
     "FEEDBACK",
-    targets.map((n) => {
-      const s = byId.get(n.studentId)!;
-      return { to: s.parentPhone, text: feedbackText(academy, s.name, n.content), studentId: s.id, refDate: date };
-    }),
+    targets.map((n) => feedbackMessage(academy, byId.get(n.studentId)!, n)),
   );
 
   const failedIds = targets.filter((_, i) => !results[i].ok).map((n) => n.id);
@@ -229,13 +263,13 @@ export async function resendFailedMessages() {
             isNull(attendance.notifiedAt),
           ),
         )
-        .returning({ id: attendance.id });
+        .returning({ id: attendance.id, checkedAt: attendance.checkedAt });
       if (!row) {
         skipped++;
         continue;
       }
-      // 원래 문구 그대로 (처음 출석 누른 시각이 들어 있음)
-      const [r] = await sendMessages(academy, "ATTENDANCE", [{ to: student.parentPhone, text: log.text, studentId: student.id, refDate: today }]);
+      // 시각은 출석을 누른 그때 시각으로
+      const [r] = await sendMessages(academy, "ATTENDANCE", [attendanceMessage(academy, student, spokenTimeKST(row.checkedAt), today)]);
       if (r.ok) sent++;
       else {
         failed++;
@@ -252,14 +286,26 @@ export async function resendFailedMessages() {
         skipped++;
         continue;
       }
-      const [r] = await sendMessages(academy, "FEEDBACK", [
-        { to: student.parentPhone, text: feedbackText(academy, student.name, note.content), studentId: student.id, refDate: log.refDate },
-      ]);
+      const [r] = await sendMessages(academy, "FEEDBACK", [feedbackMessage(academy, student, note)]);
       if (r.ok) sent++;
       else {
         failed++;
         await db.update(notes).set({ sentAt: null }).where(eq(notes.id, note.id));
       }
+    } else if (log.kind === "PAYMENT" && student && log.refDate) {
+      // 그사이 납부했거나 그만둔 학생이면 안 보냄
+      const [paid] = await db
+        .select({ id: payments.id })
+        .from(payments)
+        .where(and(eq(payments.studentId, student.id), eq(payments.period, log.refDate)))
+        .limit(1);
+      if (paid || !student.active) {
+        skipped++;
+        continue;
+      }
+      const [r] = await sendMessages(academy, "PAYMENT", [paymentMessage(academy, student, log.refDate)]);
+      if (r.ok) sent++;
+      else failed++;
     } else if (log.kind === "NOTICE") {
       const [r] = await sendMessages(academy, "NOTICE", [{ to: log.to, text: log.text }]);
       if (r.ok) sent++;
@@ -272,6 +318,46 @@ export async function resendFailedMessages() {
   revalidatePath("/");
   revalidatePath("/stats");
   return { sent, failed, skipped };
+}
+
+// ───────────────────────── 원비 안내 (미납) ─────────────────────────
+
+/**
+ * 고른 학생들의 학부모님께 "○월분 교습비 납부 안내".
+ * - 이 공부방의 다니는 학생 + 그 달 납부 기록이 없는 학생에게만 (화면 목록을 믿지 않고 다시 확인)
+ * - 결제는 원장님이 지금처럼 결제선생 등으로 받음. 여기서는 안내만
+ */
+export async function sendPaymentReminders(month: string, studentIds: string[]) {
+  const academy = await requireAcademy();
+  if (!isValidMonth(month) || month > thisMonthKST()) return { ok: false, sent: 0, failed: 0, test: false, error: "이번 달까지만 안내할 수 있어요." };
+  if (studentIds.length === 0) return { ok: false, sent: 0, failed: 0, test: false, error: "안내할 학생을 골라 주세요." };
+
+  const targets = await db
+    .select()
+    .from(students)
+    .where(and(eq(students.academyId, academy.id), eq(students.active, true), inArray(students.id, studentIds)));
+  const paid = new Set(
+    (
+      await db
+        .select({ studentId: payments.studentId })
+        .from(payments)
+        .where(and(eq(payments.academyId, academy.id), eq(payments.period, month)))
+    ).map((p) => p.studentId),
+  );
+  const unpaid = targets.filter((s) => !paid.has(s.id));
+  if (unpaid.length === 0) return { ok: true, sent: 0, failed: 0, test: false };
+
+  const results = await sendMessages(academy, "PAYMENT", unpaid.map((s) => paymentMessage(academy, s, month)));
+  revalidatePath("/stats");
+  revalidatePath("/");
+  const failedN = results.filter((r) => !r.ok).length;
+  return {
+    ok: failedN === 0,
+    sent: unpaid.length - failedN,
+    failed: failedN,
+    test: results.some((r) => r.test),
+    error: results.find((r) => !r.ok)?.error,
+  };
 }
 
 // ───────────────────────── 단체 공지 ─────────────────────────

@@ -19,7 +19,8 @@ export const academies = pgTable("academies", {
   attendanceEnding: text("attendance_ending").notNull().default("등원했습니다."), // 등원 문자 끝 문장
   attendanceExtra: text("attendance_extra").notNull().default(""), // 등원 문자 덧붙일 말 (선택)
   feedbackTitle: text("feedback_title").notNull().default("오늘 수업 피드백"), // 피드백 문자 첫 줄
-  feedbackClosing: text("feedback_closing").notNull().default(""), // 피드백 문자 마지막 인사 (선택)  createdAt: createdAt(),
+  feedbackClosing: text("feedback_closing").notNull().default(""), // 피드백 문자 마지막 인사 (선택)
+  createdAt: createdAt(),
 });
 
 export const students = pgTable(
@@ -144,11 +145,12 @@ export const messageLogs = pgTable(
     academyId: text("academy_id").notNull().references(() => academies.id, { onDelete: "cascade" }),
     studentId: text("student_id"),
     to: text("to").notNull(),
-    kind: text("kind").notNull(), // ATTENDANCE / FEEDBACK / NOTICE
+    kind: text("kind").notNull(), // ATTENDANCE / FEEDBACK / NOTICE / PAYMENT(원비 안내)
+    channel: text("channel").notNull().default("SMS"), // SMS(문자) / ALIMTALK(카카오 알림톡, 실패 시 솔라피가 문자 대체 발송)
     text: text("text").notNull(),
     status: text("status").notNull(), // SENT / FAILED / TEST (솔라피 키 없을 때)
     error: text("error"),
-    refDate: text("ref_date"), // 등원·피드백 문자가 가리키는 출석부 날짜 "2026-10-30" (다시 보내기용)
+    refDate: text("ref_date"), // 등원·피드백: 출석부 날짜 "2026-10-30" / 원비 안내: 교습 월 "2026-10" (다시 보내기용)
     resolvedAt: timestamp("resolved_at", { withTimezone: true }), // 실패 문자를 다시 보냈거나 더 보낼 필요 없어진 시각
     createdAt: createdAt(),
   },

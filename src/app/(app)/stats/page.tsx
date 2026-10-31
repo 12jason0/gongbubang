@@ -1,15 +1,16 @@
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, MessageSquare, Printer, Wallet } from "lucide-react";
-import { and, desc, eq, gte, like, lt } from "drizzle-orm";
+import { and, desc, eq, gte, like, lt, ne } from "drizzle-orm";
 import { db, attendance, messageLogs, students, payments, classes, classStudents } from "@/db";
 import { requireAcademy } from "@/lib/session";
 import { isValidMonth, quarterOf, shiftMonth, thisMonthKST, todayKST } from "@/lib/date";
-import { isLongMessage } from "@/lib/sms";
+import { isLongMessage, usesAlimtalk } from "@/lib/sms";
 import { formatWon } from "@/lib/money";
-import { byGradeName } from "@/lib/templates";
+import { byGradeName, monthLabel } from "@/lib/templates";
 import { PaymentRow, type PaymentItem } from "@/components/PaymentRow";
+import { UnpaidReminder } from "@/components/UnpaidReminder";
 
-const KIND_LABEL: Record<string, string> = { ATTENDANCE: "등원", FEEDBACK: "피드백", NOTICE: "공지" };
+const KIND_LABEL: Record<string, string> = { ATTENDANCE: "등원", FEEDBACK: "피드백", NOTICE: "공지", PAYMENT: "원비 안내" };
 const NAV_BTN = "flex h-11 w-[84px] items-center gap-0.5 rounded-xl px-1.5 text-[13px] text-slate-500 active:bg-black/5";
 
 export default async function StatsPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
@@ -24,14 +25,14 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
   const from = new Date(`${month}-01T00:00:00+09:00`);
   const to = new Date(`${shiftMonth(month, 1)}-01T00:00:00+09:00`);
 
-  const [studentRows, attRows, logs, monthPayments, lastPayments, classRows] = await Promise.all([
+  const [studentRows, attRows, logs, monthPayments, lastPayments, classRows, reminders] = await Promise.all([
     db.select().from(students).where(eq(students.academyId, academy.id)),
     db
       .select({ studentId: attendance.studentId, status: attendance.status })
       .from(attendance)
       .where(and(eq(attendance.academyId, academy.id), like(attendance.date, `${month}-%`))),
     db
-      .select({ kind: messageLogs.kind, text: messageLogs.text, status: messageLogs.status })
+      .select({ kind: messageLogs.kind, channel: messageLogs.channel, text: messageLogs.text, status: messageLogs.status })
       .from(messageLogs)
       .where(and(eq(messageLogs.academyId, academy.id), gte(messageLogs.createdAt, from), lt(messageLogs.createdAt, to))),
     db
@@ -50,6 +51,19 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
       .from(classStudents)
       .innerJoin(classes, eq(classes.id, classStudents.classId))
       .where(eq(classes.academyId, academy.id)),
+    // 이 달 원비 안내를 보낸 기록 (실패 제외) — "10/31 안내함" 표시
+    db
+      .select({ studentId: messageLogs.studentId, createdAt: messageLogs.createdAt })
+      .from(messageLogs)
+      .where(
+        and(
+          eq(messageLogs.academyId, academy.id),
+          eq(messageLogs.kind, "PAYMENT"),
+          eq(messageLogs.refDate, month),
+          ne(messageLogs.status, "FAILED"),
+        ),
+      )
+      .orderBy(desc(messageLogs.createdAt)),
   ]);
 
   const paidBy = new Map<string, PaymentItem[]>();
@@ -78,10 +92,11 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
 
   // 문자 사용량 (월 관리비·문자비 계산 근거)
   const sentLogs = logs.filter((l) => l.status !== "FAILED");
-  const usage = { short: 0, long: 0, failed: logs.length - sentLogs.length };
+  const usage = { alimtalk: 0, short: 0, long: 0, failed: logs.length - sentLogs.length };
   const byKind: Record<string, number> = {};
   for (const l of sentLogs) {
-    if (isLongMessage(l.text)) usage.long++;
+    if (l.channel === "ALIMTALK") usage.alimtalk++;
+    else if (isLongMessage(l.text)) usage.long++;
     else usage.short++;
     byKind[l.kind] = (byKind[l.kind] ?? 0) + 1;
   }
@@ -89,7 +104,14 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
   const totalPresent = rows.reduce((n, r) => n + r.present, 0);
   const totalAbsent = rows.reduce((n, r) => n + r.absent, 0);
   const totalPaid = monthPayments.reduce((n, p) => n + p.tuition + p.otherFee, 0);
-  const unpaid = rows.filter((r) => r.active && !paidBy.has(r.id)).length;
+  const unpaidRows = rows.filter((r) => r.active && !paidBy.has(r.id));
+  const unpaid = unpaidRows.length;
+  const remindedOn = new Map<string, string>();
+  for (const r of reminders) {
+    if (!r.studentId || remindedOn.has(r.studentId)) continue;
+    const [, mm, dd] = todayKST(r.createdAt).split("-").map(Number);
+    remindedOn.set(r.studentId, `${mm}/${dd}`);
+  }
 
   return (
     <main className="px-3 pt-3">
@@ -113,7 +135,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
       </div>
 
       {/* PC: 왼쪽 학생 표, 오른쪽 합계·문자 사용량 (휴대폰 순서는 그대로) */}
-      <div className="lg:mt-2 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:grid-rows-[auto_auto_1fr] lg:items-start lg:gap-x-4 lg:gap-y-3">
+      <div className="lg:mt-2 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:grid-rows-[auto_auto_auto_1fr] lg:items-start lg:gap-x-4 lg:gap-y-3">
       <div className="mt-2 grid grid-cols-2 gap-2 lg:col-start-2 lg:row-start-1 lg:mt-0">
         <div className="rounded-2xl bg-white p-4 ring-1 ring-black/5">
           <p className="text-[11px] font-medium text-slate-400">이번 달 출석</p>
@@ -145,7 +167,18 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
         </Link>
       </section>
 
-      <section className="mt-3 rounded-2xl bg-white ring-1 ring-black/5 lg:col-start-1 lg:row-span-3 lg:row-start-1 lg:mt-0">
+      {unpaid > 0 && month <= current && (
+        <div className="lg:col-start-2 lg:row-start-3">
+          <UnpaidReminder
+            month={month}
+            label={monthLabel(month)}
+            via={usesAlimtalk("PAYMENT") ? "카카오 알림톡" : "문자"}
+            list={unpaidRows.map((r) => ({ id: r.id, name: r.name, grade: r.grade, remindedOn: remindedOn.get(r.id) ?? null }))}
+          />
+        </div>
+      )}
+
+      <section className="mt-3 rounded-2xl bg-white ring-1 ring-black/5 lg:col-start-1 lg:row-span-4 lg:row-start-1 lg:mt-0">
         <div className="flex px-4 pt-3 pb-2 text-[11px] font-medium text-slate-400">
           <span className="flex-1">학생 · 누르면 납부 기록</span>
           <span className="w-10 text-right">출석</span>
@@ -163,12 +196,13 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
         )}
       </section>
 
-      <section className="mt-3 flex items-center gap-3 rounded-2xl bg-white p-4 ring-1 ring-black/5 lg:col-start-2 lg:row-start-3 lg:mt-0">
+      <section className="mt-3 flex items-center gap-3 rounded-2xl bg-white p-4 ring-1 ring-black/5 lg:col-start-2 lg:row-start-4 lg:mt-0">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gold-soft text-[#8a6d35]">
           <MessageSquare size={19} />
         </span>
         <div className="min-w-0">
           <p className="text-[15px] font-semibold">
+            {usage.alimtalk > 0 && <>알림톡 {usage.alimtalk}건 · </>}
             문자 단문 {usage.short}건 · 장문 {usage.long}건
             {usage.failed > 0 && <span className="text-rose-500"> · 실패 {usage.failed}</span>}
           </p>
