@@ -5,6 +5,7 @@ import { shiftDate, thisMonthKST, timeKST, todayKST } from "@/lib/date";
 import { byTimeName, parseDays, weekdayOf } from "@/lib/templates";
 import { quotaNote, quotaState } from "@/lib/plan";
 import { beforeDue } from "@/lib/money";
+import { classHex } from "@/lib/class-colors";
 import type { DashboardData } from "@/lib/dashboard-example";
 import { Dashboard } from "@/components/Dashboard";
 
@@ -22,11 +23,19 @@ export default async function DashboardPage() {
   const [academy, studentRows, classRows, memberRows, attRows, monthPaid, lastPaid, [{ n: noticesThisWeek }], logRows] = await Promise.all([
     requireAcademy(),
     db
-      .select({ id: students.id, name: students.name, grade: students.grade, monthlyFee: students.monthlyFee, dueDay: students.dueDay })
+      .select({
+        id: students.id,
+        name: students.name,
+        grade: students.grade,
+        monthlyFee: students.monthlyFee,
+        dueDay: students.dueDay,
+        consent: students.consent,
+        requestedAt: students.consentRequestedAt,
+      })
       .from(students)
       .where(and(eq(students.academyId, academyId), eq(students.active, true))),
     db
-      .select({ id: classes.id, name: classes.name, days: classes.days, time: classes.time })
+      .select({ id: classes.id, name: classes.name, days: classes.days, time: classes.time, color: classes.color })
       .from(classes)
       .where(and(eq(classes.academyId, academyId), eq(classes.active, true))),
     db
@@ -105,6 +114,12 @@ export default async function DashboardPage() {
 
   const data: DashboardData = {
     studentCount: studentRows.length,
+    setup: {
+      students: studentRows.length > 0,
+      classes: classRows.length > 0,
+      // 동의 요청을 한 번이라도 보냈거나, 대기 중인 학부모가 없으면(종이로 받아 모두 동의) 끝
+      consent: studentRows.length > 0 && (studentRows.some((s) => s.requestedAt) || studentRows.every((s) => s.consent !== "PENDING")),
+    },
     today: { present: [...todayStudents].filter(isPresent).length, total: todayStudents.size },
     unpaid: {
       month,
@@ -124,7 +139,7 @@ export default async function DashboardPage() {
     classSizes: [...classRows].sort(byTimeName).map((c) => ({ id: c.id, name: c.name, count: membersOf(c.id).length })),
     todayClasses: dayClasses.map((c) => {
       const ids = membersOf(c.id);
-      return { id: c.id, name: c.name, time: c.time, present: ids.filter(isPresent).length, total: ids.length };
+      return { id: c.id, name: c.name, time: c.time, hex: classHex(c), present: ids.filter(isPresent).length, total: ids.length };
     }),
     unpaidList,
     recent: logRows.map((l) => ({

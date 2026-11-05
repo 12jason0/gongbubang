@@ -1,24 +1,108 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, BookOpen, CalendarCheck, ClipboardCheck, Megaphone, MessageCircle, UserPlus, Wallet, type LucideIcon } from "lucide-react";
+import { ArrowRight, BookOpen, CalendarCheck, CheckCircle2, Circle, Megaphone, MessageCircle, Wallet, X, type LucideIcon } from "lucide-react";
 import { formatWon } from "@/lib/money";
 import type { DashboardData } from "@/lib/dashboard-example";
+import { useSyncExternalStore } from "react";
 import { useOpenGuide } from "./Help";
 
 const PANEL = "glass rounded-[28px] p-5";
 const md = (date: string) => `${Number(date.slice(5, 7))}/${Number(date.slice(8))}`;
 
-function Go({ href, className, children }: { href: string; className?: string; children: React.ReactNode }) {
+function Go({ href, className, style, children }: { href: string; className?: string; style?: React.CSSProperties; children: React.ReactNode }) {
   return (
-    <Link href={href} className={`${className} transition hover:-translate-y-0.5 hover:bg-white/80`}>
+    <Link href={href} style={style} className={`${className} transition hover:-translate-y-0.5 hover:bg-white/80`}>
       {children}
     </Link>
   );
 }
 
-function Empty({ text }: { text: string }) {
-  return <p className="flex flex-1 items-center justify-center py-8 text-center text-[14px] text-slate-400">{text}</p>;
+/** 빈 칸: 안내 글 + 다음 할 일 버튼 */
+function Empty({ text, href, action }: { text: string; href?: string; action?: string }) {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-3 py-8 text-center text-[14px] text-slate-400">
+      {text}
+      {href && action && (
+        <Link href={href} className="flex items-center gap-1 rounded-full bg-brand px-4 py-2 text-[13.5px] font-semibold text-white hover:bg-brand/90">
+          {action} <ArrowRight size={14} aria-hidden />
+        </Link>
+      )}
+    </div>
+  );
+}
+
+const START_KEY = "gb_start_closed"; // "처음 시작하기"를 닫았으면 "1" (이 브라우저에만)
+const startListeners = new Set<() => void>();
+
+/** 대시보드 맨 위 "처음 시작하기" — 3가지를 다 하면 저절로 사라지고, [닫기]로 숨길 수도 있음 */
+function StartChecklist({ setup }: { setup: DashboardData["setup"] }) {
+  const openGuide = useOpenGuide();
+  const closed = useSyncExternalStore(
+    (cb) => {
+      startListeners.add(cb);
+      return () => startListeners.delete(cb);
+    },
+    () => localStorage.getItem(START_KEY) === "1",
+    () => true, // 서버에선 숨김 (깜빡임 방지)
+  );
+  const steps = [
+    { done: setup.students, title: "학생 등록", text: "이름·학년·학부모 번호. 엑셀 파일도 그대로 올릴 수 있어요", href: "/students", go: "학생 추가" },
+    { done: setup.classes, title: "반 만들기", text: "요일·시각을 적으면 출석부와 달력에 매주 나와요", href: "/students?tab=classes", go: "반 만들기" },
+    { done: setup.consent, title: "학부모 동의 요청", text: "동의한 학부모님께만 카톡이 가요. 첫 요청은 무료예요", href: "/students", go: "동의 요청" },
+  ];
+  const left = steps.filter((s) => !s.done).length;
+  if (closed || left === 0) return null;
+
+  return (
+    <section className={`${PANEL} p-6`} aria-label="처음 시작하기">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[18px] font-bold">처음 시작하기</p>
+          <p className="mt-0.5 text-[13.5px] text-slate-500">
+            3가지 중 {3 - left}가지 했어요 · 다 하면 이 칸은 저절로 사라져요
+          </p>
+        </div>
+        <div className="flex shrink-0 gap-2">
+          <button
+            type="button"
+            onClick={openGuide}
+            className="surface flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-semibold text-brand hover:bg-white"
+          >
+            <BookOpen size={15} aria-hidden /> 사용법 보기
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              localStorage.setItem(START_KEY, "1");
+              startListeners.forEach((f) => f());
+            }}
+            className="surface flex items-center gap-1 rounded-full px-3.5 py-2 text-[13px] font-semibold text-slate-500 hover:bg-white"
+          >
+            <X size={14} aria-hidden /> 닫기
+          </button>
+        </div>
+      </div>
+      <ol className="mt-4 grid grid-cols-3 gap-3">
+        {steps.map((s, i) => (
+          <li key={s.title} className={`surface flex flex-col gap-2 rounded-2xl p-4 ${s.done ? "opacity-70" : ""}`}>
+            <p className="flex items-center gap-2 text-[15px] font-semibold">
+              {s.done ? <CheckCircle2 size={20} className="shrink-0 text-emerald-600" aria-label="완료" /> : <Circle size={20} className="shrink-0 text-slate-300" aria-hidden />}
+              <span className={s.done ? "text-slate-500 line-through" : ""}>
+                {i + 1}. {s.title}
+              </span>
+            </p>
+            <p className="text-[12.5px] leading-snug text-slate-500">{s.text}</p>
+            {!s.done && (
+              <Link href={s.href} className="mt-auto flex w-fit items-center gap-1 rounded-full bg-brand px-3.5 py-1.5 text-[13px] font-semibold text-white">
+                {s.go} <ArrowRight size={13} aria-hidden />
+              </Link>
+            )}
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
 }
 
 function Kpi({ Icon, label, value, detail, href }: { Icon: LucideIcon; label: string; value: React.ReactNode; detail: React.ReactNode; href: string }) {
@@ -48,8 +132,6 @@ function SectionHead({ title, href, linkLabel }: { title: string; href: string; 
 }
 
 export function Dashboard({ data: d, today }: { data: DashboardData; today: string }) {
-  const openGuide = useOpenGuide();
-  const fresh = d.studentCount === 0;
 
   const days = d.daily;
   const checkedDays = days.filter((x) => x.checked > 0);
@@ -69,7 +151,7 @@ export function Dashboard({ data: d, today }: { data: DashboardData; today: stri
         </Link>
       </main>
 
-      <main className="hidden flex-col gap-4 pb-6 md:flex">
+      <main className="hidden flex-col gap-4 px-3 pb-6 md:flex">
         <div className="flex items-end justify-between px-1">
           <div>
             <h1 className="text-[24px] font-bold tracking-tight">대시보드</h1>
@@ -79,27 +161,7 @@ export function Dashboard({ data: d, today }: { data: DashboardData; today: stri
           </div>
         </div>
 
-        {fresh && (
-          <section className={`${PANEL} flex items-center gap-5 p-6`}>
-            <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-brand-soft text-brand">
-              <ClipboardCheck size={28} aria-hidden />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-[18px] font-bold">아직 출석 기록이 없어요</p>
-              <p className="mt-1 text-[14px] text-slate-500">학생을 추가하고 출석을 체크하면 출석률·미납·카톡 기록이 여기에 모여요.</p>
-            </div>
-            <Link href="/students" className="flex shrink-0 items-center gap-1.5 rounded-full bg-brand px-4 py-2.5 text-[14px] font-semibold text-white">
-              <UserPlus size={16} aria-hidden /> 학생 추가하기
-            </Link>
-            <button
-              type="button"
-              onClick={openGuide}
-              className="surface flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2.5 text-[14px] font-semibold text-brand hover:bg-white"
-            >
-              <BookOpen size={16} aria-hidden /> 사용법 보기
-            </button>
-          </section>
-        )}
+        <StartChecklist setup={d.setup} />
 
         {/* 숫자 카드 4개 */}
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -152,7 +214,7 @@ export function Dashboard({ data: d, today }: { data: DashboardData; today: stri
           <section className={`${PANEL} flex flex-col`} aria-label="최근 30일 출석률">
             <SectionHead title="최근 30일 출석률" href="/stats" linkLabel="월별 보기" />
             {checkedDays.length === 0 ? (
-              <Empty text="아직 출석 기록이 없어요" />
+              <Empty text="아직 출석 기록이 없어요" href="/" action="출석부 가기" />
             ) : (
               <>
                 <p className="-mt-1 mb-3 text-[13px] text-slate-500">
@@ -190,7 +252,7 @@ export function Dashboard({ data: d, today }: { data: DashboardData; today: stri
           <section className={`${PANEL} flex flex-col`} aria-label="반별 학생 수">
             <SectionHead title="반별 학생 수" href="/students?tab=classes" linkLabel="학생·반" />
             {d.classSizes.length === 0 ? (
-              <Empty text="아직 만든 반이 없어요" />
+              <Empty text="아직 만든 반이 없어요" href="/students?tab=classes" action="반 만들기" />
             ) : (
               <ul className="flex flex-col gap-3">
                 {d.classSizes.map((c) => (
@@ -214,13 +276,24 @@ export function Dashboard({ data: d, today }: { data: DashboardData; today: stri
           <section className={`${PANEL} flex flex-col`} aria-label="오늘 수업">
             <SectionHead title="오늘 수업" href="/" linkLabel="출석부" />
             {d.todayClasses.length === 0 ? (
-              <Empty text={d.classSizes.length ? "오늘은 수업이 없어요" : "아직 만든 반이 없어요"} />
+              d.classSizes.length ? (
+                <Empty text="오늘은 수업이 없어요" />
+              ) : (
+                <Empty text="아직 만든 반이 없어요" href="/students?tab=classes" action="반 만들기" />
+              )
             ) : (
               <ul className="flex flex-col gap-2">
                 {d.todayClasses.map((c) => (
                   <li key={c.id}>
-                    <Go href={`/?c=${c.id}`} className="surface flex items-center gap-3 rounded-2xl px-3.5 py-3">
-                      <span className="w-12 shrink-0 text-[13px] font-semibold text-gold tabular-nums">{c.time || "—"}</span>
+                    {/* 반 색: 달력·시간표와 같은 색 */}
+                    <Go
+                      href={`/?c=${c.id}`}
+                      className="flex items-center gap-3 rounded-2xl py-3 pr-3.5 pl-3"
+                      style={{ background: `${c.hex}17`, borderLeft: `4px solid ${c.hex}` }}
+                    >
+                      <span className="w-12 shrink-0 text-[13px] font-semibold tabular-nums" style={{ color: c.hex }}>
+                        {c.time || "—"}
+                      </span>
                       <span className="min-w-0 flex-1 truncate text-[14px] font-medium">{c.name}</span>
                       <span className="shrink-0 text-[13px] text-slate-500 tabular-nums">
                         <b className="text-brand">{c.present}</b> / {c.total}명
@@ -235,19 +308,32 @@ export function Dashboard({ data: d, today }: { data: DashboardData; today: stri
           <section className={`${PANEL} flex flex-col`} aria-label="미납 학생">
             <SectionHead title={`${mm}월 미납 학생`} href="/stats" linkLabel="월별" />
             {d.unpaidList.length === 0 ? (
-              <Empty text={d.studentCount ? "이번 달 미납 학생이 없어요" : "아직 학생이 없어요"} />
+              d.studentCount ? <Empty text="이번 달 미납 학생이 없어요" /> : <Empty text="아직 학생이 없어요" href="/students" action="학생 추가" />
             ) : (
               <ul className="flex flex-col gap-2">
                 {d.unpaidList.slice(0, 6).map((s) => (
                   <li key={s.id}>
-                    <Go href="/stats" className="surface flex items-center gap-3 rounded-2xl px-3.5 py-3">
-                      <span className="min-w-0 flex-1 truncate text-[14px] font-medium">
-                        {s.name} <span className="text-[12px] font-normal text-slate-400">{s.grade}</span>
-                      </span>
-                      <span className="shrink-0 text-[13px] font-semibold text-rose-500 tabular-nums">
-                        {s.amount === null ? "금액 모름" : formatWon(s.amount)}
-                      </span>
-                    </Go>
+                    {s.amount === null ? (
+                      // 금액을 모르는 학생: 그 학생 수정 화면으로 바로 (교습비 넣기)
+                      <div className="surface flex items-center gap-3 rounded-2xl px-3.5 py-2.5">
+                        <span className="min-w-0 flex-1 truncate text-[14px] font-medium">
+                          {s.name} <span className="text-[12px] font-normal text-slate-400">{s.grade} · 금액 모름</span>
+                        </span>
+                        <Link
+                          href={`/students?edit=${s.id}#s-${s.id}`}
+                          className="shrink-0 rounded-full bg-brand px-3 py-1.5 text-[12.5px] font-semibold text-white"
+                        >
+                          교습비 넣기
+                        </Link>
+                      </div>
+                    ) : (
+                      <Go href="/stats" className="surface flex items-center gap-3 rounded-2xl px-3.5 py-3">
+                        <span className="min-w-0 flex-1 truncate text-[14px] font-medium">
+                          {s.name} <span className="text-[12px] font-normal text-slate-400">{s.grade}</span>
+                        </span>
+                        <span className="shrink-0 text-[13px] font-semibold text-rose-500 tabular-nums">{formatWon(s.amount)}</span>
+                      </Go>
+                    )}
                   </li>
                 ))}
                 {d.unpaidList.length > 6 && <li className="px-1 text-[12.5px] text-slate-400">외 {d.unpaidList.length - 6}명</li>}
@@ -258,7 +344,7 @@ export function Dashboard({ data: d, today }: { data: DashboardData; today: stri
           <section className={`${PANEL} flex flex-col`} aria-label="최근 보낸 카톡">
             <SectionHead title="최근 보낸 카톡·문자" href="/stats" linkLabel="월별" />
             {d.recent.length === 0 ? (
-              <Empty text="아직 보낸 카톡이 없어요" />
+              <Empty text="아직 보낸 카톡이 없어요" href="/notice" action="공지 보내기" />
             ) : (
               <ul className="flex flex-col gap-2">
                 {d.recent.map((m) => (

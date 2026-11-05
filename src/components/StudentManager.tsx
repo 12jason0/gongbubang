@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState, useTransition, type FormEvent } from "react";
 import { ClipboardList, FileSpreadsheet, Pencil, Plus, Send, UserMinus, UserPlus, X } from "lucide-react";
 import { addStudent, addStudentsBulk, sendConsentRequests, setStudentActive, updateStudent, type StudentFormResult } from "@/app/actions";
@@ -9,6 +10,8 @@ import { parseRoster, rosterKey, ROSTER_MAX_LINES } from "@/lib/roster";
 import { Confirm } from "./Confirm";
 import { ExcelImport } from "./ExcelImport";
 import { PageTitle } from "./PageTitle";
+import { InfoTip, TipExample } from "./InfoTip";
+
 import { useToast } from "./Toast";
 
 // 줄 오른쪽 작은 버튼 (아이콘 + 글자). 휴대폰에선 아래 탭처럼 아이콘 위·글자 아래로 좁게
@@ -57,6 +60,13 @@ function StudentFields({ s, classes }: { s?: S; classes: C[] }) {
           <span className="w-24 shrink-0 pl-1 text-[13px] text-slate-500">생년월일 (선택)</span>
           <input name="birthDate" type="date" defaultValue={s?.birthDate ?? ""} className={input} />
         </label>
+        <p className="col-span-2 -mb-1 flex items-center gap-0.5 pt-1 pl-1 text-[13px] text-slate-500">
+          교습비·납부일 (선택)
+          <InfoTip label="교습비·납부일">
+            매달 받는 교습비와 받는 날을 넣어 두세요. 월별 화면의 납부 기록에 금액이 미리 채워지고, 달력의 그 날짜에 &lsquo;납부일&rsquo;이 보여요. 납부일이 지났는데 납부 기록이 없으면 미납으로 보여요.
+            <TipExample>250,000원 · 매달 10일 → 10일이 지나도 기록이 없으면 미납</TipExample>
+          </InfoTip>
+        </p>
         <input
           name="monthlyFee"
           defaultValue={s?.monthlyFee ? s.monthlyFee.toLocaleString("ko-KR") : ""}
@@ -84,7 +94,12 @@ function ClassChips({ classes, checked, label }: { classes: C[]; checked?: strin
     <>
       <p className="mt-3 mb-1.5 text-[12px] font-semibold text-slate-500">{label}</p>
       {classes.length === 0 ? (
-        <p className="text-xs text-slate-400">아직 반이 없어요. 위의 &lsquo;반&rsquo; 탭에서 먼저 만들어 주세요.</p>
+        <p className="flex items-center gap-2 text-xs text-slate-400">
+          아직 반이 없어요.
+          <Link href="/students?tab=classes" className="rounded-lg bg-brand-soft px-2.5 py-1.5 font-semibold text-brand">
+            반 만들기
+          </Link>
+        </p>
       ) : (
         <div className="flex flex-wrap gap-1.5">
           {classes.map((c) => (
@@ -174,6 +189,34 @@ function AddPanel({ onClose, classes, students }: { onClose?: () => void; classe
             엑셀 올리기
           </button>
         </div>
+        {mode === "excel" ? (
+          <InfoTip label="엑셀 올리기">
+            갖고 있는 엑셀 파일을 그대로 올리면 바로 저장돼요. 첫 줄 칸 이름을 보고 필요한 칸만 알아서 찾아요. 잘못 올렸으면 [되돌리기]로 한 번에 지울 수 있어요.
+              <span className="mt-2 grid grid-cols-[auto_auto_1fr_auto_auto] gap-x-2 rounded-lg bg-white px-2 py-1.5 text-[11.5px] ring-1 ring-black/5">
+                {["이름", "학년", "학부모 번호", "교습비", "납부일"].map((h) => (
+                  <span key={h} className="font-semibold text-brand">
+                    {h}
+                  </span>
+                ))}
+                {["김민수", "초5", "010-1234-5678", "250000", "10"].map((v) => (
+                  <span key={v} className="text-slate-600">
+                    {v}
+                  </span>
+                ))}
+              </span>
+              <span className="mt-1.5 block text-[12px] text-slate-500">이름·학부모 번호는 꼭 있어야 해요. 학년·반·교습비·납부일은 있으면 같이 들어가요. 주소·생년월일 같은 다른 칸은 저장하지 않아요.</span>
+          </InfoTip>
+        ) : mode === "paste" ? (
+          <InfoTip label="명단 붙여넣기">
+            한 줄에 한 명씩 이름·학년·학부모 번호를 적어 주세요. 메모장이나 카톡에 적어 둔 명단을 그대로 붙여 넣어도 돼요.
+            <TipExample>김민수 초5 010-1234-5678</TipExample>
+          </InfoTip>
+        ) : (
+          <InfoTip label="학생 추가">
+            이름·학년·학부모 휴대폰 번호만 있으면 돼요. 교습비·납부일·반은 나중에 수정에서 넣어도 돼요.
+            <TipExample>김민수 · 초5 · 010-1234-5678</TipExample>
+          </InfoTip>
+        )}
         {onClose && (
           <button type="button" onClick={onClose} className={CLOSE_BTN}>
             <X size={15} /> 닫기
@@ -183,7 +226,7 @@ function AddPanel({ onClose, classes, students }: { onClose?: () => void; classe
       {mode === "paste" ? (
         <BulkForm classes={classes} students={students} />
       ) : mode === "excel" ? (
-        <ExcelImport classes={classes} students={students} Consent={ConsentCheck} />
+        <ExcelImport />
       ) : (
         <AddForm classes={classes} />
       )}
@@ -327,8 +370,8 @@ function EditForm({ s, onDone, classes }: { s: S; onDone: () => void; classes: C
   );
 }
 
-function StudentItem({ s, classes }: { s: S; classes: C[] }) {
-  const [editing, setEditing] = useState(false);
+function StudentItem({ s, classes, open }: { s: S; classes: C[]; open?: boolean }) {
+  const [editing, setEditing] = useState(!!open);
   const [pending, startTransition] = useTransition();
   const toast = useToast();
 
@@ -347,7 +390,7 @@ function StudentItem({ s, classes }: { s: S; classes: C[] }) {
   }
 
   return (
-    <li className={s.active ? "" : "opacity-60"}>
+    <li id={`s-${s.id}`} className={`scroll-mt-20 ${s.active ? "" : "opacity-60"}`}>
       <div className="flex items-center gap-3 px-4 py-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-soft text-[12px] font-bold text-brand">
           {s.name.slice(-2)}
@@ -427,6 +470,10 @@ function ConsentBar({ active }: { active: S[] }) {
         )}
         <span className="block text-[12px] font-normal text-slate-500">동의한 학부모님께만 등원·피드백·공지 카톡이 가요</span>
       </p>
+      <InfoTip label="동의 요청 보내기">
+        학부모님이 카톡 안내를 받겠다고 동의하셔야 출석·공지·원비 카톡을 보낼 수 있어요. 버튼을 누르면 대기 중인 학부모님께 동의 링크가 가고, 학부모님이 누르시면 &lsquo;동의&rsquo;로 바뀌어요. 처음 보내는 요청은 카톡 통수에서 빠지지 않아요.
+        <TipExample>대기 3명 → [동의 요청 보내기] → 학부모님이 링크에서 동의 → 동의 3명</TipExample>
+      </InfoTip>
       <button
         type="button"
         disabled={busy || phones.size === 0}
@@ -452,7 +499,7 @@ function ConsentBar({ active }: { active: S[] }) {
   );
 }
 
-export function StudentManager({ students, classes }: { students: S[]; classes: C[] }) {
+export function StudentManager({ students, classes, editId }: { students: S[]; classes: C[]; editId?: string }) {
   const [adding, setAdding] = useState(students.length === 0);
   const active = students.filter((s) => s.active);
   const inactive = students.filter((s) => !s.active);
@@ -484,7 +531,7 @@ export function StudentManager({ students, classes }: { students: S[]; classes: 
       <ConsentBar active={active} />
       <ul className="card divide-y divide-black/5 rounded-2xl">
         {active.map((s) => (
-          <StudentItem key={s.id} s={s} classes={classes} />
+          <StudentItem key={s.id} s={s} classes={classes} open={s.id === editId} />
         ))}
       </ul>
 

@@ -75,6 +75,7 @@ export const classes = pgTable(
     days: text("days").notNull().default(""), // 수업 요일. 0=일 1=월 … 6=토, 쉼표로. 예: "1,3,5"
     time: text("time").notNull().default(""), // 시작 시각 "16:30" (표시·정렬용, 비워도 됨). 있으면 달력에 매주 표시
     endTime: text("end_time").notNull().default(""), // 끝 시각 "18:00" (선택, 달력 표시용)
+    color: text("color").notNull().default(""), // 반 색 lib/class-colors.ts 키 (예: "blue"). 비면 id 로 정해진 색
     active: boolean("active").notNull().default(true),
     createdAt: createdAt(),
   },

@@ -142,9 +142,9 @@ export function checkImportRow(r: ImportInput, line: number): ImportRow {
   const parentPhone = phoneDigits(r.phone);
   if (!parentPhone) return { line, ok: false, text, error: "학부모 번호가 없어요" };
   if (!isValidMobile(parentPhone)) return { line, ok: false, text, error: "학부모 휴대폰 번호를 확인해 주세요" };
-  const grade = normalizeGrade(r.grade);
-  if (!grade) return { line, ok: false, text, error: "학년이 없어요 (예: 초5)" };
-  if (grade.length > 10) return { line, ok: false, text, error: "학년을 확인해 주세요 (예: 초5)" };
+  // 엑셀 올리기: 학년을 못 찾아도 학생은 저장하고 학년만 비워 둠 (나중에 수정에서 넣음). 이상하게 긴 값만 비움
+  const raw = normalizeGrade(r.grade);
+  const grade = raw.length > 10 ? "" : raw;
   const birthDate = r.birth.trim() ? parseBirth(r.birth) : null;
   if (r.birth.trim() && !birthDate) return { line, ok: false, text, error: "생년월일을 확인해 주세요" };
   const monthlyFee = parseFee(r.fee);

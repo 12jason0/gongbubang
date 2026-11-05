@@ -8,16 +8,21 @@ const h1 = ["번호", "학생명", "학교", "학년", "보호자 연락처", "�
 const b1 = [["1", "김민준", "OO초", "5", "010-1234-5678", "서울", "250000", "10", "초등 영어 A"]];
 const g1 = guessColumns(h1, b1);
 assert.deepEqual(
-  { name: g1.map.name, grade: g1.map.grade, phone: g1.map.phone, fee: g1.map.fee, due: g1.map.due, classes: g1.map.classes },
+  { name: g1.name, grade: g1.grade, phone: g1.phone, fee: g1.fee, due: g1.due, classes: g1.classes },
   { name: 1, grade: 3, phone: 4, fee: 6, due: 7, classes: 8 },
 );
-// 번호 칸 여러 개(학생·엄마·아빠) → 자동으로 안 고름
+// 번호 칸 여러 개(학생·엄마·아빠) → 제목에 학부모 말이 있는 앞 칸(어머니)
 const h2 = ["이름", "학생 휴대폰", "어머니 휴대폰", "아버지 휴대폰"];
 const b2 = [["이서연", "010-1111-2222", "010-3333-4444", "010-5555-6666"]];
 const g2 = guessColumns(h2, b2);
-assert.equal(g2.map.phone, -1);
-assert.deepEqual(g2.phoneChoices, [1, 2, 3]);
-assert.equal(g2.map.name, 0);
+assert.equal(g2.phone, 2);
+assert.equal(g2.name, 0);
+// 학부모 칸 번호가 틀려 있어도(자리수) 제목으로 학부모 칸을 찾음
+assert.equal(guessColumns(["이름", "학년", "엄마 연락처"], [["김하늘", "초3", "010-12-3"]]).phone, 2);
+// 학부모 말은 없고 번호 칸이 하나 → 그 칸. "번호"(1,2,3) 칸은 번호 칸 아님
+assert.equal(guessColumns(["번호", "이름", "연락처"], [["1", "김하늘", "010-1234-5678"]]).phone, 2);
+// 학부모 말 없이 번호 칸이 둘 → 못 찾음(-1) → 원장님께 물어봄
+assert.equal(guessColumns(["이름", "연락처1", "연락처2"], [["김하늘", "010-1234-5678", "010-2222-3333"]]).phone, -1);
 // 제목 줄 판단
 assert.equal(hasHeader(h1), true);
 assert.equal(hasHeader(["김민준", "초5", "01012345678"]), false);
@@ -31,4 +36,8 @@ assert.equal(gradeFromAge("11", "2026-11-05"), "초5");
 const r = checkImportRow({ name: "김민준", grade: "초등 5", phone: "1012345678", birth: "", classes: "영어A, 수학B", fee: "25만", due: "말일" }, 1);
 assert.ok(r.ok && r.parentPhone === "01012345678" && r.grade === "초5" && r.dueDay === 31 && r.classNames.length === 2, JSON.stringify(r));
 assert.equal(checkImportRow({ name: "", grade: "초5", phone: "01012345678", birth: "", classes: "", fee: "", due: "" }, 2).ok, false);
+// 학년이 없어도 저장 (학년만 빈칸)
+const noGrade = checkImportRow({ name: "김하늘", grade: "", phone: "01012345678", birth: "", classes: "", fee: "", due: "" }, 3);
+assert.ok(noGrade.ok && noGrade.grade === "", JSON.stringify(noGrade));
+assert.equal(checkImportRow({ name: "김하늘", grade: "초5", phone: "", birth: "", classes: "", fee: "", due: "" }, 4).ok, false);
 console.log("check-excel: 모두 통과");

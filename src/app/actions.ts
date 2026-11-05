@@ -15,6 +15,7 @@ import { dueDayLabel, formatWon, isPaymentMethod, parseDueDay, parseFee, parseWo
 import { isValidMobile, normalizePhone } from "@/lib/phone";
 import { checkImportRow, parseRoster, rosterKey, ROSTER_MAX_LINES, type ImportInput } from "@/lib/roster";
 import { TRIAL_DAYS, isPaidTier } from "@/lib/pricing";
+import { classColorKey, isColorKey, nextColor } from "@/lib/class-colors";
 import { endTrialIfOverlap, parentPhoneHash, trialPhoneHash, trialUsedByPhone } from "@/lib/account";
 import { PHONE_VERIFY, phoneCodeOk } from "@/lib/phone-verify";
 import { billingReady, createOrderRow, orderName, priceFor, type OrderKind } from "@/lib/billing";
@@ -788,33 +789,26 @@ export async function addStudentsBulk(_prev: FormResult, formData: FormData): Pr
   };
 }
 
+export type ImportResult =
+  | { ok: false; message: string }
+  | { ok: true; saved: { id: string; name: string; grade: string; parentPhone: string }[]; classIds: string[]; dup: number }
+  | null;
+
 /**
- * 엑셀 올리기 — 파일은 브라우저에서 읽고, 원장님이 고른 칸의 글만 줄마다 받는다 (파일은 서버에 저장하지 않음).
- * - 줄 검사는 화면 미리보기와 같은 checkImportRow 를 다시 돌린다 (화면 값을 믿지 않음)
- * - 이미 등록된 학생(이름+번호)·파일 안 중복·잘못된 줄은 건너뜀
- * - 반 이름: 있는 반이면 배정, 없는 반은 원장님이 "새 반으로 만들기"를 고른 이름만 만들고 배정
- * - 동의는 명단 붙여넣기와 같음 (체크 안 하면 대기)
+ * 엑셀 올리기 — 파일은 브라우저에서 읽고, 필요한 칸(이름·학부모 번호·학년·반·교습비·납부일)의 글만 줄마다 받아 바로 저장 (파일은 서버에 저장하지 않음).
+ * - 줄 검사는 화면과 같은 checkImportRow 를 다시 돌린다 (화면 값을 믿지 않음). 생년월일은 받지 않음
+ * - 이미 등록된 학생(이름+학부모 번호)·파일 안 중복·잘못된 줄은 건너뜀
+ * - 없는 반은 새로 만들고 배정. 학부모 동의는 대기 (목록 위 [동의 요청 보내기])
+ * - 돌려주는 학생·반 id 로 [되돌리기] (undoStudentsImport)
  */
-export async function addStudentsImport(_prev: FormResult, formData: FormData): Promise<FormResult> {
+export async function addStudentsImport(rows: ImportInput[]): Promise<ImportResult> {
   const academy = await requireActiveAcademy();
-  const paper = formData.get("consent") === "on";
-  let inputs: ImportInput[];
-  let create: string[];
-  try {
-    inputs = JSON.parse(String(formData.get("rows") ?? "[]"));
-    create = JSON.parse(String(formData.get("createClasses") ?? "[]"));
-  } catch {
-    return { ok: false, message: "다시 올려 주세요." };
-  }
-  if (!Array.isArray(inputs) || !Array.isArray(create)) return { ok: false, message: "다시 올려 주세요." };
-  if (inputs.length > ROSTER_MAX_LINES) return { ok: false, message: `한 번에 ${ROSTER_MAX_LINES}명까지 올릴 수 있어요.` };
+  if (!Array.isArray(rows) || rows.length === 0) return { ok: false, message: "다시 올려 주세요." };
+  if (rows.length > ROSTER_MAX_LINES) return { ok: false, message: `한 번에 ${ROSTER_MAX_LINES}명까지 올릴 수 있어요. 파일을 나눠 주세요.` };
 
   const str = (v: unknown) => (typeof v === "string" ? v.slice(0, 200) : "");
-  const checked = inputs.map((r, i) =>
-    checkImportRow(
-      { name: str(r?.name), grade: str(r?.grade), phone: str(r?.phone), birth: str(r?.birth), classes: str(r?.classes), fee: str(r?.fee), due: str(r?.due) },
-      i + 1,
-    ),
+  const checked = rows.map((r, i) =>
+    checkImportRow({ name: str(r?.name), grade: str(r?.grade), phone: str(r?.phone), birth: "", classes: str(r?.classes), fee: str(r?.fee), due: str(r?.due) }, i + 1),
   );
   const existing = await db
     .select({ name: students.name, parentPhone: students.parentPhone })
@@ -822,32 +816,40 @@ export async function addStudentsImport(_prev: FormResult, formData: FormData): 
     .where(eq(students.academyId, academy.id));
   const have = new Set(existing.map((x) => rosterKey(x.name, x.parentPhone)));
   const fresh: Extract<ReturnType<typeof checkImportRow>, { ok: true }>[] = [];
+  let dup = 0;
   for (const r of checked) {
-    if (!r.ok || have.has(rosterKey(r.name, r.parentPhone))) continue;
+    if (!r.ok) continue;
+    if (have.has(rosterKey(r.name, r.parentPhone))) {
+      dup++;
+      continue;
+    }
     have.add(rosterKey(r.name, r.parentPhone)); // 파일 안 중복도 한 번만
     fresh.push(r);
   }
-  if (fresh.length === 0) return { ok: false, message: "새로 추가할 학생이 없어요. 빨간 줄과 이미 있는 학생을 확인해 주세요." };
+  if (fresh.length === 0) return { ok: true, saved: [], classIds: [], dup };
 
   const classRows = await db
-    .select({ id: classes.id, name: classes.name })
+    .select({ id: classes.id, name: classes.name, color: classes.color })
     .from(classes)
     .where(and(eq(classes.academyId, academy.id), eq(classes.active, true)));
   const byName = new Map(classRows.map((c) => [c.name.trim(), c.id]));
-  const wanted = new Set(fresh.flatMap((r) => r.classNames));
-  const toCreate = [...new Set(create.map(str).map((n) => n.trim()))].filter((n) => n && n.length <= 30 && wanted.has(n) && !byName.has(n));
+  const toCreate = [...new Set(fresh.flatMap((r) => r.classNames))].filter((n) => n.length <= 30 && !byName.has(n));
+  const usedColors = classRows.map(classColorKey);
+  const newColors = toCreate.map(() => {
+    const k = nextColor(usedColors);
+    usedColors.push(k);
+    return k;
+  });
 
-  const consent = consentFields(paper);
-  let made = 0;
-  await db.transaction(async (tx) => {
-    if (toCreate.length) {
-      const createdClasses = await tx
-        .insert(classes)
-        .values(toCreate.map((name) => ({ academyId: academy.id, name })))
-        .returning({ id: classes.id, name: classes.name });
-      for (const c of createdClasses) byName.set(c.name, c.id);
-      made = createdClasses.length;
-    }
+  const consent = consentFields(false);
+  const result = await db.transaction(async (tx) => {
+    const madeClasses = toCreate.length
+      ? await tx
+          .insert(classes)
+          .values(toCreate.map((name, i) => ({ academyId: academy.id, name, color: newColors[i] })))
+          .returning({ id: classes.id, name: classes.name })
+      : [];
+    for (const c of madeClasses) byName.set(c.name, c.id);
     const created = await tx
       .insert(students)
       .values(
@@ -856,27 +858,46 @@ export async function addStudentsImport(_prev: FormResult, formData: FormData): 
           name: r.name,
           grade: r.grade,
           parentPhone: r.parentPhone,
-          birthDate: r.birthDate,
           monthlyFee: r.monthlyFee,
           dueDay: r.dueDay,
           ...consent,
         })),
       )
-      .returning({ id: students.id });
+      .returning({ id: students.id, name: students.name, grade: students.grade, parentPhone: students.parentPhone });
     const links = fresh.flatMap((r, i) =>
       r.classNames.filter((n) => byName.has(n)).map((n) => ({ classId: byName.get(n)!, studentId: created[i].id })),
     );
     if (links.length) await tx.insert(classStudents).values(links).onConflictDoNothing();
+    return { saved: created, classIds: madeClasses.map((c) => c.id) };
   });
   revalidatePath("/students");
   revalidatePath("/");
   if (await endTrialIfOverlap(academy)) redirect("/billing");
+  return { ok: true, ...result, dup };
+}
 
-  const skipped = checked.length - fresh.length;
-  return {
-    ok: true,
-    message: `${fresh.length}명을 추가했어요.${made ? ` 새 반 ${made}개를 만들었어요.` : ""}${skipped ? ` 건너뜀 ${skipped}줄` : ""}`,
-  };
+/** 엑셀 올리기 [되돌리기] — 방금 올린 학생과 그때 새로 만든 반만 지움 (내 공부방 것만) */
+export async function undoStudentsImport(studentIds: string[], classIds: string[]): Promise<FormResult> {
+  const academy = await requireActiveAcademy();
+  const ids = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").slice(0, ROSTER_MAX_LINES) : []);
+  const sIds = ids(studentIds);
+  const cIds = ids(classIds);
+  let removed = 0;
+  await db.transaction(async (tx) => {
+    if (sIds.length) {
+      removed = (
+        await tx
+          .delete(students)
+          .where(and(eq(students.academyId, academy.id), inArray(students.id, sIds)))
+          .returning({ id: students.id })
+      ).length;
+    }
+    if (cIds.length) await tx.delete(classes).where(and(eq(classes.academyId, academy.id), inArray(classes.id, cIds)));
+  });
+  revalidatePath("/students");
+  revalidatePath("/");
+  revalidatePath("/calendar");
+  return { ok: true, message: `되돌렸어요. 방금 올린 ${removed}명을 지웠어요.` };
 }
 
 export async function setStudentActive(studentId: string, active: boolean) {
@@ -937,14 +958,24 @@ function readClassForm(formData: FormData) {
   if (time && !HHMM.test(time)) return { error: "시작 시각을 확인해 주세요." } as const;
   if (endTime && (!HHMM.test(endTime) || !time)) return { error: "끝 시각은 시작 시각과 같이 넣어 주세요." } as const;
   if (endTime && endTime <= time) return { error: "끝 시각이 시작 시각보다 뒤여야 해요." } as const;
-  return { data: { name, days: [...new Set(days)].sort().join(","), time, endTime } } as const;
+  const color = String(formData.get("color") ?? "");
+  return { data: { name, days: [...new Set(days)].sort().join(","), time, endTime, color: isColorKey(color) ? color : "" } } as const;
+}
+
+/** 색을 안 고른 반: 지금 반들이 가장 적게 쓴 색 (화면의 "자동" 색과 같은 계산) */
+async function autoClassColor(academyId: string) {
+  const rows = await db
+    .select({ id: classes.id, color: classes.color })
+    .from(classes)
+    .where(and(eq(classes.academyId, academyId), eq(classes.active, true)));
+  return nextColor(rows.map(classColorKey));
 }
 
 export async function addClass(_prev: FormResult, formData: FormData): Promise<FormResult> {
   const academy = await requireActiveAcademy();
   const parsed = readClassForm(formData);
   if ("error" in parsed) return { ok: false, message: parsed.error! };
-  await db.insert(classes).values({ academyId: academy.id, ...parsed.data });
+  await db.insert(classes).values({ academyId: academy.id, ...parsed.data, color: parsed.data.color || (await autoClassColor(academy.id)) });
   revalidatePath("/students");
   revalidatePath("/");
   revalidatePath("/calendar");
@@ -956,9 +987,10 @@ export async function updateClass(_prev: FormResult, formData: FormData): Promis
   const id = String(formData.get("id") ?? "");
   const parsed = readClassForm(formData);
   if ("error" in parsed) return { ok: false, message: parsed.error! };
+  const { color, ...rest } = parsed.data;
   const updated = await db
     .update(classes)
-    .set(parsed.data)
+    .set(color ? { ...rest, color } : rest) // 색을 안 보냈으면 그대로
     .where(and(eq(classes.id, id), eq(classes.academyId, academy.id)))
     .returning({ id: classes.id });
   if (updated.length === 0) return { ok: false, message: "반을 찾을 수 없어요." };

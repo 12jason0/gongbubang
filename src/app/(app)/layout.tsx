@@ -6,15 +6,16 @@ import { BottomNav, SideNav } from "@/components/BottomNav";
 import { ToastProvider } from "@/components/Toast";
 import { HelpButton, HelpProvider } from "@/components/Help";
 import { formatDateLabel, todayKST } from "@/lib/date";
+import { StickyBar } from "@/components/StickyBar";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const academy = await requireAcademy();
   const testMode = isTestMode();
 
   return (
-    <div className="mx-auto min-h-dvh max-w-md pb-24 md:max-w-none md:pb-10 md:pl-56">
+    <div className="mx-auto min-h-dvh max-w-md pb-[calc(96px+env(safe-area-inset-bottom))] md:max-w-none md:pb-10 md:pl-56">
       <HelpProvider>
-      <header className="glass sticky top-0 z-20 flex h-14 items-center gap-2 rounded-b-[22px] px-4 text-brand md:hidden">
+      <StickyBar className="sticky top-0 z-20 flex h-14 items-center gap-2 px-4 text-brand md:hidden">
         <span className="h-5 w-1 rounded-full bg-gold" aria-hidden />
         <span className="text-[17px] font-bold tracking-tight">{academy.name}</span>
         {testMode && (
@@ -27,17 +28,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         )}
         <span className="ml-auto" />
         <HelpButton />
-      </header>
+      </StickyBar>
       <SideNav academyName={academy.name} loginId={academy.loginId} />
-      {/* PC: 본문은 사이드바 바로 옆부터, 최대 폭만 제한 (가운데 정렬하면 사이드바와 사이가 비어 보임) */}
-      <div className="md:max-w-[1180px] md:px-5 md:pt-3">
+      {/* PC: 왼쪽 메뉴 빼고 화면 폭 전체. 양옆 여백 = 여기 12/20px + 각 화면 main 의 px-3(12px) = 24px, 넓은 화면 32px */}
+      <div className="md:px-3 xl:px-5">
         {/* PC 위쪽 바: 공부방 이름 · 오늘 날짜 · 테스트 모드 (휴대폰은 위 초록 헤더 그대로) */}
-        <header className="glass sticky top-3 z-10 mb-4 hidden h-14 items-center gap-3 rounded-full pr-2 pl-5 md:flex">
+        <StickyBar className="sticky top-0 z-10 mb-2 hidden h-16 items-center gap-3 md:-mx-3 md:flex md:px-6 xl:-mx-5 xl:px-8">
           <span className="h-5 w-1 shrink-0 rounded-full bg-gold" aria-hidden />
           <span className="truncate text-[16px] font-bold tracking-tight text-brand">{academy.name}</span>
-          <span className="surface shrink-0 rounded-full px-3 py-1 text-[13px] font-medium text-slate-600">
-            오늘 {formatDateLabel(todayKST())}
-          </span>
+          <span className="shrink-0 text-[13.5px] font-medium text-slate-500">오늘 {formatDateLabel(todayKST())}</span>
           {testMode && (
             <span
               title="솔라피 키가 없어 문자는 실제로 나가지 않고 기록만 남아요"
@@ -48,7 +47,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           )}
           <span className="ml-auto" />
           <HelpButton />
-        </header>
+        </StickyBar>
         <PlanBanner state={planState(academy)} quota={quotaState(academy)} />
         <ToastProvider>{children}</ToastProvider>
       </div>

@@ -8,6 +8,8 @@ import { usesAlimtalk } from "@/lib/sms";
 import { quotaState } from "@/lib/plan";
 import { NoticeForm } from "@/components/NoticeForm";
 import { PageTitle } from "@/components/PageTitle";
+import { InfoTip, TipExample } from "@/components/InfoTip";
+
 
 export default async function NoticePage({ searchParams }: { searchParams: Promise<{ memo?: string }> }) {
   const academyId = await currentAcademyId(); // 쿠키만 확인 — 아래 쿼리를 공부방 조회와 동시에
@@ -64,7 +66,18 @@ export default async function NoticePage({ searchParams }: { searchParams: Promi
 
   return (
     <main className="px-3 pt-4">
-      <PageTitle title="단체 공지" sub="학부모님 카톡으로 공지 내용이 바로 가요 · 할인·모집·이벤트 같은 광고는 보낼 수 없어요" />
+      <PageTitle
+        title="단체 공지"
+        sub="학부모님 카톡으로 공지 내용이 바로 가요 · 할인·모집·이벤트 같은 광고는 보낼 수 없어요"
+        info={
+          <InfoTip label="공지 보내기">
+            쓰신 내용 앞에 학원 이름과 학생 이름이 저절로 붙어서 학부모님 카톡으로 가요. 형제는 한 통으로 가요. 받는 분은 전체·반·직접 고르기 중에서 골라요.
+            <TipExample>
+              [{academy.name}] 공지사항 안내 · 김민수 학부모님, 안녕하세요. (쓰신 내용)
+            </TipExample>
+          </InfoTip>
+        }
+      />
 
       {/* PC: 왼쪽 쓰기, 오른쪽 보낸 공지 */}
       <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-5">

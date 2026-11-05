@@ -7,6 +7,8 @@ import { formatDateLabel, isValidDate, shiftDate, timeKST, todayKST } from "@/li
 import { byGradeName, byTimeName, parseDays, weekdayOf } from "@/lib/templates";
 import type { RowData } from "@/components/AttendanceRow";
 import { AttendanceList } from "@/components/AttendanceList";
+import { InfoTip, TipExample } from "@/components/InfoTip";
+
 import { FeedbackBar } from "@/components/FeedbackBar";
 import { SmsStatus } from "@/components/SmsStatus";
 import { isTestMode } from "@/lib/sms";
@@ -162,6 +164,10 @@ export default async function AttendancePage({
         </Link>
         <div className="flex items-center gap-2">
           <p className="text-[19px] font-bold tracking-tight">{formatDateLabel(date)}</p>
+          <InfoTip label="출석부">
+            [출석]을 누르면 기록이 남고, 설정에서 등원 카톡을 켜 두셨으면 학부모님께 등원 카톡이 가요. 학생 이름을 누르면 수업 메모를 쓸 수 있고, 아래 [피드백 보내기]로 한 번에 보내요.
+            <TipExample>김민수 [출석] → 학부모님께 &lsquo;김민수 학생 등원&rsquo; 카톡</TipExample>
+          </InfoTip>
           {isToday ? (
             <span className="rounded-full bg-gold-soft px-2 py-0.5 text-[11px] font-semibold text-[#8a6d35]">오늘</span>
           ) : (
@@ -201,7 +207,7 @@ export default async function AttendancePage({
       )}
 
       {/* 반 필터 */}
-      <div className="-mx-3 mt-2.5 flex gap-1.5 overflow-x-auto px-3 pb-0.5 [scrollbar-width:none]">
+      <div className="-mx-3 mt-2.5 flex gap-1.5 overflow-x-auto px-3 pb-0.5 [scrollbar-width:none] md:mx-0 md:px-0">
         {chips.map((c) => (
           <Link
             key={c.key}

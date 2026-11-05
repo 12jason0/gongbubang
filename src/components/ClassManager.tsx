@@ -3,47 +3,19 @@
 import { useState, useTransition, type FormEvent } from "react";
 import { Clock, Pencil, Plus, Trash2, X } from "lucide-react";
 import { addClass, deleteClass, updateClass, type FormResult } from "@/app/actions";
-import { DAY_LABELS, WEEK_ORDER, formatDays, parseDays } from "@/lib/templates";
+import { formatDays } from "@/lib/templates";
+import { classColorKey, classHex, nextColor } from "@/lib/class-colors";
+import { ClassFields } from "./ClassFields";
 import { PageTitle } from "./PageTitle";
+import { InfoTip, TipExample } from "./InfoTip";
+
 
 // 줄 오른쪽 작은 버튼 (아이콘 + 글자). 휴대폰에선 아래 탭처럼 아이콘 위·글자 아래로 좁게
 const ROW_BTN =
   "flex h-11 min-w-11 shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg px-1.5 text-[11px] text-slate-500 active:bg-black/5 disabled:opacity-50 md:h-9 md:flex-row md:gap-1 md:px-2 md:text-[13px]";
 const CLOSE_BTN = "flex h-9 items-center gap-1 rounded-lg px-2 text-[13px] text-slate-500 active:bg-black/5";
 
-type C = { id: string; name: string; days: string; time: string; endTime: string; count: number };
-
-const input =
-  "w-full rounded-xl border-0 px-3 py-3 text-[15px] outline-none focus:ring-2 focus:ring-gold field";
-
-function ClassFields({ c }: { c?: C }) {
-  const days = new Set(c ? parseDays(c.days) : []);
-  return (
-    <>
-      <input name="name" defaultValue={c?.name} placeholder="반 이름 (예: 초등 영어 A)" className={input} />
-      <div className="mt-2 flex items-center gap-2">
-        <input name="time" type="time" defaultValue={c?.time} aria-label="시작 시각" className={input} />
-        <span className="text-slate-400">~</span>
-        <input name="end" type="time" defaultValue={c?.endTime} aria-label="끝 시각 (선택)" className={input} />
-      </div>
-      <p className="mt-1 px-1 text-[11.5px] text-slate-400">시각을 넣으면 달력에 매주 보여요 (끝 시각은 선택)</p>
-      <p className="mt-3 mb-1.5 text-[12px] font-semibold text-slate-500">수업 요일</p>
-      <div className="grid grid-cols-7 gap-1">
-        {WEEK_ORDER.map((d) => (
-          <label
-            key={d}
-            className={`cursor-pointer rounded-lg py-2 text-center text-[14px] font-semibold has-checked:bg-brand has-checked:text-white ${
-              d === 0 ? "bg-rose-50 text-rose-400" : d === 6 ? "bg-sky-50 text-sky-500" : "bg-slate-100 text-slate-500"
-            }`}
-          >
-            <input type="checkbox" name="days" value={d} defaultChecked={days.has(d)} className="sr-only" />
-            {DAY_LABELS[d]}
-          </label>
-        ))}
-      </div>
-    </>
-  );
-}
+type C = { id: string; name: string; days: string; time: string; endTime: string; color: string; count: number };
 
 function useForm(submit: (p: FormResult, fd: FormData) => Promise<FormResult>, onOk: (f: HTMLFormElement) => void) {
   const [res, setRes] = useState<FormResult>(null);
@@ -67,19 +39,26 @@ function Result({ r }: { r: FormResult }) {
 }
 
 // onClose 없으면 닫기 버튼 없음 (PC 오른쪽에 늘 떠 있는 폼)
-function AddClassForm({ onClose }: { onClose?: () => void }) {
-  const { res, pending, onSubmit } = useForm(addClass, (f) => f.reset());
+function AddClassForm({ onClose, autoColor }: { onClose?: () => void; autoColor: string }) {
+  const [n, setN] = useState(0); // 만들고 나면 칸을 새로 (시간·색 고른 것까지 비움)
+  const { res, pending, onSubmit } = useForm(addClass, () => setN((x) => x + 1));
   return (
     <form onSubmit={onSubmit} className="card mb-3 rounded-2xl p-4 outline-2 outline-gold/60">
       <div className="mb-3 flex items-center justify-between">
-        <p className="text-[15px] font-semibold">새 반</p>
+        <p className="flex items-center gap-0.5 text-[15px] font-semibold">
+          새 반
+          <InfoTip label="반 만들기">
+            반 이름과 수업 요일·시각을 적어 주세요. 요일과 시각을 적으면 달력에 매주 저절로 나오고, 출석부에는 그날 수업 있는 반 학생이 먼저 보여요.
+            <TipExample>초등 영어 A · 월·수·금 · 15:00~17:00 → 달력 월·수·금 칸에 매주 표시</TipExample>
+          </InfoTip>
+        </p>
         {onClose && (
           <button type="button" onClick={onClose} className={CLOSE_BTN}>
             <X size={15} /> 닫기
           </button>
         )}
       </div>
-      <ClassFields />
+      <ClassFields key={n} autoColor={autoColor} />
       <button disabled={pending} className="mt-3 w-full rounded-xl bg-brand py-3 text-[15px] font-semibold text-white disabled:opacity-60">
         {pending ? "만드는 중…" : "반 만들기"}
       </button>
@@ -98,9 +77,14 @@ function ClassItem({ c }: { c: C }) {
     <li>
       <div className="flex items-center gap-3 px-4 py-3">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[15px] font-semibold">{c.name}</p>
+          <p className="flex items-center gap-2 truncate text-[15px] font-semibold">
+            <span className="size-3 shrink-0 rounded-full" style={{ background: classHex(c) }} aria-hidden />
+            {c.name}
+          </p>
           <p className="mt-0.5 flex items-center gap-1.5 text-[12px] text-slate-500">
-            <span className="rounded-md bg-brand-soft px-1.5 py-0.5 font-semibold text-brand">{formatDays(c.days)}</span>
+            <span className="rounded-md px-1.5 py-0.5 font-semibold" style={{ background: `${classHex(c)}1f`, color: classHex(c) }}>
+              {formatDays(c.days)}
+            </span>
             {c.time && (
               <span className="flex items-center gap-0.5">
                 <Clock size={12} /> {c.time}
@@ -145,7 +129,7 @@ function ClassItem({ c }: { c: C }) {
       {editing && (
         <form onSubmit={onSubmit} className="px-4 pb-4">
           <input type="hidden" name="id" value={c.id} />
-          <ClassFields c={c} />
+          <ClassFields c={{ ...c, color: classColorKey(c) }} autoColor={classColorKey(c)} />
           <div className="mt-3 flex gap-2">
             <button type="button" onClick={() => setEditing(false)} className="flex-1 rounded-xl bg-slate-100 py-2.5 text-sm font-medium">
               취소
@@ -162,6 +146,7 @@ function ClassItem({ c }: { c: C }) {
 }
 
 export function ClassManager({ classes }: { classes: C[] }) {
+  const autoColor = nextColor(classes.map(classColorKey));
   const [adding, setAdding] = useState(classes.length === 0);
   return (
     // PC: 왼쪽 목록, 오른쪽 추가 폼
@@ -183,7 +168,7 @@ export function ClassManager({ classes }: { classes: C[] }) {
       />
       {adding && (
         <div className="lg:hidden">
-          <AddClassForm onClose={() => setAdding(false)} />
+          <AddClassForm autoColor={autoColor} onClose={() => setAdding(false)} />
         </div>
       )}
       {classes.length > 0 && (
@@ -197,7 +182,7 @@ export function ClassManager({ classes }: { classes: C[] }) {
       </div>
 
       <aside className="hidden lg:sticky lg:top-4 lg:block">
-        <AddClassForm />
+        <AddClassForm autoColor={autoColor} />
       </aside>
     </div>
   );

@@ -9,6 +9,8 @@ import { beforeDue, feeLabel, formatWon } from "@/lib/money";
 import { byGradeName, monthLabel } from "@/lib/templates";
 import { PaymentRow, type PaymentItem } from "@/components/PaymentRow";
 import { UnpaidReminder } from "@/components/UnpaidReminder";
+import { InfoTip, TipExample } from "@/components/InfoTip";
+
 
 const KIND_LABEL: Record<string, string> = { ATTENDANCE: "등원", FEEDBACK: "피드백", NOTICE: "공지", PAYMENT: "원비 안내", CONSENT: "동의 요청" };
 const NAV_BTN = "flex h-11 w-[84px] items-center gap-0.5 rounded-xl px-1.5 text-[13px] text-slate-500 active:bg-black/5";
@@ -133,8 +135,12 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
         >
           <ChevronLeft size={20} /> 이전 달
         </Link>
-        <p className="text-[19px] font-bold tracking-tight">
+        <p className="flex items-center gap-0.5 text-[19px] font-bold tracking-tight">
           {y}년 {m}월
+          <InfoTip label="월별">
+            달마다 학생별 출석·결석과 교습비 납부를 봐요. 학생을 누르면 납부 기록을 넣을 수 있어요. 납부일이 지났는데 기록이 없으면 미납으로 보이고, [원비 안내]로 카톡을 보낼 수 있어요.
+            <TipExample>김민수 누르기 → 25만 원 · 계좌이체 저장 → &lsquo;납부&rsquo;로 바뀜</TipExample>
+          </InfoTip>
         </p>
         {month < last ? (
           <Link href={`/stats?month=${shiftMonth(month, 1)}`} className={`${NAV_BTN} justify-end`}>
@@ -145,8 +151,8 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
         )}
       </div>
 
-      {/* PC: 왼쪽 학생 표, 오른쪽 합계·문자 사용량 (휴대폰 순서는 그대로) */}
-      <div className="lg:mt-2 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:grid-rows-[auto_auto_auto_1fr] lg:items-start lg:gap-x-4 lg:gap-y-3">
+      {/* PC: 왼쪽 학생 표(남은 폭 전부), 오른쪽 합계·문자 사용량 360px (휴대폰 순서는 그대로) */}
+      <div className="lg:mt-2 lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:grid-rows-[auto_auto_auto_1fr] lg:items-start lg:gap-x-4 lg:gap-y-3">
       <div className="mt-2 grid grid-cols-2 gap-2 lg:col-start-2 lg:row-start-1 lg:mt-0">
         <div className="card rounded-2xl p-4">
           <p className="text-[11px] font-medium text-slate-400">이번 달 출석</p>
@@ -197,7 +203,12 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
           <span className="w-[76px] pr-4 text-right">{m}월분</span>
         </div>
         {rows.length === 0 ? (
-          <p className="px-4 py-10 text-center text-sm text-slate-400">학생이 없어요</p>
+          <div className="px-4 py-10 text-center text-sm text-slate-400">
+            학생이 없어요
+            <Link href="/students" className="mx-auto mt-3 block w-fit rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-white">
+              학생 추가
+            </Link>
+          </div>
         ) : (
           <ul className="divide-y divide-black/5 border-t border-black/5">
             {rows.map((r) => (

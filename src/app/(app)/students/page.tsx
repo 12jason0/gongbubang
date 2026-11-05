@@ -6,9 +6,10 @@ import { StudentManager } from "@/components/StudentManager";
 import { ClassManager } from "@/components/ClassManager";
 import { byGradeName, byTimeName } from "@/lib/templates";
 
-export default async function StudentsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+export default async function StudentsPage({ searchParams }: { searchParams: Promise<{ tab?: string; edit?: string }> }) {
   const academyId = await currentAcademyId(); // 쿠키만 확인 — 아래 쿼리를 공부방 조회와 동시에
-  const tab = (await searchParams).tab === "classes" ? "classes" : "students";
+  const sp = await searchParams;
+  const tab = sp.tab === "classes" ? "classes" : "students";
 
   const [, studentRows, classRows, memberRows] = await Promise.all([
     requireAcademy(), // 공부방이 없거나 지워졌으면 여기서 로그인 화면으로
@@ -28,7 +29,7 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
       .from(students)
       .where(eq(students.academyId, academyId)),
     db
-      .select({ id: classes.id, name: classes.name, days: classes.days, time: classes.time, endTime: classes.endTime })
+      .select({ id: classes.id, name: classes.name, days: classes.days, time: classes.time, endTime: classes.endTime, color: classes.color })
       .from(classes)
       .where(eq(classes.academyId, academyId)),
     db
@@ -66,7 +67,7 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
       </div>
 
       {tab === "students" ? (
-        <StudentManager students={studentsWithClasses} classes={classRows} />
+        <StudentManager students={studentsWithClasses} classes={classRows} editId={sp.edit} />
       ) : (
         <ClassManager classes={classesWithCount} />
       )}

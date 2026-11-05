@@ -120,6 +120,14 @@ body::before {
   }
 }
 
+/* 맨 위 줄 (components/StickyBar.tsx): 스크롤했을 때만 흐린 유리 */
+.bar-scrolled {
+  background-color: rgb(244 243 239 / 0.62);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(18px) saturate(160%);
+  box-shadow: 0 1px 0 rgb(12 40 30 / 0.06);
+}
+
 /* 불러오는 동안의 뼈대 블록 */
 .skeleton {
   background: linear-gradient(90deg, rgb(12 86 59 / 0.06), rgb(12 86 59 / 0.12), rgb(12 86 59 / 0.06));
@@ -132,4 +140,24 @@ body::before {
 }
 @media (prefers-reduced-motion: reduce) {
   .skeleton { animation: none; }
+}
+
+/* ⓘ 설명 말풍선 (components/InfoTip.tsx). 브라우저 popover — 바깥 누르면 닫힘.
+   버튼 바로 아래에 붙이고(앵커 위치), 화면 끝에 닿으면 반대쪽으로. 앵커를 모르는 브라우저는 화면 가운데에 뜸 */
+.tip {
+  width: min(300px, calc(100vw - 24px));
+  border-radius: 18px;
+  background: rgb(255 255 255 / 0.97);
+  color: #1c2230;
+  box-shadow:
+    0 0 0 1px rgb(12 86 59 / 0.12),
+    0 16px 36px -14px rgb(12 40 30 / 0.35);
+}
+@supports (position-area: bottom) {
+  .tip {
+    inset: auto;
+    margin: 6px 12px; /* 휴대폰에서 화면 양옆에 붙지 않게 12px */
+    position-area: bottom span-right;
+    position-try-fallbacks: bottom span-left, bottom, top span-right, top span-left;
+  }
 }

@@ -12,11 +12,12 @@ export default async function SettingsPage() {
   const academy = await requireAcademy();
 
   return (
-    <main className="px-3 pt-4 pb-6 md:max-w-2xl">
+    <main className="px-3 pt-4 pb-6">
       <PageTitle title="설정" sub="학원 이름과 학부모님께 가는 카톡" />
 
-      {/* 보내는 번호·방식은 원장님 화면에 안 보임 (테스트 모드는 위쪽 바). 동의 안내 문구는 맨 아래 접힘 */}
-      <div>
+      {/* 보내는 번호·방식은 원장님 화면에 안 보임 (테스트 모드는 위쪽 바). 동의 안내 문구는 맨 아래 접힘
+          PC(lg): 왼쪽 줄에 계정·이용권·등원 카톡·동의 문구, 오른쪽 줄에 학원 정보·카톡 미리보기 (휴대폰 순서는 그대로) */}
+      <div className="lg:grid lg:grid-cols-2 lg:grid-rows-[auto_auto_auto_1fr] lg:items-start lg:gap-x-5 [&>*]:lg:col-start-1">
 
       {/* 마이페이지 (휴대폰은 여기가 들어가는 곳) */}
       <Link href="/me" className="card mb-3 flex items-center gap-3 rounded-2xl p-4">
@@ -53,10 +54,12 @@ export default async function SettingsPage() {
 
       <AttendanceNotifyToggle on={academy.attendanceNotify} />
 
+      <div className="lg:col-start-2! lg:row-span-4 lg:row-start-1">
       <SettingsForm
         initial={{ name: academy.name, registrationNo: academy.registrationNo }}
         bodies={{ attendance: ALIMTALK_TEMPLATES.ATTENDANCE.body, feedback: ALIMTALK_TEMPLATES.FEEDBACK.body }}
       />
+      </div>
 
       {/* 학부모 동의는 학생·반 화면 [동의 요청 보내기]가 기본. 이건 종이·문자로 직접 받을 때만 */}
       <ConsentNotice academyId={academy.id} academyName={academy.name} />

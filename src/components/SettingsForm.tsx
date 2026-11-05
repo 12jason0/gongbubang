@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import { saveSettings, type FormResult } from "@/app/actions";
 import { fillTemplate } from "@/lib/templates";
+import { InfoTip, TipExample } from "./InfoTip";
+
 
 // 미리보기에 넣는 예시 학생
 const SAMPLE = { name: "김하늘", time: "4시 5분", date: "10월 30일 (금)", memo: "분수 나눗셈 개념 잘 이해했어요. 숙제는 교재 24~25쪽입니다." };
@@ -67,6 +69,13 @@ export function SettingsForm({ initial, bodies }: { initial: Settings; bodies: B
   return (
     <div className="space-y-3">
       <section className="card rounded-2xl p-4">
+        <p className="-mt-1 mb-2 flex items-center gap-0.5 text-[15px] font-bold">
+          학원 정보
+          <InfoTip label="문구 저장">
+            여기 적은 학원 이름이 학부모님 카톡 맨 앞 [ ] 안에 들어가요. 카톡 문구는 카카오에서 미리 승인받은 내용이라 바꿀 수 없고, 아래에서 어떻게 가는지 미리 볼 수 있어요. 바꾼 뒤 [저장]을 눌러야 적용돼요.
+            <TipExample>학원 이름 &lsquo;현샘영수&rsquo; → 카톡 첫 줄 [현샘영수] 공지사항 안내</TipExample>
+          </InfoTip>
+        </p>
         <Field label="학원 이름 (카톡 맨 앞 이름)" value={w.name} onChange={set("name")} max={20} />
         <p className="mt-1 text-[11px] text-slate-400">학부모님께 가는 카톡 맨 앞 [ ] 안에 들어가요</p>
         <Field
