@@ -36,6 +36,7 @@ export async function requireAcademy() {
       attendanceExtra: academies.attendanceExtra,
       feedbackTitle: academies.feedbackTitle,
       feedbackClosing: academies.feedbackClosing,
+      attendanceNotify: academies.attendanceNotify,
       serviceUntil: academies.serviceUntil,
       plan: academies.plan,
       periodStart: academies.periodStart,

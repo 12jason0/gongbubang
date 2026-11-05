@@ -20,6 +20,8 @@ export const academies = pgTable("academies", {
   attendanceExtra: text("attendance_extra").notNull().default(""), // 등원 문자 덧붙일 말 (선택)
   feedbackTitle: text("feedback_title").notNull().default("오늘 수업 피드백"), // 피드백 문자 첫 줄
   feedbackClosing: text("feedback_closing").notNull().default(""), // 피드백 문자 마지막 인사 (선택)
+  // 출석 체크하면 학부모님께 등원 카톡 보내기. 새로 가입한 공부방은 false 로 만든다 (기존 공부방은 켜진 채로 유지)
+  attendanceNotify: boolean("attendance_notify").notNull().default(true),
   // 이용 기간·결제
   ownerPhone: text("owner_phone").notNull().default(""), // 원장님 연락처 (가입 때 입력, 두나가 연락용)
   serviceUntil: timestamp("service_until", { withTimezone: true }), // 이 시각까지 사용 가능. null = 기한 없음(관리자·데모 계정)

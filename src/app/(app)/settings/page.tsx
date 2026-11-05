@@ -6,6 +6,7 @@ import { isTestMode, usesAlimtalk } from "@/lib/sms";
 import { ALIMTALK_TEMPLATES } from "@/lib/alimtalk";
 import { formatPhone } from "@/lib/phone";
 import { SettingsForm } from "@/components/SettingsForm";
+import { AttendanceNotifyToggle } from "@/components/AttendanceNotifyToggle";
 import { PageTitle } from "@/components/PageTitle";
 import { ConsentNotice } from "@/components/ConsentNotice";
 import { logout } from "../../actions";
@@ -41,6 +42,8 @@ export default async function SettingsPage() {
         </span>
         <ChevronRight size={18} className="shrink-0 text-slate-300" />
       </Link>
+
+      <AttendanceNotifyToggle on={academy.attendanceNotify} />
 
       <SettingsForm
         initial={{

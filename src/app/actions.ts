@@ -70,6 +70,7 @@ export async function signup(_prev: string | null, formData: FormData): Promise<
       senderPhone: (process.env.DEFAULT_SENDER_PHONE ?? "").replace(/\D/g, ""),
       plan: "TRIAL",
       serviceUntil: new Date(Date.now() + TRIAL_DAYS * 86_400_000),
+      attendanceNotify: false, // 등원 카톡은 원장님이 설정에서 켤 때부터
     })
     .onConflictDoNothing({ target: academies.loginId })
     .returning({ id: academies.id });
@@ -131,7 +132,7 @@ function paymentMessage(academy: Wording, s: StudentLite, month: string) {
 
 /**
  * 출석/결석 체크.
- * - 오늘 날짜에 "출석"을 누르면 학부모에게 등원 문자 (하루 한 번만)
+ * - 오늘 날짜에 "출석"을 누르면 학부모에게 등원 문자 (하루 한 번만). 설정에서 등원 카톡을 꺼 두면 기록만
  * - 같은 버튼을 다시 누르면 체크 해제. 등원 문자가 이미 나갔으면 줄은 남기고 상태만 비움
  *   (보낸 시각이 남아 있어서 다시 출석을 눌러도 문자는 또 안 나감)
  * - 지난 날짜를 고치는 건 기록만 바뀌고 문자는 안 나감
@@ -166,7 +167,7 @@ export async function setAttendance(
   let sms: SmsState = "none";
   let error: string | undefined;
 
-  if (status === "PRESENT" && date === todayKST()) {
+  if (status === "PRESENT" && date === todayKST() && academy.attendanceNotify) {
     // 동시에 두 번 눌려도 한 번만 나가도록: notifiedAt 이 비어 있을 때만 "내가 보낸다"고 먼저 찍는다
     const claimed = await db
       .update(attendance)
@@ -295,7 +296,7 @@ export async function resendFailedMessages() {
 
     const student = log.studentId ? await getOwnStudent(academy.id, log.studentId) : null;
 
-    if (log.kind === "ATTENDANCE" && student && log.refDate === today) {
+    if (log.kind === "ATTENDANCE" && student && log.refDate === today && academy.attendanceNotify) {
       const [row] = await db
         .update(attendance)
         .set({ notifiedAt: new Date() })
@@ -757,6 +758,13 @@ export async function saveSettings(_prev: FormResult, formData: FormData): Promi
     .where(eq(academies.id, academy.id));
   revalidatePath("/", "layout");
   return { ok: true, message: "저장했어요. 다음 문자부터 바뀐 문구로 나가요." };
+}
+
+/** 설정: 출석 체크하면 학부모님께 등원 카톡 보내기 켜기/끄기 */
+export async function setAttendanceNotify(on: boolean) {
+  const academy = await requireAcademy();
+  await db.update(academies).set({ attendanceNotify: !!on }).where(eq(academies.id, academy.id));
+  revalidatePath("/", "layout");
 }
 
 // ───────────────────────── 결제 (요금제) ─────────────────────────
