@@ -27,7 +27,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         )}
 
       </header>
-      <SideNav academyName={academy.name} />
+      <SideNav academyName={academy.name} loginId={academy.loginId} />
       {/* PC: 본문은 사이드바 바로 옆부터, 최대 폭만 제한 (가운데 정렬하면 사이드바와 사이가 비어 보임) */}
       <div className="md:max-w-[1180px] md:px-5 md:pt-3">
         {/* PC 위쪽 바: 공부방 이름 · 오늘 날짜 · 테스트 모드 (휴대폰은 위 초록 헤더 그대로) */}

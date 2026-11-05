@@ -28,7 +28,7 @@ async function main() {
     const rows = await db.select().from(academies).orderBy(desc(academies.createdAt));
     for (const a of rows) {
       const q = quotaState(a);
-      console.log(`${a.loginId.padEnd(14)} ${a.name.padEnd(10)} ${q.label.padEnd(5)} ~${day(a.serviceUntil)}  카톡 ${q.remaining}/${q.total}통  등원카톡 ${a.attendanceNotify ? "켬" : "끔"}  ${a.ownerPhone}`);
+      console.log(`${a.loginId.padEnd(14)} ${a.name.padEnd(10)} ${q.label.padEnd(5)} ~${day(a.serviceUntil)}  카톡 ${q.remaining}/${q.total}통  등원카톡 ${a.attendanceNotify ? "켬" : "끔"}  ${a.ownerPhone}${a.deletedAt ? `  [탈퇴 ${day(a.deletedAt)}]` : ""}`);
     }
   } else if (cmd === "plan") {
     const a = await find(loginId);

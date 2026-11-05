@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db, academies } from "@/db";
 import { SESSION_COOKIE, SESSION_MAX_AGE, signToken, verifyToken } from "./token";
 import { isActive } from "./plan";
@@ -43,6 +43,8 @@ export const requireAcademy = cache(async () => {
       name: academies.name,
       senderPhone: academies.senderPhone,
       registrationNo: academies.registrationNo,
+      loginId: academies.loginId,
+      ownerPhone: academies.ownerPhone,
       attendanceEnding: academies.attendanceEnding,
       attendanceExtra: academies.attendanceExtra,
       feedbackTitle: academies.feedbackTitle,
@@ -56,7 +58,7 @@ export const requireAcademy = cache(async () => {
       createdAt: academies.createdAt,
     })
     .from(academies)
-    .where(eq(academies.id, academyId));
+    .where(and(eq(academies.id, academyId), isNull(academies.deletedAt))); // 탈퇴한 공부방은 없는 것으로
   // 쿠키는 맞는데 공부방이 없음(지워진 계정 등) → proxy 가 쿠키를 지우게 표시해서 보냄 (무한 이동 방지)
   if (!academy) redirect("/login?stale=1");
   return academy;

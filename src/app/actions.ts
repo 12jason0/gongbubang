@@ -15,6 +15,7 @@ import { isPaymentMethod, parseWon } from "@/lib/money";
 import { isValidMobile, normalizePhone } from "@/lib/phone";
 import { parseRoster, rosterKey, ROSTER_MAX_LINES } from "@/lib/roster";
 import { TRIAL_DAYS, isPaidTier } from "@/lib/pricing";
+import { trialPhoneHash } from "@/lib/account";
 import { billingReady, createOrderRow, orderName, priceFor, type OrderKind } from "@/lib/billing";
 
 // ───────────────────────── 로그인 ─────────────────────────
@@ -24,7 +25,10 @@ export async function login(_prev: string | null, formData: FormData): Promise<s
   const password = String(formData.get("password") ?? "");
   if (!loginId || !password) return "아이디와 비밀번호를 입력해 주세요.";
 
-  const [academy] = await db.select().from(academies).where(eq(academies.loginId, loginId));
+  const [academy] = await db
+    .select()
+    .from(academies)
+    .where(and(eq(academies.loginId, loginId), isNull(academies.deletedAt)));
   if (!academy || !(await bcrypt.compare(password, academy.passwordHash))) {
     return "아이디 또는 비밀번호가 맞지 않아요.";
   }
@@ -60,6 +64,13 @@ export async function signup(_prev: string | null, formData: FormData): Promise<
   const [taken] = await db.select({ id: academies.id }).from(academies).where(eq(academies.loginId, loginId));
   if (taken) return "이미 쓰고 있는 아이디예요. 다른 아이디로 해 주세요.";
 
+  // 탈퇴했던 번호면 무료 체험 없이 바로 요금제 결제로 (lib/account.ts)
+  const [usedTrial] = await db
+    .select({ id: academies.id })
+    .from(academies)
+    .where(eq(academies.trialPhoneHash, trialPhoneHash(ownerPhone)))
+    .limit(1);
+
   const [created] = await db
     .insert(academies)
     .values({
@@ -69,7 +80,7 @@ export async function signup(_prev: string | null, formData: FormData): Promise<
       ownerPhone,
       senderPhone: (process.env.DEFAULT_SENDER_PHONE ?? "").replace(/\D/g, ""),
       plan: "TRIAL",
-      serviceUntil: new Date(Date.now() + TRIAL_DAYS * 86_400_000),
+      serviceUntil: usedTrial ? new Date() : new Date(Date.now() + TRIAL_DAYS * 86_400_000),
       attendanceNotify: false, // 등원 카톡은 원장님이 설정에서 켤 때부터
     })
     .onConflictDoNothing({ target: academies.loginId })
@@ -77,7 +88,7 @@ export async function signup(_prev: string | null, formData: FormData): Promise<
   if (!created) return "이미 쓰고 있는 아이디예요. 다른 아이디로 해 주세요.";
 
   await createSession(created.id);
-  redirect("/students");
+  redirect(usedTrial ? "/billing?trial=used" : "/students");
 }
 
 // ───────────────────────── 출석 ─────────────────────────
@@ -765,6 +776,84 @@ export async function setAttendanceNotify(on: boolean) {
   const academy = await requireAcademy();
   await db.update(academies).set({ attendanceNotify: !!on }).where(eq(academies.id, academy.id));
   revalidatePath("/", "layout");
+}
+
+// ───────────────────────── 마이페이지 (/me) ─────────────────────────
+
+/** 원장님 연락처 바꾸기 (두나가 연락할 때 쓰는 번호) */
+export async function updateOwnerPhone(_prev: FormResult, formData: FormData): Promise<FormResult> {
+  const academy = await requireAcademy();
+  const ownerPhone = normalizePhone(String(formData.get("ownerPhone") ?? ""));
+  if (!isValidMobile(ownerPhone)) return { ok: false, message: "휴대폰 번호를 확인해 주세요. (예: 010-1234-5678)" };
+  await db.update(academies).set({ ownerPhone }).where(eq(academies.id, academy.id));
+  revalidatePath("/me");
+  return { ok: true, message: "연락처를 바꿨어요." };
+}
+
+async function passwordMatches(academyId: string, password: string) {
+  const [row] = await db.select({ hash: academies.passwordHash }).from(academies).where(eq(academies.id, academyId));
+  return !!row && !!password && (await bcrypt.compare(password, row.hash));
+}
+
+/** 비밀번호 바꾸기 — 지금 비밀번호를 먼저 확인 */
+export async function changePassword(_prev: FormResult, formData: FormData): Promise<FormResult> {
+  const academy = await requireAcademy();
+  const current = String(formData.get("current") ?? "");
+  const next = String(formData.get("next") ?? "");
+  const again = String(formData.get("again") ?? "");
+  if (!(await passwordMatches(academy.id, current))) return { ok: false, message: "지금 비밀번호가 맞지 않아요." };
+  if (next.length < 8) return { ok: false, message: "새 비밀번호는 8자 이상으로 만들어 주세요." };
+  if (next !== again) return { ok: false, message: "새 비밀번호 두 칸이 서로 달라요." };
+  if (next === current) return { ok: false, message: "지금과 다른 비밀번호로 만들어 주세요." };
+  await db.update(academies).set({ passwordHash: await bcrypt.hash(next, 10) }).where(eq(academies.id, academy.id));
+  return { ok: true, message: "비밀번호를 바꿨어요. 다음 로그인부터 새 비밀번호를 쓰세요." };
+}
+
+/**
+ * 탈퇴 — 비밀번호 확인 뒤 공부방 데이터를 지운다.
+ * - 지움: 학생·학부모 번호·반·출결·수업 메모·교습비(원비) 기록·공지·보낸 메시지 기록
+ * - 남김: 결제 기록(orders, 예전 충전금 내역) — 전자상거래법상 5년. 공부방 줄은 지우지 않고(지우면 결제 기록도 같이 지워짐)
+ *   이름·아이디·비밀번호·연락처·발신번호를 비워서 사람과의 연결을 끊는다
+ * - 원장님 연락처는 되돌릴 수 없는 값(trialPhoneHash)으로만 남겨서, 같은 번호로 다시 가입하면 무료 체험을 또 주지 않는다
+ */
+export async function deleteAccount(_prev: FormResult, formData: FormData): Promise<FormResult> {
+  const academy = await requireAcademy();
+  if (formData.get("confirm") !== "on") return { ok: false, message: "안내를 읽고 체크해 주세요." };
+  if (!(await passwordMatches(academy.id, String(formData.get("password") ?? "")))) {
+    return { ok: false, message: "비밀번호가 맞지 않아요." };
+  }
+  const id = academy.id;
+  await db.transaction(async (tx) => {
+    // 학생을 지우면 반 배정·출결·메모·교습비도 같이 지워지지만(FK cascade), 공부방 기준으로도 한 번 더 지운다
+    await tx.delete(attendance).where(eq(attendance.academyId, id));
+    await tx.delete(notes).where(eq(notes.academyId, id));
+    await tx.delete(payments).where(eq(payments.academyId, id));
+    await tx.delete(messageLogs).where(eq(messageLogs.academyId, id));
+    await tx.delete(notices).where(eq(notices.academyId, id));
+    await tx.delete(students).where(eq(students.academyId, id));
+    await tx.delete(classes).where(eq(classes.academyId, id)); // class_students 는 cascade
+    await tx
+      .update(academies)
+      .set({
+        name: "탈퇴한 공부방",
+        loginId: `deleted-${id}`, // 원래 아이디는 다시 가입할 때 쓸 수 있게 비워 둠
+        passwordHash: await bcrypt.hash(crypto.randomUUID(), 10), // 아무도 모르는 비밀번호 → 로그인 불가
+        ownerPhone: "",
+        senderPhone: "",
+        registrationNo: "",
+        attendanceExtra: "",
+        feedbackClosing: "",
+        attendanceNotify: false,
+        serviceUntil: new Date(),
+        msgUsed: 0,
+        msgPeriod: "",
+        trialPhoneHash: academy.ownerPhone ? trialPhoneHash(academy.ownerPhone) : "",
+        deletedAt: new Date(),
+      })
+      .where(eq(academies.id, id));
+  });
+  await deleteSession();
+  redirect("/login");
 }
 
 // ───────────────────────── 결제 (요금제) ─────────────────────────

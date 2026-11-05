@@ -30,6 +30,10 @@ export const academies = pgTable("academies", {
   periodStart: timestamp("period_start", { withTimezone: true }),
   msgPeriod: text("msg_period").notNull().default(""), // msgUsed 를 세고 있는 기간의 시작 (ISO). 기간이 바뀌면 0부터
   msgUsed: integer("msg_used").notNull().default(0), // 이번 기간에 보낸 통수 (실패·접수 거절은 돌려놓음)
+  // 탈퇴: 이 줄은 지우지 않고(결제 기록 orders 를 법정 기간 보관하려고) 이름·연락처·아이디·비밀번호를 비우고 시각만 남긴다
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  // 탈퇴한 원장님 연락처를 되돌릴 수 없게 바꾼 값 — 같은 번호로 다시 가입해도 무료 체험을 또 주지 않으려고 (lib/account.ts)
+  trialPhoneHash: text("trial_phone_hash").notNull().default(""),
   creditWon: integer("credit_won").notNull().default(0), // (안 씀) 예전 충전금 잔액 — 요금제로 바뀌며 기록만 남김
   createdAt: createdAt(),
 });

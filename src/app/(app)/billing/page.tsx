@@ -12,12 +12,14 @@ export const metadata = { title: "이용권" };
 
 const BLURB = { BASIC: "학생 10명 안팎, 등원 카톡 위주", PLUS: "학생이 많거나 공지·피드백도 자주" } as const;
 
-export default async function BillingPage({ searchParams }: { searchParams: Promise<{ expired?: string }> }) {
+export default async function BillingPage({ searchParams }: { searchParams: Promise<{ expired?: string; trial?: string }> }) {
   const academy = await requireAcademy();
   const state = planState(academy);
   const quota = quotaState(academy);
   const ready = billingReady();
-  const fromBlocked = (await searchParams).expired === "1";
+  const sp = await searchParams;
+  const fromBlocked = sp.expired === "1";
+  const trialUsed = sp.trial === "used";
 
   const status =
     state.kind === "UNLIMITED"
@@ -30,7 +32,13 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
     <main className="px-3 pt-4 md:max-w-2xl">
       <PageTitle title="이용권" sub="공부방노트 요금제 · 학부모님께 가는 카톡·문자 통수 포함" />
 
-      {(state.kind === "EXPIRED" || fromBlocked) && (
+      {trialUsed && (
+        <p className="mb-3 rounded-xl bg-gold-soft px-3.5 py-3 text-[14px] leading-relaxed text-[#6b5428] ring-1 ring-gold/40">
+          이 연락처로 무료 체험을 이미 쓰셨어요. 요금제를 결제하면 바로 쓸 수 있어요.
+        </p>
+      )}
+
+      {!trialUsed && (state.kind === "EXPIRED" || fromBlocked) && (
         <p className="mb-3 flex gap-2 rounded-xl bg-rose-50 px-3.5 py-3 text-[14px] leading-relaxed text-rose-800 ring-1 ring-rose-200">
           <TriangleAlert size={18} className="mt-0.5 shrink-0 text-rose-500" />
           <span>

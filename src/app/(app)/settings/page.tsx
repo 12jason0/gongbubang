@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, CreditCard, LogOut } from "lucide-react";
+import { ChevronRight, CreditCard, LogOut, UserRound } from "lucide-react";
 import { planState, quotaState, formatUntil } from "@/lib/plan";
 import { requireAcademy } from "@/lib/session";
 import { isTestMode, usesAlimtalk } from "@/lib/sms";
@@ -23,6 +23,20 @@ export default async function SettingsPage() {
   return (
     <main className="px-3 pt-4 md:max-w-2xl">
       <PageTitle title="설정" sub="학원 이름과 학부모님께 가는 문자 문구" />
+
+      {/* 마이페이지 (휴대폰은 여기가 들어가는 곳) */}
+      <Link href="/me" className="card mb-3 flex items-center gap-3 rounded-2xl p-4">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand text-gold">
+          <UserRound size={19} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] font-semibold">마이페이지</span>
+          <span className="block truncate text-[13px] text-slate-500">
+            {academy.loginId} · 연락처·비밀번호·결제 내역·탈퇴
+          </span>
+        </span>
+        <ChevronRight size={18} className="shrink-0 text-slate-400" />
+      </Link>
 
       <Link href="/billing" className="card mb-3 flex items-center gap-3 rounded-2xl p-4">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand text-gold">

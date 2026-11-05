@@ -6,7 +6,7 @@ import { formatPhone } from "@/lib/phone";
 
 export const metadata: Metadata = { title: "개인정보 처리방침" };
 
-const EFFECTIVE = "2026년 10월 30일";
+const EFFECTIVE = "2026년 11월 5일";
 
 /**
  * 개인정보 처리방침 — 로그인 없이 열림 (학부모님이 동의 안내 문자의 링크로 들어옴)
@@ -67,6 +67,10 @@ export default async function PrivacyPage({ searchParams }: { searchParams: Prom
           <li>
             단, 교습비 영수증 원부에 들어가는 정보(학생 이름·생년월일·교습비 납부 기록)는 관련 법령에 따라 <b>5년</b> 보관한 뒤
             지웁니다.
+          </li>
+          <li>
+            공부방이 공부방노트를 그만 쓰면(탈퇴) 학생·학부모님 정보와 출결·수업 메모·교습비·문자 기록을 공부방노트에서{" "}
+            <b>바로 지웁니다</b>. 5년 보관해야 하는 교습비 영수증 원부는 공부방이 탈퇴 전에 인쇄·저장해서 따로 보관합니다.
           </li>
         </ul>
       </Section>

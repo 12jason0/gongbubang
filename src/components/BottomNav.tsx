@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, ClipboardCheck, LayoutDashboard, Megaphone, Settings, Users } from "lucide-react";
+import { CalendarDays, ChevronRight, ClipboardCheck, LayoutDashboard, Megaphone, Settings, UserRound, Users } from "lucide-react";
 
 const TABS = [
   { href: "/", label: "출석부", Icon: ClipboardCheck },
@@ -44,7 +44,7 @@ export function BottomNav() {
 }
 
 /** PC·태블릿(md 이상): 왼쪽에 떠 있는 유리 사이드바 */
-export function SideNav({ academyName }: { academyName: string }) {
+export function SideNav({ academyName, loginId }: { academyName: string; loginId: string }) {
   const pathname = usePathname();
   return (
     <aside className="glass fixed top-3 bottom-3 left-3 z-20 hidden w-52 flex-col rounded-[28px] p-3 md:flex">
@@ -75,6 +75,23 @@ export function SideNav({ academyName }: { academyName: string }) {
           );
         })}
       </nav>
+      {/* 맨 아래: 공부방 이름·아이디 → 마이페이지 */}
+      <Link
+        href="/me"
+        aria-current={pathname === "/me" ? "page" : undefined}
+        className={`mt-auto flex items-center gap-2.5 rounded-2xl px-2.5 py-2.5 transition-colors ${
+          pathname === "/me" ? "bg-brand text-white" : "surface hover:bg-white/80"
+        }`}
+      >
+        <span className={`flex size-8 shrink-0 items-center justify-center rounded-full ${pathname === "/me" ? "bg-white/15 text-gold" : "bg-brand-soft text-brand"}`}>
+          <UserRound size={16} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[13.5px] font-semibold">{academyName}</span>
+          <span className={`block truncate text-[11.5px] ${pathname === "/me" ? "text-white/70" : "text-slate-500"}`}>{loginId} · 마이페이지</span>
+        </span>
+        <ChevronRight size={15} className="shrink-0 opacity-60" />
+      </Link>
     </aside>
   );
 }
