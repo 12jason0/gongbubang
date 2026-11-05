@@ -1,6 +1,6 @@
 // 엑셀 올리기 칸 맞추기·학년 계산 점검 (DB 없이): npx tsx scripts/check-excel.ts
 import assert from "node:assert/strict";
-import { guessColumns, hasHeader } from "../src/lib/excel-import";
+import { excelBirth, guessColumns, hasHeader } from "../src/lib/excel-import";
 import { checkImportRow } from "../src/lib/roster";
 
 // 제목으로 맞추기 + 저장 안 하는 칸
@@ -27,7 +27,17 @@ assert.equal(guessColumns(["이름", "연락처1", "연락처2"], [["김하늘",
 assert.equal(hasHeader(h1), true);
 assert.equal(hasHeader(["김민준", "초5", "01012345678"]), false);
 // 학년은 계산하지 않음: 생년월일·나이 칸이 있어도 학년 칸이 없으면 -1 (빈칸으로 저장)
-assert.equal(guessColumns(["이름", "생년월일", "나이", "학부모 번호"], [["김하늘", "2015-03-02", "11", "010-1234-5678"]]).grade, -1);
+const g3 = guessColumns(["이름", "생년월일", "나이", "학부모 번호"], [["김하늘", "2015-03-02", "11", "010-1234-5678"]]);
+assert.equal(g3.grade, -1);
+// 생년월일은 저장 (영수증 원부용). 엑셀 날짜 일련번호도 날짜로
+assert.equal(g3.birth, 1);
+assert.equal(excelBirth("41000"), "2012-04-01");
+assert.equal(excelBirth("2015-03-02"), "2015-03-02");
+const withBirth = checkImportRow({ name: "김하늘", grade: "", phone: "01012345678", birth: "2015.3.2", classes: "", fee: "", due: "" }, 5);
+assert.ok(withBirth.ok && withBirth.birthDate === "2015-03-02", JSON.stringify(withBirth));
+// 못 읽는 생년월일 → 학생은 저장, 생년월일만 빈칸
+const badBirth = checkImportRow({ name: "김하늘", grade: "", phone: "01012345678", birth: "모름", classes: "", fee: "", due: "" }, 6);
+assert.ok(badBirth.ok && badBirth.birthDate === null, JSON.stringify(badBirth));
 
 // 줄 검사: 앞 0 빠진 번호, 학년 "5학년"은 그대로(초/중/고 없음 → 원장님이 고침), 반 여러 개
 const r = checkImportRow({ name: "김민준", grade: "초등 5", phone: "1012345678", birth: "", classes: "영어A, 수학B", fee: "25만", due: "말일" }, 1);

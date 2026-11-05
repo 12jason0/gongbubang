@@ -795,8 +795,8 @@ export type ImportResult =
   | null;
 
 /**
- * 엑셀 올리기 — 파일은 브라우저에서 읽고, 필요한 칸(이름·학부모 번호·학년·반·교습비·납부일)의 글만 줄마다 받아 바로 저장 (파일은 서버에 저장하지 않음).
- * - 줄 검사는 화면과 같은 checkImportRow 를 다시 돌린다 (화면 값을 믿지 않음). 생년월일은 받지 않음
+ * 엑셀 올리기 — 파일은 브라우저에서 읽고, 필요한 칸(이름·학부모 번호·학년·생년월일·반·교습비·납부일)의 글만 줄마다 받아 바로 저장 (파일은 서버에 저장하지 않음).
+ * - 줄 검사는 화면과 같은 checkImportRow 를 다시 돌린다 (화면 값을 믿지 않음). 생년월일은 영수증 원부용으로 저장 (못 읽으면 빈칸)
  * - 이미 등록된 학생(이름+학부모 번호)·파일 안 중복·잘못된 줄은 건너뜀
  * - 없는 반은 새로 만들고 배정. 학부모 동의는 대기 (목록 위 [동의 요청 보내기])
  * - 돌려주는 학생·반 id 로 [되돌리기] (undoStudentsImport)
@@ -808,7 +808,7 @@ export async function addStudentsImport(rows: ImportInput[]): Promise<ImportResu
 
   const str = (v: unknown) => (typeof v === "string" ? v.slice(0, 200) : "");
   const checked = rows.map((r, i) =>
-    checkImportRow({ name: str(r?.name), grade: str(r?.grade), phone: str(r?.phone), birth: "", classes: str(r?.classes), fee: str(r?.fee), due: str(r?.due) }, i + 1),
+    checkImportRow({ name: str(r?.name), grade: str(r?.grade), phone: str(r?.phone), birth: str(r?.birth), classes: str(r?.classes), fee: str(r?.fee), due: str(r?.due) }, i + 1),
   );
   const existing = await db
     .select({ name: students.name, parentPhone: students.parentPhone })
@@ -858,6 +858,7 @@ export async function addStudentsImport(rows: ImportInput[]): Promise<ImportResu
           name: r.name,
           grade: r.grade,
           parentPhone: r.parentPhone,
+          birthDate: r.birthDate,
           monthlyFee: r.monthlyFee,
           dueDay: r.dueDay,
           ...consent,
@@ -937,6 +938,36 @@ export async function addPayment(_prev: FormResult, formData: FormData): Promise
   await db.insert(payments).values({ academyId: academy.id, studentId, paidOn, period, subject, tuition, otherFee, method, memo });
   revalidatePath("/stats");
   return { ok: true, message: "납부 기록을 저장했어요." };
+}
+
+/** 납부 기록 고치기 — 받은 교습비와 사유(교습비와 다를 때, 예: 결석 2회 감액)만. 영수증 원부에 그대로 반영 */
+export async function updatePayment(paymentId: string, tuitionText: string, memoText: string): Promise<FormResult> {
+  const academy = await requireActiveAcademy();
+  const tuition = parseWon(String(tuitionText));
+  const memo = String(memoText ?? "").trim().slice(0, 100);
+  const [p] = await db
+    .select({ otherFee: payments.otherFee })
+    .from(payments)
+    .where(and(eq(payments.id, paymentId), eq(payments.academyId, academy.id)));
+  if (!p) return { ok: false, message: "납부 기록을 찾을 수 없어요." };
+  if (!Number.isFinite(tuition) || tuition < 0 || tuition > 10_000_000 || tuition + p.otherFee <= 0) {
+    return { ok: false, message: "금액을 확인해 주세요." };
+  }
+  await db.update(payments).set({ tuition, memo }).where(and(eq(payments.id, paymentId), eq(payments.academyId, academy.id)));
+  revalidatePath("/stats");
+  revalidatePath("/ledger");
+  return { ok: true, message: "고쳤어요." };
+}
+
+/** 영수증 원부 화면 [생년월일 넣기] */
+export async function setStudentBirthDate(studentId: string, birthDate: string): Promise<FormResult> {
+  const academy = await requireActiveAcademy();
+  if (!isValidDate(birthDate) || birthDate > todayKST() || birthDate < "1900-01-01") return { ok: false, message: "생년월일을 확인해 주세요." };
+  if (!(await getOwnStudent(academy.id, studentId))) return { ok: false, message: "학생을 찾을 수 없어요." };
+  await db.update(students).set({ birthDate }).where(and(eq(students.id, studentId), eq(students.academyId, academy.id)));
+  revalidatePath("/ledger");
+  revalidatePath("/students");
+  return { ok: true, message: "넣었어요." };
 }
 
 export async function deletePayment(paymentId: string) {

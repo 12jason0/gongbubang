@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { CheckCircle2, Download, FileSpreadsheet, RotateCcw, Undo2 } from "lucide-react";
 import { addStudentsImport, undoStudentsImport, type ImportResult } from "@/app/actions";
-import { cellText, guessColumns, hasHeader, type Field } from "@/lib/excel-import";
+import { cellText, excelBirth, guessColumns, hasHeader, type Field } from "@/lib/excel-import";
 import { checkImportRow, ROSTER_MAX_LINES, type ImportInput } from "@/lib/roster";
 import { formatPhone } from "@/lib/phone";
 import { parseDueDay, parseFee } from "@/lib/money";
@@ -24,7 +24,7 @@ type Sheet = { file: string; header: string[]; body: string[][]; map: Record<Fie
 type Skipped = { name: string; phone: string; why: string };
 type Done = { file: string; saved: { id: string; name: string; grade: string; parentPhone: string }[]; classIds: string[]; dup: number; badPhone: Skipped[]; other: Skipped[] };
 
-/** 칸 맞춘 줄 → 저장할 값. 학년은 원장님이 정하는 값이라 계산하지 않음(학년 칸이 없으면 빈칸). 읽을 수 없는 교습비·납부일은 비워서 저장 */
+/** 칸 맞춘 줄 → 저장할 값. 학년은 원장님이 정하는 값이라 계산하지 않음(학년 칸이 없으면 빈칸). 생년월일은 영수증 원부용으로 저장. 읽을 수 없는 교습비·납부일은 비워서 저장 */
 function toInputs(sheet: Sheet): ImportInput[] {
   const cell = (r: string[], f: Field) => (sheet.map[f] >= 0 ? (r[sheet.map[f]] ?? "") : "");
   return sheet.body.map((r) => {
@@ -34,7 +34,7 @@ function toInputs(sheet: Sheet): ImportInput[] {
       name: cell(r, "name"),
       grade: cell(r, "grade"),
       phone: cell(r, "phone"),
-      birth: "",
+      birth: excelBirth(cell(r, "birth")),
       classes: cell(r, "classes"),
       fee: Number.isNaN(parseFee(fee)) ? "" : fee,
       due: Number.isNaN(parseDueDay(due)) ? "" : due,

@@ -81,6 +81,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
       tuition: s.monthlyFee ?? lp?.tuition ?? 0,
       otherFee: lp?.otherFee ?? 0,
       method: lp?.method ?? "결제선생",
+      fee: s.monthlyFee,
     };
   };
 

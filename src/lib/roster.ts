@@ -145,8 +145,8 @@ export function checkImportRow(r: ImportInput, line: number): ImportRow {
   // 엑셀 올리기: 학년을 못 찾아도 학생은 저장하고 학년만 비워 둠 (나중에 수정에서 넣음). 이상하게 긴 값만 비움
   const raw = normalizeGrade(r.grade);
   const grade = raw.length > 10 ? "" : raw;
+  // 생년월일도 학년처럼: 못 읽으면 학생은 저장하고 생년월일만 비움 (원부 화면에서 넣기)
   const birthDate = r.birth.trim() ? parseBirth(r.birth) : null;
-  if (r.birth.trim() && !birthDate) return { line, ok: false, text, error: "생년월일을 확인해 주세요" };
   const monthlyFee = parseFee(r.fee);
   if (Number.isNaN(monthlyFee)) return { line, ok: false, text, error: "교습비를 확인해 주세요" };
   const dueDay = parseDueDay(r.due);

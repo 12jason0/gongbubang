@@ -1,15 +1,16 @@
 // 엑셀 올리기 — 첫 줄 제목으로 칸 맞추기 + 학년 계산 (브라우저에서만 씀, 파일은 서버로 안 보냄)
-// 저장하는 칸: 이름·학부모 번호·학년·반·교습비·납부일. 학년은 원장님이 정하는 값이라 계산하지 않음 (학년 칸이 없으면 빈칸)
+// 저장하는 칸: 이름·학부모 번호·학년·생년월일(영수증 원부용)·반·교습비·납부일. 학년은 원장님이 정하는 값이라 계산하지 않음 (학년 칸이 없으면 빈칸)
 
 import { normalizeGrade, phoneDigits } from "./roster";
 import { isValidMobile } from "./phone";
 
-export type Field = "name" | "phone" | "grade" | "classes" | "fee" | "due";
+export type Field = "name" | "phone" | "grade" | "birth" | "classes" | "fee" | "due";
 
 const PARENT = /학부모|보호자|부모|엄마|어머|아빠|아버|모친|부친/;
 const RULES: [Exclude<Field, "phone">, RegExp][] = [
   ["name", /^(학생|원생)?\s*(이름|성명|명)$|학생\s*명|학생\s*이름|원생\s*명|^성명$/],
   ["grade", /학년/],
+  ["birth", /생년월일|생일|출생/],
   ["classes", /^반$|반\s*이름|반명|수업|클래스|강좌|과정/],
   ["fee", /교습비|원비|수강료|학원비|회비|수업료|금액/],
   ["due", /납부일|결제일|납입일|입금일/],
@@ -34,7 +35,7 @@ export function hasHeader(first: string[]) {
  *   그런 칸이 없고 번호 칸이 하나뿐이면 그 칸. 그래도 없으면 -1 → 원장님께 한 번만 물음
  */
 export function guessColumns(header: string[], body: string[][]) {
-  const map: Record<Field, number> = { name: -1, phone: -1, grade: -1, classes: -1, fee: -1, due: -1 };
+  const map: Record<Field, number> = { name: -1, phone: -1, grade: -1, birth: -1, classes: -1, fee: -1, due: -1 };
   const phoneCols = header.map((_, i) => i).filter((i) => looksPhone(body, i));
   const parentCols = header
     .map((h, i) => i)
@@ -67,4 +68,12 @@ export function cellText(v: unknown): string {
     return `${v.getFullYear()}-${p(v.getMonth() + 1)}-${p(v.getDate())}`;
   }
   return v === null || v === undefined ? "" : String(v).trim();
+}
+
+/** 생년월일 칸 값. 엑셀 날짜 일련번호(예: 41000)면 "2012-03-02" 로, 아니면 그대로 */
+export function excelBirth(v: string) {
+  if (!/^\d{5}(\.\d+)?$/.test(v)) return v;
+  const n = Math.floor(Number(v));
+  if (n < 10000 || n > 80000) return v;
+  return new Date(Date.UTC(1899, 11, 30) + n * 86400000).toISOString().slice(0, 10);
 }

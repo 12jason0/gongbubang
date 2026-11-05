@@ -2,22 +2,26 @@
 // 원장님이 쓰는 실제 양식에 맞출 때: 제목·머리말(SheetHeader), 칸 순서·이름·너비(COLUMNS),
 // 빈 줄 수(MIN_ROWS), 종이 방향·여백(PAGE_CSS) 만 바꾸면 된다.
 
+import type { ReactNode } from "react";
 import { formatWon } from "@/lib/money";
+import { BirthFill } from "./BirthFill";
 
 export type LedgerRow = {
+  studentId: string;
   period: string; // "2026-11"
   studentName: string;
   birthDate: string | null; // "2017-03-02"
   subject: string;
-  tuition: number;
+  tuition: number; // 실제 받은 교습비
   otherFee: number;
   paidOn: string; // "2026-10-30"
+  memo: string; // 교습비와 다르게 받은 사유 (예: 결석 2회 감액) — 교습비 칸 아래 작게
 };
 
 export type LedgerInfo = {
   academyName: string;
   registrationNo: string;
-  quarterLabel: string; // "2026년 4분기 (10월~12월)"
+  periodLabel: string; // "2026년 4분기 (10월~12월)" / "2026년 9월~12월"
 };
 
 // ───── 고치기 쉬운 부분 ─────
@@ -32,16 +36,38 @@ const PAGE_CSS = `
 const dot = (s: string | null) => (s ? s.replaceAll("-", ".") : "");
 const num = (n: number) => n.toLocaleString("ko-KR");
 
-type Column = { label: string; width: string; align?: "left" | "right" | "center"; cell: (r: LedgerRow, i: number, info: LedgerInfo) => string };
+type Column = {
+  label: string;
+  width: string;
+  align?: "left" | "right" | "center";
+  cell: (r: LedgerRow, i: number, info: LedgerInfo) => ReactNode;
+  warn?: (r: LedgerRow) => boolean; // 화면에서만 노란 칸 (인쇄 안 됨)
+};
 
 const COLUMNS: Column[] = [
   { label: "일련번호", width: "6%", align: "center", cell: (_, i) => String(i + 1) },
   { label: "연월(분기)", width: "8%", align: "center", cell: (r) => dot(r.period) },
   { label: "등록(신고)번호", width: "12%", align: "center", cell: (_, __, info) => info.registrationNo },
   { label: "학생 성명", width: "9%", align: "center", cell: (r) => r.studentName },
-  { label: "생년월일", width: "10%", align: "center", cell: (r) => dot(r.birthDate) },
+  {
+    label: "생년월일",
+    width: "10%",
+    align: "center",
+    cell: (r) => (r.birthDate ? dot(r.birthDate) : <BirthFill studentId={r.studentId} />),
+    warn: (r) => !r.birthDate,
+  },
   { label: "교습과목", width: "13%", cell: (r) => r.subject },
-  { label: "교습비", width: "10%", align: "right", cell: (r) => num(r.tuition) },
+  {
+    label: "교습비",
+    width: "10%",
+    align: "right",
+    cell: (r) => (
+      <>
+        {num(r.tuition)}
+        {r.memo && <span className="mt-0.5 block text-left text-[8.5px] leading-tight break-keep text-black/70">{r.memo}</span>}
+      </>
+    ),
+  },
   { label: "기타경비", width: "9%", align: "right", cell: (r) => (r.otherFee ? num(r.otherFee) : "") },
   { label: "날짜", width: "10%", align: "center", cell: (r) => dot(r.paidOn) },
   { label: "서명", width: "13%", cell: () => "" },
@@ -57,7 +83,7 @@ function SheetHeader({ info }: { info: LedgerInfo }) {
     <div className="mb-3">
       <h1 className="text-center text-[20px] font-bold tracking-[0.3em]">{TITLE}</h1>
       <div className="mt-3 flex items-end justify-between text-[12px]">
-        <p>{info.quarterLabel}</p>
+        <p>{info.periodLabel}</p>
         <p>
           교습자(상호): {info.academyName}
           <span className="ml-4">신고번호: {info.registrationNo || "　　　　　　"}</span>
@@ -96,7 +122,7 @@ export function ReceiptLedger({ rows, info }: { rows: LedgerRow[]; info: LedgerI
           {rows.map((r, i) => (
             <tr key={i} className="h-[26px] break-inside-avoid">
               {COLUMNS.map((c) => (
-                <td key={c.label} className={`${cellBase} ${alignCls[c.align ?? "left"]}`}>
+                <td key={c.label} className={`${cellBase} ${alignCls[c.align ?? "left"]} ${c.warn?.(r) ? "bg-gold-soft print:bg-transparent" : ""}`}>
                   {c.cell(r, i, info)}
                 </td>
               ))}

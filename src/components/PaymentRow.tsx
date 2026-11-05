@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useTransition, type FormEvent } from "react";
-import { ChevronDown, Plus, Trash2, X } from "lucide-react";
-import { addPayment, deletePayment, type FormResult } from "@/app/actions";
+import { ChevronDown, Pencil, Plus, Trash2, X } from "lucide-react";
+import { addPayment, deletePayment, updatePayment, type FormResult } from "@/app/actions";
 import { shiftMonth } from "@/lib/date";
 import { PAYMENT_METHODS, formatWon, parseWon, shortWon } from "@/lib/money";
 
@@ -28,7 +28,7 @@ export type StatsStudent = {
   beforeDue: boolean; // 이 달 납부일 전 → 기록 없어도 "미납" 대신 "납부일 전"
 };
 
-type Defaults = { subject: string; tuition: number; otherFee: number; method: string };
+type Defaults = { subject: string; tuition: number; otherFee: number; method: string; fee: number | null }; // fee: 등록한 교습비 (없으면 null)
 
 const input =
   "w-full rounded-xl border-0 px-3 py-2.5 text-[15px] outline-none focus:ring-2 focus:ring-gold field";
@@ -93,7 +93,7 @@ export function PaymentRow({
           {paid.length > 0 && (
             <ul className="mb-3 space-y-1.5">
               {paid.map((p) => (
-                <PaidItem key={p.id} p={p} />
+                <PaidItem key={p.id} p={p} fee={defaults.fee} />
               ))}
             </ul>
           )}
@@ -105,9 +105,15 @@ export function PaymentRow({
   );
 }
 
-function PaidItem({ p }: { p: PaymentItem }) {
+/** 등록한 교습비와 받은 금액이 다르면 사유 칸을 보여 줌 (교습비를 등록 안 했으면 비교할 게 없어 안 보임) */
+const differs = (amount: number, fee: number | null) => fee !== null && Number.isFinite(amount) && amount !== fee;
+const REASON_HINT = "예: 결석 2회 감액, 15일 입원 반달분";
+
+function PaidItem({ p, fee }: { p: PaymentItem; fee: number | null }) {
   const [confirm, setConfirm] = useState(false);
+  const [edit, setEdit] = useState(false);
   const [pending, start] = useTransition();
+  if (edit) return <EditPaid p={p} fee={fee} onDone={() => setEdit(false)} />;
   return (
     <li className="card rounded-xl px-3 py-2 text-[13px]">
       <div className="flex items-center gap-2">
@@ -135,14 +141,65 @@ function PaidItem({ p }: { p: PaymentItem }) {
             </button>
           </div>
         ) : (
-          <button
-            onClick={() => setConfirm(true)}
-            className="flex h-9 shrink-0 items-center gap-1 rounded-lg px-2 text-[12px] text-slate-400 active:bg-black/5"
-          >
-            <Trash2 size={14} /> 삭제
-          </button>
+          <div className="flex shrink-0">
+            <button
+              onClick={() => setEdit(true)}
+              className="flex h-9 items-center gap-1 rounded-lg px-2 text-[12px] text-slate-400 active:bg-black/5"
+            >
+              <Pencil size={14} /> 수정
+            </button>
+            <button
+              onClick={() => setConfirm(true)}
+              className="flex h-9 items-center gap-1 rounded-lg px-2 text-[12px] text-slate-400 active:bg-black/5"
+            >
+              <Trash2 size={14} /> 삭제
+            </button>
+          </div>
         )}
       </div>
+    </li>
+  );
+}
+
+/** 받은 교습비·사유 고치기 */
+function EditPaid({ p, fee, onDone }: { p: PaymentItem; fee: number | null; onDone: () => void }) {
+  const [tuition, setTuition] = useState(p.tuition.toLocaleString("ko-KR"));
+  const [memo, setMemo] = useState(p.memo);
+  const [error, setError] = useState("");
+  const [pending, start] = useTransition();
+  const showReason = differs(parseWon(tuition), fee) || p.memo !== "";
+  return (
+    <li className="card rounded-xl p-3 text-[13px]">
+      <label className="block text-[12px] text-slate-500">
+        받은 교습비 (원){fee !== null && <span className="ml-1 text-slate-400">· 등록한 교습비 {formatWon(fee)}</span>}
+        <input value={tuition} onChange={(e) => setTuition(e.target.value)} inputMode="numeric" className={`${input} mt-1 tabular-nums`} />
+      </label>
+      {showReason && (
+        <label className="mt-2 block text-[12px] text-slate-500">
+          사유 (영수증 원부 교습비 칸 아래에 작게 나와요)
+          <input value={memo} onChange={(e) => setMemo(e.target.value)} maxLength={100} placeholder={REASON_HINT} className={`${input} mt-1`} />
+        </label>
+      )}
+      <div className="mt-2 flex gap-1.5">
+        <button type="button" onClick={onDone} className="h-10 flex-1 rounded-lg bg-slate-100 text-[13px] font-medium">
+          취소
+        </button>
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() =>
+            start(async () => {
+              const r = await updatePayment(p.id, tuition, showReason ? memo : "");
+              if (r?.ok) onDone();
+              else setError(r?.message ?? "다시 해 주세요.");
+            })
+          }
+          className="h-10 flex-1 rounded-lg bg-brand text-[13px] font-semibold text-white disabled:opacity-60"
+        >
+          {pending ? "저장 중…" : "저장"}
+        </button>
+      </div>
+      {error && <p className="mt-2 text-sm text-rose-600">{error}</p>}
     </li>
   );
 }
@@ -171,6 +228,7 @@ function AddPaymentForm({
   // 교습기간: 이 달 기준 앞뒤 (선납은 앞으로의 달)
   const periods = [-2, -1, 0, 1, 2, 3, 4, 5, 6].map((n) => shiftMonth(month, n));
   const amount = parseWon(tuition) + parseWon(otherFee);
+  const showReason = differs(parseWon(tuition), defaults.fee);
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -218,7 +276,7 @@ function AddPaymentForm({
           <input name="subject" defaultValue={defaults.subject} placeholder="예: 영어, 수학" className={`${input} mt-1`} />
         </label>
         <label className="text-[12px] text-slate-500">
-          교습비 (원)
+          받은 교습비 (원)
           <input
             name="tuition"
             value={tuition}
@@ -257,10 +315,13 @@ function AddPaymentForm({
         ))}
       </div>
 
-      <label className="mt-3 block text-[12px] text-slate-500">
-        메모 (안 써도 돼요)
-        <input name="memo" maxLength={100} placeholder="예: 결석 2회 차감" className={`${input} mt-1`} />
-      </label>
+      {/* 교습비와 다른 금액을 받으면 사유 (영수증 원부 교습비 칸 아래에 작게) */}
+      {showReason && (
+        <label className="mt-3 block text-[12px] text-slate-500">
+          사유 · 등록한 교습비({formatWon(defaults.fee ?? 0)})와 금액이 달라요
+          <input name="memo" maxLength={100} placeholder={REASON_HINT} className={`${input} mt-1`} />
+        </label>
+      )}
 
       <button
         disabled={pending}
