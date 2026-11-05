@@ -8,9 +8,11 @@
     "start": "next start",
     "lint": "eslint",
     "db:push": "drizzle-kit push",
+    "db:push:prod": "drizzle-kit push --config=drizzle.prod.config.ts",
     "seed": "tsx --env-file=.env scripts/seed.ts",
     "seed:reset": "tsx --env-file=.env scripts/seed.ts --reset",
-    "admin": "tsx --env-file=.env scripts/admin.ts"
+    "admin": "tsx --env-file=.env scripts/admin.ts",
+    "admin:prod": "tsx --env-file=.env.prod scripts/admin.ts"
   },
   "dependencies": {
     "@tosspayments/tosspayments-sdk": "^2.10.0",

@@ -1,5 +1,7 @@
 // 두나용 관리 명령 (DB 를 직접 안 만지고 요금제·이용 기간 조정)
 //
+//   운영 DB 는 npm run admin:prod -- <명령> (.env.prod). 셸에 DATABASE_URL 이 있으면 그게 먼저라 시작할 때 DB 주소를 보여 줌
+//
 //   npm run admin -- list                          공부방 목록 (요금제·이용 기간·이번 달 카톡)
 //   npm run admin -- plan <아이디> <BASIC|PLUS|TRIAL>  요금제 바꾸기 (이용 기간·이번 달 쓴 통수는 그대로, 전체 통수만 바뀜)
 //   npm run admin -- extend <아이디> <개월>           이용 기간 늘리기 (남은 기간 끝에서 N개월. 끝났으면 오늘부터)
@@ -26,6 +28,7 @@ async function find(id: string | undefined) {
 const day = (d: Date | null) => (d ? d.toLocaleString("ko-KR", { timeZone: "Asia/Seoul" }) : "기한 없음");
 
 async function main() {
+  console.log(`DB: ${process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL).host : "(DATABASE_URL 없음)"}`);
   if (cmd === "list") {
     const rows = await db.select().from(academies).orderBy(desc(academies.createdAt));
     for (const a of rows) {
