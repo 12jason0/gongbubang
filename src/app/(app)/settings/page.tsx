@@ -2,9 +2,7 @@ import Link from "next/link";
 import { ChevronRight, CreditCard, UserRound } from "lucide-react";
 import { planState, quotaState, formatUntil } from "@/lib/plan";
 import { requireAcademy } from "@/lib/session";
-import { isTestMode, usesAlimtalk } from "@/lib/sms";
 import { ALIMTALK_TEMPLATES } from "@/lib/alimtalk";
-import { formatPhone } from "@/lib/phone";
 import { SettingsForm } from "@/components/SettingsForm";
 import { AttendanceNotifyToggle } from "@/components/AttendanceNotifyToggle";
 import { PageTitle } from "@/components/PageTitle";
@@ -12,19 +10,12 @@ import { ConsentNotice } from "@/components/ConsentNotice";
 
 export default async function SettingsPage() {
   const academy = await requireAcademy();
-  const testMode = isTestMode();
-  const kakao = {
-    attendance: usesAlimtalk("ATTENDANCE") ? ALIMTALK_TEMPLATES.ATTENDANCE.body : undefined,
-    feedback: usesAlimtalk("FEEDBACK") ? ALIMTALK_TEMPLATES.FEEDBACK.body : undefined,
-  };
-  const anyKakao = (["ATTENDANCE", "FEEDBACK", "PAYMENT"] as const).some(usesAlimtalk);
 
   return (
-    <main className="px-3 pt-4 md:max-w-5xl">
-      <PageTitle title="설정" sub="학원 이름과 학부모님께 가는 문자 문구" />
+    <main className="px-3 pt-4 pb-6 md:max-w-2xl">
+      <PageTitle title="설정" sub="학원 이름과 학부모님께 가는 카톡" />
 
-      {/* PC: 왼쪽 문구 설정, 오른쪽 동의 문구·보내는 번호 (휴대폰은 위에서 아래로 같은 순서) */}
-      <div className="md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,380px)] md:items-start md:gap-4">
+      {/* 보내는 번호·방식은 원장님 화면에 안 보임 (테스트 모드는 위쪽 바). 동의 안내 문구는 맨 아래 접힘 */}
       <div>
 
       {/* 마이페이지 (휴대폰은 여기가 들어가는 곳) */}
@@ -63,43 +54,12 @@ export default async function SettingsPage() {
       <AttendanceNotifyToggle on={academy.attendanceNotify} />
 
       <SettingsForm
-        initial={{
-          name: academy.name,
-          attendanceEnding: academy.attendanceEnding,
-          attendanceExtra: academy.attendanceExtra,
-          feedbackTitle: academy.feedbackTitle,
-          feedbackClosing: academy.feedbackClosing,
-          registrationNo: academy.registrationNo,
-        }}
-        kakao={kakao}
+        initial={{ name: academy.name, registrationNo: academy.registrationNo }}
+        bodies={{ attendance: ALIMTALK_TEMPLATES.ATTENDANCE.body, feedback: ALIMTALK_TEMPLATES.FEEDBACK.body }}
       />
-      </div>
-
-      <div className="max-md:mt-3 md:sticky md:top-20">
-      <section className="card rounded-2xl p-4 text-sm">
-        <div className="flex items-center justify-between">
-          <span className="text-slate-500">문자 보내는 번호</span>
-          <span className="font-semibold tabular-nums">
-            {academy.senderPhone ? formatPhone(academy.senderPhone) : "미등록"}
-          </span>
-        </div>
-        <div className="mt-2 flex items-center justify-between">
-          <span className="text-slate-500">보내는 방식</span>
-          {testMode ? (
-            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">테스트 모드</span>
-          ) : anyKakao ? (
-            <span className="rounded-full bg-[#fef01b]/40 px-2 py-0.5 text-xs font-semibold text-[#3c3600]">카카오 알림톡 + 문자</span>
-          ) : (
-            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">문자</span>
-          )}
-        </div>
-        <p className="mt-2 text-xs text-slate-400">보내는 번호를 바꾸려면 관리자에게 문의해 주세요.</p>
-      </section>
 
       {/* 학부모 동의는 학생·반 화면 [동의 요청 보내기]가 기본. 이건 종이·문자로 직접 받을 때만 */}
       <ConsentNotice academyId={academy.id} academyName={academy.name} />
-
-      </div>
       </div>
     </main>
   );

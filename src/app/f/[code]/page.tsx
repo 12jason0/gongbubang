@@ -5,7 +5,6 @@ import { NotebookPen } from "lucide-react";
 import { db, academies, notes, students } from "@/db";
 import { readFeedbackCode } from "@/lib/alimtalk";
 import { formatDateLabel } from "@/lib/date";
-import { DEFAULT_FEEDBACK_TITLE } from "@/lib/templates";
 
 export const metadata: Metadata = { title: "수업 피드백", robots: { index: false, follow: false } };
 
@@ -23,8 +22,6 @@ export default async function FeedbackPage({ params }: { params: Promise<{ code:
       date: notes.date,
       studentName: students.name,
       academyName: academies.name,
-      title: academies.feedbackTitle,
-      closing: academies.feedbackClosing,
     })
     .from(notes)
     .innerJoin(students, eq(students.id, notes.studentId))
@@ -46,7 +43,7 @@ export default async function FeedbackPage({ params }: { params: Promise<{ code:
           </span>
           <div>
             <h1 className="text-[19px] leading-snug font-bold tracking-tight">
-              {row.studentName} 학생 {row.title.trim() || DEFAULT_FEEDBACK_TITLE}
+              {row.studentName} 학생 수업 피드백
             </h1>
             <p className="mt-0.5 text-[13px] text-slate-500">{formatDateLabel(row.date)} 수업</p>
           </div>
@@ -54,9 +51,6 @@ export default async function FeedbackPage({ params }: { params: Promise<{ code:
 
         <p className="mt-5 text-[16px] leading-relaxed whitespace-pre-wrap text-[#1c2230]">{row.content}</p>
 
-        {row.closing.trim() && (
-          <p className="mt-5 border-t border-black/5 pt-4 text-[15px] leading-relaxed text-slate-600">{row.closing}</p>
-        )}
       </article>
 
       <p className="mt-4 text-center text-[12px] text-slate-400">이 화면은 학부모님께만 보내드린 주소로 열려요</p>

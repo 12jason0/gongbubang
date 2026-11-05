@@ -8,7 +8,7 @@ import { db, academies, students, attendance, notes, notices, classes, classStud
 import { createSession, deleteSession, requireAcademy, requireActiveAcademy } from "@/lib/session";
 import { sendMessages, smsBytes } from "@/lib/sms";
 import { unresolvedFailures } from "@/lib/failed";
-import { attendanceText, byGradeName, fitKakao, monthLabel, NOTICE_MAX_CHARS, noticeLinkText, noticeText, parseDays, paymentText } from "@/lib/templates";
+import { byGradeName, fitKakao, monthLabel, NOTICE_MAX_CHARS, noticeLinkText, noticeText, parseDays } from "@/lib/templates";
 import { formatDateLabel, isValidDate, isValidMonth, spokenTimeKST, thisMonthKST, todayKST } from "@/lib/date";
 import { ALIMTALK_TEMPLATES, appUrl, consentLink, feedbackLink, noticeLink, readConsentCode, renderAlimtalk } from "@/lib/alimtalk";
 import { isPaymentMethod, parseWon } from "@/lib/money";
@@ -106,13 +106,13 @@ async function getOwnStudent(academyId: string, studentId: string) {
 
 // ── 학부모님께 가는 메시지 한 통 (문자판 + 알림톡판). 어느 쪽으로 나갈지는 lib/sms.ts 가 정함 ──
 
-type Wording = Parameters<typeof attendanceText>[0];
+type Wording = { name: string };
 type StudentLite = { id: string; name: string; parentPhone: string };
 
 function attendanceMessage(academy: Wording, s: StudentLite, time: string, date: string) {
   return {
     to: s.parentPhone,
-    text: attendanceText(academy, s.name, time),
+    text: renderAlimtalk("ATTENDANCE", { 학원: academy.name, 이름: s.name, 시각: time }), // 문자로 갈 때도 카톡과 같은 글
     alimtalk: { key: "ATTENDANCE" as const, vars: { 학원: academy.name, 이름: s.name, 시각: time } },
     studentId: s.id,
     refDate: date,
@@ -139,7 +139,7 @@ function feedbackMessage(academy: Wording, s: StudentLite, note: { id: string; c
 function paymentMessage(academy: Wording, s: StudentLite, month: string) {
   return {
     to: s.parentPhone,
-    text: paymentText(academy.name, s.name, monthLabel(month)),
+    text: renderAlimtalk("PAYMENT", { 학원: academy.name, 이름: s.name, 월: monthLabel(month) }),
     alimtalk: { key: "PAYMENT" as const, vars: { 학원: academy.name, 이름: s.name, 월: monthLabel(month) } },
     studentId: s.id,
     refDate: month,
@@ -870,33 +870,18 @@ export async function saveSettings(_prev: FormResult, formData: FormData): Promi
   const academy = await requireAcademy();
   // 한 줄 칸이라 줄바꿈은 빼고 받는다
   const field = (k: string) => String(formData.get(k) ?? "").replace(/\s+/g, " ").trim();
-  const wording = {
-    name: field("name"),
-    attendanceEnding: field("attendanceEnding"),
-    attendanceExtra: field("attendanceExtra"),
-    feedbackTitle: field("feedbackTitle"),
-    feedbackClosing: field("feedbackClosing"),
-  };
-
-  if (!wording.name || wording.name.length > 20) return { ok: false, message: "학원 이름은 1~20자로 입력해 주세요." };
-  if (!wording.attendanceEnding) return { ok: false, message: "등원 문자 끝 문장을 입력해 주세요. (예: 등원했습니다.)" };
-  if (!wording.feedbackTitle) return { ok: false, message: "피드백 문자 첫 줄을 입력해 주세요. (예: 오늘 수업 피드백)" };
-  if (wording.attendanceEnding.length > 30 || wording.feedbackTitle.length > 30) {
-    return { ok: false, message: "끝 문장·첫 줄은 30자 이내로 써 주세요." };
-  }
-  if (wording.attendanceExtra.length > 60 || wording.feedbackClosing.length > 60) {
-    return { ok: false, message: "덧붙일 말·마지막 인사는 60자 이내로 써 주세요." };
-  }
+  const name = field("name");
+  if (!name || name.length > 20) return { ok: false, message: "학원 이름은 1~20자로 입력해 주세요." };
 
   const registrationNo = field("registrationNo");
   if (registrationNo.length > 40) return { ok: false, message: "신고번호를 확인해 주세요." };
 
   await db
     .update(academies)
-    .set({ ...wording, registrationNo })
+    .set({ name, registrationNo })
     .where(eq(academies.id, academy.id));
   revalidatePath("/", "layout");
-  return { ok: true, message: "저장했어요. 다음 문자부터 바뀐 문구로 나가요." };
+  return { ok: true, message: "저장했어요." };
 }
 
 /** 설정: 출석 체크하면 학부모님께 등원 카톡 보내기 켜기/끄기 */
