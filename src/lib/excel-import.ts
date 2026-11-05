@@ -1,17 +1,15 @@
 // 엑셀 올리기 — 첫 줄 제목으로 칸 맞추기 + 학년 계산 (브라우저에서만 씀, 파일은 서버로 안 보냄)
-// 저장하는 칸: 이름·학부모 번호·학년·반·교습비·납부일. 생년월일·나이는 학년 칸이 없을 때 학년 계산에만 씀(저장 안 함)
+// 저장하는 칸: 이름·학부모 번호·학년·반·교습비·납부일. 학년은 원장님이 정하는 값이라 계산하지 않음 (학년 칸이 없으면 빈칸)
 
 import { normalizeGrade, phoneDigits } from "./roster";
 import { isValidMobile } from "./phone";
 
-export type Field = "name" | "phone" | "grade" | "birth" | "classes" | "fee" | "due" | "age";
+export type Field = "name" | "phone" | "grade" | "classes" | "fee" | "due";
 
 const PARENT = /학부모|보호자|부모|엄마|어머|아빠|아버|모친|부친/;
 const RULES: [Exclude<Field, "phone">, RegExp][] = [
   ["name", /^(학생|원생)?\s*(이름|성명|명)$|학생\s*명|학생\s*이름|원생\s*명|^성명$/],
   ["grade", /학년/],
-  ["birth", /생년월일|생일|출생/],
-  ["age", /나이|연령/],
   ["classes", /^반$|반\s*이름|반명|수업|클래스|강좌|과정/],
   ["fee", /교습비|원비|수강료|학원비|회비|수업료|금액/],
   ["due", /납부일|결제일|납입일|입금일/],
@@ -36,7 +34,7 @@ export function hasHeader(first: string[]) {
  *   그런 칸이 없고 번호 칸이 하나뿐이면 그 칸. 그래도 없으면 -1 → 원장님께 한 번만 물음
  */
 export function guessColumns(header: string[], body: string[][]) {
-  const map: Record<Field, number> = { name: -1, phone: -1, grade: -1, birth: -1, classes: -1, fee: -1, due: -1, age: -1 };
+  const map: Record<Field, number> = { name: -1, phone: -1, grade: -1, classes: -1, fee: -1, due: -1 };
   const phoneCols = header.map((_, i) => i).filter((i) => looksPhone(body, i));
   const parentCols = header
     .map((h, i) => i)
@@ -60,22 +58,6 @@ export function guessColumns(header: string[], body: string[][]) {
   fill("grade", (v) => /^(예비)?[초중고]\d$/.test(normalizeGrade(v)));
   fill("name", (v) => /^[가-힣]{2,5}$/.test(v));
   return map;
-}
-
-/** 학년 (3월에 새 학년). 생년 → 초1 = 만 7세 되는 해. 학교 다닐 나이가 아니면 "" */
-export function gradeFromBirthYear(birthYear: number, today: string) {
-  const [y, m] = today.split("-").map(Number);
-  const n = (m >= 3 ? y : y - 1) - birthYear - 6;
-  if (n >= 1 && n <= 6) return `초${n}`;
-  if (n >= 7 && n <= 9) return `중${n - 6}`;
-  if (n >= 10 && n <= 12) return `고${n - 9}`;
-  return "";
-}
-
-/** 나이 칸(만 나이로 봄) → 대략 학년 */
-export function gradeFromAge(age: string, today: string) {
-  const n = Number(age.replace(/\D/g, ""));
-  return n > 0 && n < 30 ? gradeFromBirthYear(Number(today.slice(0, 4)) - n, today) : "";
 }
 
 /** 엑셀 칸 값 → 글. 날짜는 "2012-03-02" */

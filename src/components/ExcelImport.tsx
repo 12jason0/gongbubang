@@ -3,11 +3,10 @@
 import { useState, useTransition } from "react";
 import { CheckCircle2, Download, FileSpreadsheet, RotateCcw, Undo2 } from "lucide-react";
 import { addStudentsImport, undoStudentsImport, type ImportResult } from "@/app/actions";
-import { cellText, gradeFromAge, gradeFromBirthYear, guessColumns, hasHeader, type Field } from "@/lib/excel-import";
+import { cellText, guessColumns, hasHeader, type Field } from "@/lib/excel-import";
 import { checkImportRow, ROSTER_MAX_LINES, type ImportInput } from "@/lib/roster";
 import { formatPhone } from "@/lib/phone";
 import { parseDueDay, parseFee } from "@/lib/money";
-import { todayKST } from "@/lib/date";
 
 /**
  * 학생 추가 → 엑셀 올리기. 파일(.xlsx·.xls·.csv)은 브라우저에서 바로 읽고 서버로 보내지 않는다 (SheetJS, cdn.sheetjs.com 판).
@@ -25,27 +24,15 @@ type Sheet = { file: string; header: string[]; body: string[][]; map: Record<Fie
 type Skipped = { name: string; phone: string; why: string };
 type Done = { file: string; saved: { id: string; name: string; grade: string; parentPhone: string }[]; classIds: string[]; dup: number; badPhone: Skipped[]; other: Skipped[] };
 
-/** 엑셀 날짜 일련번호(예: 41000) → "2012-03-02". 학년 계산용 생년월일 칸에만 씀 */
-function excelDate(v: string, XLSX: typeof import("xlsx")) {
-  const n = Number(v);
-  if (!/^\d{5}(\.\d+)?$/.test(v) || n < 10000 || n > 80000) return v;
-  const d = XLSX.SSF.parse_date_code(n);
-  return `${d.y}-${String(d.m).padStart(2, "0")}-${String(d.d).padStart(2, "0")}`;
-}
-
-/** 칸 맞춘 줄 → 저장할 값. 학년 칸이 없으면 생년월일·나이로 계산(생년월일 자체는 저장 안 함). 읽을 수 없는 교습비·납부일은 비워서 저장 */
-function toInputs(sheet: Sheet, XLSX: typeof import("xlsx")): ImportInput[] {
-  const today = todayKST();
+/** 칸 맞춘 줄 → 저장할 값. 학년은 원장님이 정하는 값이라 계산하지 않음(학년 칸이 없으면 빈칸). 읽을 수 없는 교습비·납부일은 비워서 저장 */
+function toInputs(sheet: Sheet): ImportInput[] {
   const cell = (r: string[], f: Field) => (sheet.map[f] >= 0 ? (r[sheet.map[f]] ?? "") : "");
   return sheet.body.map((r) => {
-    const birth = excelDate(cell(r, "birth"), XLSX);
-    const grade =
-      cell(r, "grade") || (/^\d{4}/.test(birth) ? gradeFromBirthYear(Number(birth.slice(0, 4)), today) : gradeFromAge(cell(r, "age"), today));
     const fee = cell(r, "fee");
     const due = cell(r, "due");
     return {
       name: cell(r, "name"),
-      grade,
+      grade: cell(r, "grade"),
       phone: cell(r, "phone"),
       birth: "",
       classes: cell(r, "classes"),
@@ -95,22 +82,22 @@ export function ExcelImport() {
       const body = (titled ? rows.slice(1) : rows).map((r) => Array.from({ length: width }, (_, i) => r[i] ?? ""));
       if (body.length > ROSTER_MAX_LINES) return setError(`한 번에 ${ROSTER_MAX_LINES}명까지 올릴 수 있어요. 파일을 나눠 주세요.`);
       const sheet: Sheet = { file: file.name, header, body, map: guessColumns(header, body) };
-      next(sheet, XLSX);
+      next(sheet);
     } catch {
       setError("파일을 읽지 못했어요. 엑셀에서 다시 저장한 뒤 올려 주세요.");
     }
   }
 
   /** 학부모 번호·이름 칸을 찾았으면 바로 저장, 못 찾았으면 그것만 물어봄 */
-  function next(sheet: Sheet, XLSX: typeof import("xlsx")) {
+  function next(sheet: Sheet) {
     if (sheet.map.phone < 0) return setAsk({ sheet, field: "phone" });
     if (sheet.map.name < 0) return setAsk({ sheet, field: "name" });
     setAsk(null);
-    save(sheet, XLSX);
+    save(sheet);
   }
 
-  function save(sheet: Sheet, XLSX: typeof import("xlsx")) {
-    const inputs = toInputs(sheet, XLSX);
+  function save(sheet: Sheet) {
+    const inputs = toInputs(sheet);
     // 저장 전에 나눔: 저장할 줄 / 번호 확인 필요 / 그 밖에 건너뛸 줄. 이미 있는 학생(파일 안 중복 포함)은 서버가 거름
     const send: ImportInput[] = [];
     const badPhone: Skipped[] = [];
@@ -164,10 +151,7 @@ export function ExcelImport() {
               key={i}
               type="button"
               disabled={pending}
-              onClick={async () => {
-                const XLSX = await import("xlsx");
-                next({ ...sheet, map: { ...sheet.map, [field]: i } }, XLSX);
-              }}
+              onClick={() => next({ ...sheet, map: { ...sheet.map, [field]: i } })}
               className="surface rounded-full px-3.5 py-2 text-[13.5px] font-semibold text-brand hover:bg-white disabled:opacity-50"
             >
               {h}

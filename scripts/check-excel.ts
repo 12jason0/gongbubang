@@ -1,6 +1,6 @@
 // 엑셀 올리기 칸 맞추기·학년 계산 점검 (DB 없이): npx tsx scripts/check-excel.ts
 import assert from "node:assert/strict";
-import { gradeFromAge, gradeFromBirthYear, guessColumns, hasHeader } from "../src/lib/excel-import";
+import { guessColumns, hasHeader } from "../src/lib/excel-import";
 import { checkImportRow } from "../src/lib/roster";
 
 // 제목으로 맞추기 + 저장 안 하는 칸
@@ -26,12 +26,9 @@ assert.equal(guessColumns(["이름", "연락처1", "연락처2"], [["김하늘",
 // 제목 줄 판단
 assert.equal(hasHeader(h1), true);
 assert.equal(hasHeader(["김민준", "초5", "01012345678"]), false);
-// 학년 계산 (3월에 새 학년)
-assert.equal(gradeFromBirthYear(2015, "2026-11-05"), "초5");
-assert.equal(gradeFromBirthYear(2015, "2026-02-05"), "초4");
-assert.equal(gradeFromBirthYear(2012, "2026-11-05"), "중2");
-assert.equal(gradeFromBirthYear(2022, "2026-11-05"), "");
-assert.equal(gradeFromAge("11", "2026-11-05"), "초5");
+// 학년은 계산하지 않음: 생년월일·나이 칸이 있어도 학년 칸이 없으면 -1 (빈칸으로 저장)
+assert.equal(guessColumns(["이름", "생년월일", "나이", "학부모 번호"], [["김하늘", "2015-03-02", "11", "010-1234-5678"]]).grade, -1);
+
 // 줄 검사: 앞 0 빠진 번호, 학년 "5학년"은 그대로(초/중/고 없음 → 원장님이 고침), 반 여러 개
 const r = checkImportRow({ name: "김민준", grade: "초등 5", phone: "1012345678", birth: "", classes: "영어A, 수학B", fee: "25만", due: "말일" }, 1);
 assert.ok(r.ok && r.parentPhone === "01012345678" && r.grade === "초5" && r.dueDay === 31 && r.classNames.length === 2, JSON.stringify(r));
