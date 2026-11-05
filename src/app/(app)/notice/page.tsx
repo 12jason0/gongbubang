@@ -14,7 +14,7 @@ export default async function NoticePage() {
   const [academy, studentRows, classRows, memberRows, history] = await Promise.all([
     requireAcademy(),
     db
-      .select({ id: students.id, name: students.name, grade: students.grade, phone: students.parentPhone })
+      .select({ id: students.id, name: students.name, grade: students.grade, phone: students.parentPhone, consent: students.consent })
       .from(students)
       .where(and(eq(students.academyId, academyId), eq(students.active, true))),
     db
@@ -30,10 +30,18 @@ export default async function NoticePage() {
   ]);
 
   classRows.sort(byTimeName);
-  const roster = studentRows.sort(byGradeName).map((st) => ({
-    ...st,
-    classIds: memberRows.filter((m) => m.studentId === st.id).map((m) => m.classId),
-  }));
+  // 받을 사람은 학부모 동의한 학생만 (보낼 때 서버도 다시 거름)
+  const waiting = studentRows.filter((st) => st.consent !== "AGREED").length;
+  const roster = studentRows
+    .filter((st) => st.consent === "AGREED")
+    .sort(byGradeName)
+    .map((st) => ({
+      id: st.id,
+      name: st.name,
+      grade: st.grade,
+      phone: st.phone,
+      classIds: memberRows.filter((m) => m.studentId === st.id).map((m) => m.classId),
+    }));
 
   const fmt = new Intl.DateTimeFormat("ko-KR", {
     timeZone: "Asia/Seoul",
@@ -54,6 +62,7 @@ export default async function NoticePage() {
         <NoticeForm
           academyName={academy.name}
           students={roster}
+          waiting={waiting}
           classes={classRows.map((c) => ({ id: c.id, name: c.name }))}
           linkMode={!!appUrl()}
           remaining={quotaState(academy).remaining}

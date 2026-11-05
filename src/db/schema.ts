@@ -51,7 +51,12 @@ export const students = pgTable(
     grade: text("grade").notNull(), // 예: 초5, 중2
     parentPhone: text("parent_phone").notNull(), // 숫자만. 예: 01012345678
     birthDate: text("birth_date"), // 생년월일 "2014-03-02" (선택, 영수증 원부용)
-    consentAt: timestamp("consent_at", { withTimezone: true }), // 원장님이 "학부모 동의 받았어요"를 체크한 시각 (추가할 때)
+    // 학부모 동의 — AGREED(동의) / PENDING(대기) / DECLINED(거부). 동의한 학부모님께만 등원·피드백·공지·원비 안내가 간다
+    // (이 칸이 생기기 전 학생은 원장님이 체크하고 추가했으므로 AGREED)
+    consent: text("consent").notNull().default("AGREED"),
+    consentBy: text("consent_by").notNull().default("OWNER"), // OWNER(원장님이 종이·문자로 받고 체크) / PARENT(학부모님이 링크에서 누름)
+    consentAt: timestamp("consent_at", { withTimezone: true }), // 동의·거부한 시각
+    consentRequestedAt: timestamp("consent_requested_at", { withTimezone: true }), // 동의 요청 카톡이 처음 나간 시각 (학부모당 첫 1통은 무료)
     active: boolean("active").notNull().default(true), // 그만둔 학생은 false (기록은 남김)
     createdAt: createdAt(),
   },

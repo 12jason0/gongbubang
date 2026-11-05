@@ -94,6 +94,7 @@ export default async function AttendancePage({
       notifiedTime: a?.notifiedAt ? timeKST(a.notifiedAt) : null,
       note: n?.content ?? "",
       noteSentTime: n?.sentAt ? timeKST(n.sentAt) : null,
+      noConsent: s.consent !== "AGREED",
     };
   });
 
@@ -108,6 +109,7 @@ export default async function AttendancePage({
   const present = rows.filter((r) => r.status === "PRESENT").length;
   const absent = rows.filter((r) => r.status === "ABSENT").length;
   const pendingFeedback = all.filter((r) => r.note && !r.noteSentTime).length;
+  const waitingFeedback = all.filter((r) => r.note && !r.noteSentTime && r.noConsent).length; // 동의 전이라 빠지는 피드백
 
   const q = (d: string, g: string | null) => {
     const p = new URLSearchParams();
@@ -238,7 +240,7 @@ export default async function AttendancePage({
       )}
       <div className="h-20" />
 
-      <FeedbackBar date={date} pending={pendingFeedback} />
+      <FeedbackBar date={date} pending={pendingFeedback} waiting={waitingFeedback} />
     </main>
   );
 }

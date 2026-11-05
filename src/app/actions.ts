@@ -3,14 +3,14 @@
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { and, eq, inArray, isNull, ne } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { db, academies, students, attendance, notes, notices, classes, classStudents, payments, messageLogs, deletedParentHashes } from "@/db";
 import { createSession, deleteSession, requireAcademy, requireActiveAcademy } from "@/lib/session";
 import { sendMessages, smsBytes } from "@/lib/sms";
 import { unresolvedFailures } from "@/lib/failed";
 import { attendanceText, byGradeName, feedbackText, monthLabel, NOTICE_MAX_CHARS, noticeLinkText, noticeText, parseDays, paymentText } from "@/lib/templates";
 import { formatDateLabel, isValidDate, isValidMonth, spokenTimeKST, thisMonthKST, todayKST } from "@/lib/date";
-import { appUrl, feedbackLink, noticeLink } from "@/lib/alimtalk";
+import { appUrl, consentLink, feedbackLink, noticeLink, readConsentCode, renderAlimtalk } from "@/lib/alimtalk";
 import { isPaymentMethod, parseWon } from "@/lib/money";
 import { isValidMobile, normalizePhone } from "@/lib/phone";
 import { parseRoster, rosterKey, ROSTER_MAX_LINES } from "@/lib/roster";
@@ -94,7 +94,7 @@ export async function signup(_prev: string | null, formData: FormData): Promise<
 
 // ───────────────────────── 출석 ─────────────────────────
 
-export type SmsState = "sent" | "test" | "failed" | "none";
+export type SmsState = "sent" | "test" | "failed" | "none" | "noconsent"; // noconsent: 학부모 동의 전이라 안 보냄
 
 async function getOwnStudent(academyId: string, studentId: string) {
   const [s] = await db
@@ -179,7 +179,9 @@ export async function setAttendance(
   let sms: SmsState = "none";
   let error: string | undefined;
 
-  if (status === "PRESENT" && date === todayKST() && academy.attendanceNotify) {
+  if (status === "PRESENT" && date === todayKST() && academy.attendanceNotify && student.consent !== "AGREED") {
+    sms = "noconsent";
+  } else if (status === "PRESENT" && date === todayKST() && academy.attendanceNotify) {
     // 동시에 두 번 눌려도 한 번만 나가도록: notifiedAt 이 비어 있을 때만 "내가 보낸다"고 먼저 찍는다
     const claimed = await db
       .update(attendance)
@@ -234,7 +236,7 @@ export async function saveNote(studentId: string, date: string, content: string)
 /** 그날 아직 안 보낸 메모를 학부모들에게 한 번에 발송 */
 export async function sendFeedbacks(date: string) {
   const academy = await requireActiveAcademy();
-  if (!isValidDate(date)) return { ok: false, sent: 0, failed: 0, test: false, error: "날짜가 올바르지 않아요." };
+  if (!isValidDate(date)) return { ok: false, sent: 0, failed: 0, waiting: 0, test: false, error: "날짜가 올바르지 않아요." };
 
   // 보낼 메모를 먼저 "보냄"으로 찍어서 확보 (두 번 눌러도 중복 발송 안 됨)
   const claimed = await db
@@ -245,7 +247,7 @@ export async function sendFeedbacks(date: string) {
     )
     .returning();
 
-  if (claimed.length === 0) return { ok: true, sent: 0, failed: 0, test: false };
+  if (claimed.length === 0) return { ok: true, sent: 0, failed: 0, waiting: 0, test: false };
 
   const studentRows = await db
     .select()
@@ -253,8 +255,11 @@ export async function sendFeedbacks(date: string) {
     .where(inArray(students.id, claimed.map((n) => n.studentId)));
   const byId = new Map(studentRows.map((s) => [s.id, s]));
 
-  const targets = claimed.filter((n) => byId.get(n.studentId)?.active);
-  const skipped = claimed.filter((n) => !byId.get(n.studentId)?.active);
+  // 그만둔 학생, 학부모 동의 전인 학생은 빼고 메모는 "안 보냄"으로 되돌림
+  const sendable = (n: (typeof claimed)[number]) => byId.get(n.studentId)?.active && byId.get(n.studentId)?.consent === "AGREED";
+  const targets = claimed.filter(sendable);
+  const skipped = claimed.filter((n) => !sendable(n));
+  const waiting = skipped.filter((n) => byId.get(n.studentId)?.active).length;
   if (skipped.length) {
     await db.update(notes).set({ sentAt: null }).where(inArray(notes.id, skipped.map((n) => n.id)));
   }
@@ -275,6 +280,7 @@ export async function sendFeedbacks(date: string) {
     ok: failedIds.length === 0,
     sent: targets.length - failedIds.length,
     failed: failedIds.length,
+    waiting,
     test: results.some((r) => r.test),
     error: results.find((r) => !r.ok)?.error,
   };
@@ -307,6 +313,11 @@ export async function resendFailedMessages() {
     if (mine.length === 0) continue;
 
     const student = log.studentId ? await getOwnStudent(academy.id, log.studentId) : null;
+    // 그사이 동의를 거두었거나 아직 동의 전이면 안내는 안 보냄 (동의 요청만 예외)
+    if (student && log.kind !== "CONSENT" && student.consent !== "AGREED") {
+      skipped++;
+      continue;
+    }
 
     if (log.kind === "ATTENDANCE" && student && log.refDate === today && academy.attendanceNotify) {
       const [row] = await db
@@ -367,6 +378,10 @@ export async function resendFailedMessages() {
       const [r] = await sendMessages(academy, "NOTICE", [{ to: log.to, text: log.text }]);
       if (r.ok) sent++;
       else failed++;
+    } else if (log.kind === "CONSENT" && student?.active && student.consent === "PENDING" && appUrl()) {
+      const [r] = await sendConsentTo(academy, [[student.parentPhone, [student]]]);
+      if (r.ok) sent++;
+      else failed++;
     } else {
       skipped++;
     }
@@ -401,8 +416,13 @@ export async function sendPaymentReminders(month: string, studentIds: string[]) 
         .where(and(eq(payments.academyId, academy.id), eq(payments.period, month)))
     ).map((p) => p.studentId),
   );
-  const unpaid = targets.filter((s) => !paid.has(s.id));
-  if (unpaid.length === 0) return { ok: true, sent: 0, failed: 0, test: false };
+  const unpaid = targets.filter((s) => !paid.has(s.id) && s.consent === "AGREED");
+  const waiting = targets.filter((s) => !paid.has(s.id) && s.consent !== "AGREED").length;
+  if (unpaid.length === 0) {
+    return waiting
+      ? { ok: false, sent: 0, failed: 0, waiting, test: false, error: `학부모 동의 대기 ${waiting}명이라 보내지 않았어요` }
+      : { ok: true, sent: 0, failed: 0, waiting, test: false };
+  }
 
   const results = await sendMessages(academy, "PAYMENT", unpaid.map((s) => paymentMessage(academy, s, month)));
   revalidatePath("/stats");
@@ -412,6 +432,7 @@ export async function sendPaymentReminders(month: string, studentIds: string[]) 
     ok: failedN === 0,
     sent: unpaid.length - failedN,
     failed: failedN,
+    waiting,
     test: results.some((r) => r.test),
     error: results.find((r) => !r.ok)?.error,
   };
@@ -440,7 +461,8 @@ export async function sendNotice(_prev: NoticeResult, formData: FormData): Promi
   }
 
   // 받을 학생 — 화면 값을 믿지 않고 이 공부방의 다니는 학생만 다시 고른다
-  const mine = and(eq(students.academyId, academy.id), eq(students.active, true));
+  // 학부모 동의한 학생만 (동의 대기·거부는 빠짐 — 공지 화면에서 미리 알려 줌)
+  const mine = and(eq(students.academyId, academy.id), eq(students.active, true), eq(students.consent, "AGREED"));
   const cols = { id: students.id, name: students.name, grade: students.grade, phone: students.parentPhone };
   let targetName = "전체";
   let rows: { id: string; name: string; grade: string; phone: string }[];
@@ -468,7 +490,7 @@ export async function sendNotice(_prev: NoticeResult, formData: FormData): Promi
   // 학부모 번호별로 묶기 (형제는 한 통, 이름은 학년·이름 순으로 "김민수·김민지")
   const byPhone = new Map<string, typeof rows>();
   for (const r of rows.sort(byGradeName)) byPhone.set(r.phone, [...(byPhone.get(r.phone) ?? []), r]);
-  if (byPhone.size === 0) return { ok: false, message: "보낼 학부모 번호가 없어요." };
+  if (byPhone.size === 0) return { ok: false, message: "보낼 학부모님이 없어요. (학부모 동의를 받은 학생에게만 보내요)" };
 
   // 링크에 공지 id 가 들어가므로 먼저 저장
   const [notice] = await db
@@ -502,6 +524,98 @@ export async function sendNotice(_prev: NoticeResult, formData: FormData): Promi
     return { ok: false, message: `${n - failed}명 발송, ${failed}명 실패 (${results.find((r) => !r.ok)?.error ?? ""})` };
   }
   return { ok: true, message: `학부모님 ${n}명께 보냈어요.${test ? " (테스트 모드: 실제 카톡·문자는 안 나감)" : ""}` };
+}
+
+// ───────────────────────── 학부모 동의 ─────────────────────────
+
+/** 새 학생의 동의 칸: 원장님이 이미 받았으면(종이·문자) 동의, 아니면 대기 */
+function consentFields(paper: boolean) {
+  return paper
+    ? { consent: "AGREED", consentBy: "OWNER", consentAt: new Date() }
+    : { consent: "PENDING", consentBy: "OWNER", consentAt: null };
+}
+
+type ConsentKid = { id: string; name: string; grade: string; parentPhone: string };
+
+/**
+ * 학부모 번호별로 동의 요청 카톡 (형제는 한 통, 이름은 "김민수·김민지").
+ * 그 번호로 동의 요청이 한 번도 안 나갔으면 통수에서 빼지 않는다 (학부모당 첫 1통 무료). 보낸 번호는 요청 시각을 남긴다.
+ */
+async function sendConsentTo(academy: { id: string; name: string; senderPhone: string }, groups: [string, ConsentKid[]][]) {
+  const phones = groups.map(([p]) => p);
+  const asked = new Set(
+    (
+      await db
+        .selectDistinct({ p: students.parentPhone })
+        .from(students)
+        .where(and(eq(students.academyId, academy.id), inArray(students.parentPhone, phones), isNotNull(students.consentRequestedAt)))
+    ).map((r) => r.p),
+  );
+  const results = await sendMessages(
+    academy,
+    "CONSENT",
+    groups.map(([to, kids]) => {
+      const vars = { 학원: academy.name, 이름: kids.map((k) => k.name).join("·"), 링크: consentLink(kids[0].id) };
+      return { to, text: renderAlimtalk("CONSENT", vars), alimtalk: { key: "CONSENT" as const, vars }, studentId: kids[0].id, free: !asked.has(to) };
+    }),
+  );
+  const okPhones = phones.filter((_, i) => results[i].ok);
+  if (okPhones.length) {
+    await db
+      .update(students)
+      .set({ consentRequestedAt: sql`coalesce(${students.consentRequestedAt}, now())` })
+      .where(and(eq(students.academyId, academy.id), inArray(students.parentPhone, okPhones)));
+  }
+  return results.map((r, i) => ({ ...r, free: !asked.has(phones[i]) }));
+}
+
+/** 학생·반 화면 [동의 요청 보내기] — 동의 대기인 다니는 학생의 학부모님께 */
+export async function sendConsentRequests(): Promise<FormResult> {
+  const academy = await requireActiveAcademy();
+  if (!appUrl()) return { ok: false, message: "동의 링크를 만들 주소(APP_URL)가 설정되지 않았어요. 관리자에게 문의해 주세요." };
+  const rows = await db
+    .select({ id: students.id, name: students.name, grade: students.grade, parentPhone: students.parentPhone })
+    .from(students)
+    .where(and(eq(students.academyId, academy.id), eq(students.active, true), eq(students.consent, "PENDING")));
+  if (rows.length === 0) return { ok: true, message: "동의를 기다리는 학부모님이 없어요." };
+
+  const byPhone = new Map<string, ConsentKid[]>();
+  for (const r of rows.sort(byGradeName)) byPhone.set(r.parentPhone, [...(byPhone.get(r.parentPhone) ?? []), r]);
+  const results = await sendConsentTo(academy, [...byPhone.entries()]);
+  revalidatePath("/students");
+
+  const sent = results.filter((r) => r.ok);
+  const failed = results.length - sent.length;
+  const charged = sent.filter((r) => !r.free).length;
+  const test = results.some((r) => r.test) ? " (테스트 모드: 실제 카톡은 안 나감)" : "";
+  if (failed) {
+    return { ok: false, message: `${sent.length}명 보냄, ${failed}명 실패 (${results.find((r) => !r.ok)?.error ?? ""})` };
+  }
+  return {
+    ok: true,
+    message: `학부모님 ${sent.length}명께 동의 요청을 보냈어요${charged ? ` · 다시 보낸 ${charged}통은 카톡 통수에서 빠져요` : ""}${test}`,
+  };
+}
+
+/**
+ * 학부모님이 동의 링크(/c/…)에서 누름 — 로그인 없이. 링크 서명이 곧 권한.
+ * 같은 공부방에서 같은 학부모 번호인 학생(형제) 모두에게 적용하고 시각을 남긴다.
+ */
+export async function answerConsent(code: string, agree: boolean): Promise<{ ok: boolean }> {
+  const studentId = readConsentCode(code);
+  if (!studentId) return { ok: false };
+  const [s] = await db
+    .select({ academyId: students.academyId, parentPhone: students.parentPhone })
+    .from(students)
+    .innerJoin(academies, eq(academies.id, students.academyId))
+    .where(and(eq(students.id, studentId), isNull(academies.deletedAt)));
+  if (!s) return { ok: false };
+  await db
+    .update(students)
+    .set({ consent: agree ? "AGREED" : "DECLINED", consentBy: "PARENT", consentAt: new Date() })
+    .where(and(eq(students.academyId, s.academyId), eq(students.parentPhone, s.parentPhone)));
+  revalidatePath("/students");
+  return { ok: true };
 }
 
 // ───────────────────────── 학생 관리 ─────────────────────────
@@ -543,19 +657,17 @@ export async function addStudent(_prev: FormResult, formData: FormData): Promise
   const academy = await requireActiveAcademy();
   const parsed = readStudentForm(formData);
   if ("error" in parsed) return { ok: false, message: parsed.error! };
-  if (formData.get("consent") !== "on") {
-    return { ok: false, message: "학부모님께 개인정보 수집·문자 수신 동의를 받은 뒤 체크해 주세요." };
-  }
+  const paper = formData.get("consent") === "on"; // 원장님이 종이·문자로 이미 동의를 받았으면 체크. 아니면 대기 → 동의 요청 카톡
 
   const [created] = await db
     .insert(students)
-    .values({ academyId: academy.id, ...parsed.data, consentAt: new Date() })
+    .values({ academyId: academy.id, ...parsed.data, ...consentFields(paper) })
     .returning({ id: students.id });
   await setStudentClasses(academy.id, created.id, parsed.classIds);
   revalidatePath("/students");
   revalidatePath("/");
   if (await endTrialIfOverlap(academy)) redirect("/billing");
-  return { ok: true, message: `${parsed.data.name} 학생을 추가했어요.` };
+  return { ok: true, message: `${parsed.data.name} 학생을 추가했어요.${paper ? "" : " 학부모 동의는 '동의 요청 보내기'로 받아요."}` };
 }
 
 export async function updateStudent(_prev: FormResult, formData: FormData): Promise<FormResult> {
@@ -564,12 +676,19 @@ export async function updateStudent(_prev: FormResult, formData: FormData): Prom
   const parsed = readStudentForm(formData);
   if ("error" in parsed) return { ok: false, message: parsed.error! };
 
-  const updated = await db
+  const before = await getOwnStudent(academy.id, id);
+  if (!before) return { ok: false, message: "학생을 찾을 수 없어요." };
+  // 원장님이 동의 상태를 직접 바꾼 경우 (종이로 받음 / 학부모님이 그만 받겠다고 하심)
+  const consent = String(formData.get("consentState") ?? before.consent);
+  const consentChange =
+    consent !== before.consent && ["AGREED", "PENDING", "DECLINED"].includes(consent)
+      ? { consent, consentBy: "OWNER", consentAt: consent === "PENDING" ? null : new Date() }
+      : {};
+
+  await db
     .update(students)
-    .set(parsed.data)
-    .where(and(eq(students.id, id), eq(students.academyId, academy.id)))
-    .returning({ id: students.id });
-  if (updated.length === 0) return { ok: false, message: "학생을 찾을 수 없어요." };
+    .set({ ...parsed.data, ...consentChange })
+    .where(and(eq(students.id, id), eq(students.academyId, academy.id)));
   await setStudentClasses(academy.id, id, parsed.classIds);
 
   revalidatePath("/students");
@@ -587,9 +706,7 @@ export async function updateStudent(_prev: FormResult, formData: FormData): Prom
  */
 export async function addStudentsBulk(_prev: FormResult, formData: FormData): Promise<FormResult> {
   const academy = await requireActiveAcademy();
-  if (formData.get("consent") !== "on") {
-    return { ok: false, message: "학부모님께 개인정보 수집·문자 수신 동의를 받은 뒤 체크해 주세요." };
-  }
+  const paper = formData.get("consent") === "on";
   const rows = parseRoster(String(formData.get("roster") ?? ""));
   if (rows.length > ROSTER_MAX_LINES) return { ok: false, message: `한 번에 ${ROSTER_MAX_LINES}명까지 넣을 수 있어요.` };
   const okRows = rows.filter((r) => r.ok);
@@ -612,8 +729,6 @@ export async function addStudentsBulk(_prev: FormResult, formData: FormData): Pr
           .from(classes)
           .where(and(eq(classes.academyId, academy.id), inArray(classes.id, classIds)))
       : [];
-    const consentAt = new Date();
-
     await db.transaction(async (tx) => {
       const created = await tx
         .insert(students)
@@ -624,7 +739,7 @@ export async function addStudentsBulk(_prev: FormResult, formData: FormData): Pr
             grade: r.grade,
             parentPhone: r.parentPhone,
             birthDate: r.birthDate,
-            consentAt,
+            ...consentFields(paper),
           })),
         )
         .returning({ id: students.id });

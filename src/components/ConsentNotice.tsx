@@ -4,7 +4,7 @@ import { useRef, useSyncExternalStore } from "react";
 import { Copy, ExternalLink } from "lucide-react";
 import { useToast } from "./Toast";
 
-/** 설정 화면: 학부모님께 보낼 개인정보 동의 안내 문구 (복사해서 문자·카톡으로 보냄) */
+/** 설정 화면 맨 아래(접힘): 학부모 동의를 직접 받고 싶을 때 보낼 안내 문구. 기본은 학생·반 화면 [동의 요청 보내기] */
 export function ConsentNotice({ academyId, academyName }: { academyId: string; academyName: string }) {
   const toast = useToast();
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -34,9 +34,15 @@ export function ConsentNotice({ academyId, academyName }: { academyId: string; a
   }
 
   return (
-    <section className="card rounded-2xl p-4">
-      <h2 className="text-[15px] font-bold">학부모님 동의 안내 문구</h2>
-      <p className="mt-0.5 text-[12px] text-slate-500">학생을 추가하기 전에 이 문구를 보내고 동의를 받아 주세요</p>
+    <details className="card group mt-3 rounded-2xl p-4">
+      <summary className="flex cursor-pointer list-none items-center justify-between text-[14px] font-semibold text-slate-600">
+        학부모 동의 안내 문구 · 직접 보내고 싶을 때
+        <span className="text-slate-400 transition-transform group-open:rotate-90">›</span>
+      </summary>
+      <p className="mt-2 text-[12px] leading-relaxed text-slate-500">
+        보통은 학생·반 화면의 [동의 요청 보내기]로 카톡 동의를 받아요. 종이·문자로 직접 받고 싶을 때 이 문구를 보내고, 동의를 받으면
+        학생 수정에서 &lsquo;동의&rsquo;로 바꿔 주세요.
+      </p>
       <textarea
         ref={ref}
         readOnly
@@ -60,6 +66,6 @@ export function ConsentNotice({ academyId, academyName }: { academyId: string; a
           <ExternalLink size={15} /> 처리방침 보기
         </a>
       </div>
-    </section>
+    </details>
   );
 }

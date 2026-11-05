@@ -5,7 +5,7 @@ import { CheckCircle2, Send } from "lucide-react";
 import { sendFeedbacks } from "@/app/actions";
 
 /** 화면 아래 "피드백 보내기" — 실수로 누르지 않게 두 번 확인 */
-export function FeedbackBar({ date, pending }: { date: string; pending: number }) {
+export function FeedbackBar({ date, pending, waiting = 0 }: { date: string; pending: number; waiting?: number }) {
   const [confirming, setConfirming] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, startTransition] = useTransition();
@@ -17,7 +17,7 @@ export function FeedbackBar({ date, pending }: { date: string; pending: number }
       const res = await sendFeedbacks(date);
       setConfirming(false);
       if (res.failed) setMsg(`${res.sent}명 보냄, ${res.failed}명 실패 (${res.error ?? ""}) — 다시 누르면 실패한 분만 재발송`);
-      else setMsg(`${res.sent}명에게 피드백을 보냈어요${res.test ? " (테스트 모드)" : ""}`);
+      else setMsg(`${res.sent}명에게 피드백을 보냈어요${res.waiting ? ` · 동의 대기 ${res.waiting}명은 빠졌어요` : ""}${res.test ? " (테스트 모드)" : ""}`);
     });
   }
 
@@ -33,7 +33,10 @@ export function FeedbackBar({ date, pending }: { date: string; pending: number }
       ) : confirming ? (
         <div className="card rounded-2xl p-3 shadow-xl">
           <p className="text-center text-sm">
-            메모를 쓴 학생 <b>{pending}명</b>의 학부모님께 보낼까요?
+            메모를 쓴 학생 <b>{pending - waiting}명</b>의 학부모님께 보낼까요?
+            {waiting > 0 && (
+              <span className="mt-0.5 block text-[12px] text-[#8a6d35]">학부모 동의 대기 {waiting}명은 빠져요 (메모는 남아 있어요)</span>
+            )}
           </p>
           <div className="mt-2 flex gap-2">
             <button onClick={() => setConfirming(false)} className="flex-1 rounded-xl bg-slate-100 py-3 text-sm font-medium">

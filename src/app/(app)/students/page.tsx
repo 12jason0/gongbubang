@@ -20,6 +20,8 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
         parentPhone: students.parentPhone,
         birthDate: students.birthDate,
         active: students.active,
+        consent: students.consent,
+        requestedAt: students.consentRequestedAt,
       })
       .from(students)
       .where(eq(students.academyId, academyId)),
@@ -36,9 +38,12 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
 
   classRows.sort(byTimeName);
   const activeIds = new Set(studentRows.filter((s) => s.active).map((s) => s.id));
-  const studentsWithClasses = studentRows
-    .sort(byGradeName)
-    .map((s) => ({ ...s, classIds: memberRows.filter((m) => m.studentId === s.id).map((m) => m.classId) }));
+  const requestedPhones = new Set(studentRows.filter((s) => s.requestedAt).map((s) => s.parentPhone)); // 형제 중 한 명이라도 요청받았으면
+  const studentsWithClasses = studentRows.sort(byGradeName).map(({ requestedAt, ...s }) => ({
+    ...s,
+    requested: !!requestedAt || requestedPhones.has(s.parentPhone),
+    classIds: memberRows.filter((m) => m.studentId === s.id).map((m) => m.classId),
+  }));
   const classesWithCount = classRows.map((c) => ({
     ...c,
     count: memberRows.filter((m) => m.classId === c.id && activeIds.has(m.studentId)).length,

@@ -14,7 +14,7 @@ import { alimtalkConfig, renderAlimtalk, solapiVariables, type AlimtalkKey, type
  *   알림톡이 실패하면(카톡 없음 등) 솔라피가 같은 내용을 발신번호로 문자 대체 발송한다.
  */
 
-export type MessageKind = "ATTENDANCE" | "FEEDBACK" | "NOTICE" | "PAYMENT";
+export type MessageKind = "ATTENDANCE" | "FEEDBACK" | "NOTICE" | "PAYMENT" | "CONSENT";
 export type Channel = "SMS" | "ALIMTALK";
 
 export type SendResult = { ok: boolean; test: boolean; error?: string };
@@ -49,6 +49,7 @@ type Outgoing = {
   alimtalk?: { key: AlimtalkKey; vars: AlimtalkVars }; // 알림톡으로 보낼 수 있으면 이걸로
   studentId?: string | null;
   refDate?: string | null;
+  free?: boolean; // 통수에서 안 뺌 (학부모당 첫 동의 요청)
 };
 
 /** 실제로 나갈 모양: 알림톡 설정이 있으면 알림톡, 없으면 문자 */
@@ -115,18 +116,19 @@ export async function sendMessages(
   const prepared = messages.map(prepare);
   let results: SendResult[];
 
-  const quota = await reserveQuota(academy.id, messages.length);
+  const charged = messages.filter((m) => !m.free).length;
+  const quota = charged ? await reserveQuota(academy.id, charged) : { ok: true, key: "", remaining: 0, tier: "TRIAL" as const };
   if (!quota.ok) {
     // 통수가 모자라면 한 통도 안 보냄 (실패로 남아서 요금제를 올린 뒤 "다시 보내기" 가능)
     const up = quota.tier === "PLUS" ? "다음 이용 기간에 다시 채워져요" : `${PLANS.PLUS.price.toLocaleString("ko-KR")}원 요금제로 올리면 바로 보낼 수 있어요`;
-    const error = `${QUOTA_USED_UP} (남은 ${quota.remaining}통, 필요 ${messages.length}통) — ${up}`;
+    const error = `${QUOTA_USED_UP} (남은 ${quota.remaining}통, 필요 ${charged}통) — ${up}`;
     results = messages.map(() => ({ ok: false, test: false, error }));
   } else if (isTestMode()) {
     results = messages.map(() => ({ ok: true, test: true }));
   } else {
     results = await callSolapi(academy.senderPhone, prepared);
     // 접수 단계에서 실패한 건은 통수에서 돌려놓음
-    await releaseQuota(academy.id, quota.key, results.filter((r) => !r.ok).length);
+    if (charged) await releaseQuota(academy.id, quota.key, results.filter((r, i) => !r.ok && !messages[i].free).length);
   }
 
   await db.insert(messageLogs).values(

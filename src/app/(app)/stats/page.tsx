@@ -10,7 +10,7 @@ import { byGradeName, monthLabel } from "@/lib/templates";
 import { PaymentRow, type PaymentItem } from "@/components/PaymentRow";
 import { UnpaidReminder } from "@/components/UnpaidReminder";
 
-const KIND_LABEL: Record<string, string> = { ATTENDANCE: "등원", FEEDBACK: "피드백", NOTICE: "공지", PAYMENT: "원비 안내" };
+const KIND_LABEL: Record<string, string> = { ATTENDANCE: "등원", FEEDBACK: "피드백", NOTICE: "공지", PAYMENT: "원비 안내", CONSENT: "동의 요청" };
 const NAV_BTN = "flex h-11 w-[84px] items-center gap-0.5 rounded-xl px-1.5 text-[13px] text-slate-500 active:bg-black/5";
 
 export default async function StatsPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {

@@ -1,10 +1,11 @@
 "use client";
 
 import { useMemo, useState, useTransition, type FormEvent } from "react";
-import { ClipboardList, Pencil, Plus, UserMinus, UserPlus, X } from "lucide-react";
-import { addStudent, addStudentsBulk, setStudentActive, updateStudent, type StudentFormResult } from "@/app/actions";
+import { ClipboardList, Pencil, Plus, Send, UserMinus, UserPlus, X } from "lucide-react";
+import { addStudent, addStudentsBulk, sendConsentRequests, setStudentActive, updateStudent, type StudentFormResult } from "@/app/actions";
 import { formatPhone } from "@/lib/phone";
 import { parseRoster, rosterKey, ROSTER_MAX_LINES } from "@/lib/roster";
+import { Confirm } from "./Confirm";
 import { PageTitle } from "./PageTitle";
 import { useToast } from "./Toast";
 
@@ -21,11 +22,19 @@ type S = {
   birthDate: string | null;
   active: boolean;
   classIds: string[];
+  consent: string; // AGREED(동의) / PENDING(대기) / DECLINED(거부)
+  requested: boolean; // 이 학부모 번호로 동의 요청 카톡이 나간 적 있음
 };
 type C = { id: string; name: string; days: string; time: string };
 
 const input =
   "w-full rounded-xl border-0 px-3 py-3 text-[15px] outline-none focus:ring-2 focus:ring-gold field";
+
+const CONSENT_LABEL: Record<string, { label: string; tone: string }> = {
+  AGREED: { label: "동의", tone: "bg-emerald-50 text-emerald-700" },
+  PENDING: { label: "대기", tone: "bg-gold-soft text-[#8a6d35]" },
+  DECLINED: { label: "거부", tone: "bg-rose-50 text-rose-600" },
+};
 
 function StudentFields({ s, classes }: { s?: S; classes: C[] }) {
   return (
@@ -73,7 +82,7 @@ function ClassChips({ classes, checked, label }: { classes: C[]; checked?: strin
   );
 }
 
-// 학생 추가 공통: 학부모 동의 체크 (체크해야 저장 버튼이 켜짐)
+// 학생 추가 공통: 종이·문자로 이미 동의를 받았으면 체크 (안 하면 '대기' → [동의 요청 보내기]로 카톡 요청)
 function ConsentCheck({ checked, onChange, many }: { checked: boolean; onChange: (v: boolean) => void; many?: boolean }) {
   return (
     <label className="mt-3 flex cursor-pointer items-start gap-2.5 rounded-xl bg-gold-soft px-3 py-2.5 text-[13px] text-[#6b5428]">
@@ -85,9 +94,9 @@ function ConsentCheck({ checked, onChange, many }: { checked: boolean; onChange:
         className="mt-0.5 h-5 w-5 shrink-0 accent-brand"
       />
       <span>
-        <b>{many ? "명단의 학부모님 모두에게 " : "학부모님께 "}개인정보 수집·문자 수신 동의를 받았어요</b>
+        <b>{many ? "명단의 학부모님 모두에게 " : "학부모님께 "}종이·문자로 이미 동의를 받았어요</b>
         <span className="mt-0.5 block text-[12px] text-[#8a6d35]">
-          동의 안내 문구는 설정 화면에서 복사해 보낼 수 있어요 ·{" "}
+          체크하지 않으면 &lsquo;대기&rsquo;로 들어가고, 목록 위 [동의 요청 보내기]로 카톡 동의를 받아요 ·{" "}
           <a href="/privacy" target="_blank" className="underline">
             처리방침 보기
           </a>
@@ -164,10 +173,10 @@ function AddForm({ classes }: { classes: C[] }) {
       <StudentFields classes={classes} />
       <ConsentCheck checked={consent} onChange={setConsent} />
       <button
-        disabled={pending || !consent}
+        disabled={pending}
         className="mt-3 w-full rounded-xl bg-brand py-3 text-[15px] font-semibold text-white disabled:opacity-40"
       >
-        {pending ? "추가 중…" : consent ? "추가" : "동의를 받았으면 위에 체크해 주세요"}
+        {pending ? "추가 중…" : "추가"}
       </button>
       <Result r={res} />
     </form>
@@ -242,16 +251,14 @@ function BulkForm({ classes, students }: { classes: C[]; students: S[] }) {
       <ClassChips classes={classes} label="모두 같은 반이면 골라 주세요 (선택)" />
       <ConsentCheck checked={consent} onChange={setConsent} many />
       <button
-        disabled={pending || !consent || ready.length === 0 || tooMany}
+        disabled={pending || ready.length === 0 || tooMany}
         className="mt-3 w-full rounded-xl bg-brand py-3 text-[15px] font-semibold text-white disabled:opacity-40"
       >
         {pending
           ? "추가 중…"
           : ready.length === 0
             ? "명단을 붙여넣어 주세요"
-            : consent
-              ? `${ready.length}명 추가`
-              : "동의를 받았으면 위에 체크해 주세요"}
+            : `${ready.length}명 추가`}
       </button>
       <Result r={res} />
     </form>
@@ -265,6 +272,14 @@ function EditForm({ s, onDone, classes }: { s: S; onDone: () => void; classes: C
     <form onSubmit={onSubmit} className="px-4 pb-4">
       <input type="hidden" name="id" value={s.id} />
       <StudentFields s={s} classes={classes} />
+      <label className="mt-3 flex items-center gap-2">
+        <span className="w-24 shrink-0 pl-1 text-[13px] text-slate-500">학부모 동의</span>
+        <select name="consentState" defaultValue={s.consent} className={input}>
+          <option value="AGREED">동의 (종이·문자로 받음)</option>
+          <option value="PENDING">대기</option>
+          <option value="DECLINED">거부 (안내를 받지 않음)</option>
+        </select>
+      </label>
       <div className="mt-2 flex gap-2">
         <button type="button" onClick={onDone} className="flex-1 rounded-xl bg-slate-100 py-2.5 text-sm font-medium">
           취소
@@ -309,6 +324,7 @@ function StudentItem({ s, classes }: { s: S; classes: C[] }) {
         <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-semibold">
             {s.name} <span className="text-xs font-medium text-slate-400">{s.grade}</span>
+            {s.active && <ConsentBadge s={s} />}
           </p>
           <p className="truncate text-[12px] text-slate-500">
             <span className="tabular-nums">{formatPhone(s.parentPhone)}</span>
@@ -332,6 +348,75 @@ function StudentItem({ s, classes }: { s: S; classes: C[] }) {
       </div>
       {editing && <EditForm s={s} classes={classes} onDone={() => setEditing(false)} />}
     </li>
+  );
+}
+
+function ConsentBadge({ s }: { s: S }) {
+  const c = CONSENT_LABEL[s.consent] ?? CONSENT_LABEL.PENDING;
+  return (
+    <span className={`ml-1.5 rounded-full px-1.5 py-0.5 align-[1px] text-[11px] font-semibold ${c.tone}`}>
+      {c.label}
+      {s.consent === "PENDING" && s.requested && <span className="font-medium"> · 요청함</span>}
+    </span>
+  );
+}
+
+/** 목록 위: "동의 12명 · 대기 3명" + [동의 요청 보내기] (대기인 학부모만, 형제는 한 통) */
+function ConsentBar({ active }: { active: S[] }) {
+  const [ask, setAsk] = useState(false);
+  const [busy, start] = useTransition();
+  const toast = useToast();
+  const n = (c: string) => active.filter((s) => s.consent === c).length;
+  const pending = active.filter((s) => s.consent === "PENDING");
+  const phones = new Map<string, boolean>(); // 학부모 번호 → 요청한 적 있음
+  for (const s of pending) phones.set(s.parentPhone, (phones.get(s.parentPhone) ?? false) || s.requested);
+  const again = [...phones.values()].filter(Boolean).length;
+  if (active.length === 0) return null;
+
+  function send() {
+    setAsk(false);
+    start(async () => {
+      const r = await sendConsentRequests();
+      toast({ text: r?.message ?? "보내지 못했어요", tone: r?.ok ? undefined : "err" });
+    });
+  }
+
+  return (
+    <div className="card mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl px-4 py-3">
+      <p className="text-[14px] font-semibold">
+        <span className="text-emerald-700">동의 {n("AGREED")}명</span>
+        <span className="text-slate-300"> · </span>
+        <span className="text-[#8a6d35]">대기 {n("PENDING")}명</span>
+        {n("DECLINED") > 0 && (
+          <>
+            <span className="text-slate-300"> · </span>
+            <span className="text-rose-600">거부 {n("DECLINED")}명</span>
+          </>
+        )}
+        <span className="block text-[12px] font-normal text-slate-500">동의한 학부모님께만 등원·피드백·공지 카톡이 가요</span>
+      </p>
+      <button
+        type="button"
+        disabled={busy || phones.size === 0}
+        onClick={() => setAsk(true)}
+        className="ml-auto flex items-center gap-1.5 rounded-xl bg-brand px-3.5 py-2.5 text-[13px] font-semibold text-white disabled:opacity-40"
+      >
+        <Send size={15} className="text-gold" /> {busy ? "보내는 중…" : "동의 요청 보내기"}
+      </button>
+      <Confirm
+        open={ask}
+        title={`학부모님 ${phones.size}명께 동의 요청을 보낼까요?`}
+        body={
+          `대기 중인 학부모님께 카톡으로 동의 링크가 가요. 형제는 한 통이에요.\n` +
+          (again
+            ? `처음 받는 ${phones.size - again}명은 무료, 다시 받는 ${again}명은 카톡 ${again}통이 빠져요.`
+            : "처음 보내는 요청이라 카톡 통수에서 빠지지 않아요.")
+        }
+        ok="보내기"
+        onCancel={() => setAsk(false)}
+        onOk={send}
+      />
+    </div>
   );
 }
 
@@ -364,6 +449,7 @@ export function StudentManager({ students, classes }: { students: S[]; classes: 
         </div>
       )}
 
+      <ConsentBar active={active} />
       <ul className="card divide-y divide-black/5 rounded-2xl">
         {active.map((s) => (
           <StudentItem key={s.id} s={s} classes={classes} />

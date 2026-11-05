@@ -7,7 +7,7 @@ import { quotaNote, quotaState } from "@/lib/plan";
 import type { DashboardData } from "@/lib/dashboard-example";
 import { Dashboard } from "@/components/Dashboard";
 
-const KIND_LABEL: Record<string, string> = { ATTENDANCE: "등원", FEEDBACK: "피드백", NOTICE: "공지", PAYMENT: "원비 안내" };
+const KIND_LABEL: Record<string, string> = { ATTENDANCE: "등원", FEEDBACK: "피드백", NOTICE: "공지", PAYMENT: "원비 안내", CONSENT: "동의 요청" };
 
 /** PC 첫 화면 — 학생·출석·원비·공지·메시지 기록에서 바로 계산 (따로 저장하는 표 없음) */
 export default async function DashboardPage() {

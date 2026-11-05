@@ -10,7 +10,7 @@
 
 import crypto from "node:crypto";
 
-export type AlimtalkKey = "ATTENDANCE" | "FEEDBACK" | "PAYMENT" | "NOTICE";
+export type AlimtalkKey = "ATTENDANCE" | "FEEDBACK" | "PAYMENT" | "NOTICE" | "CONSENT";
 
 export const ALIMTALK_TEMPLATES: Record<AlimtalkKey, { title: string; env: string; body: string }> = {
   ATTENDANCE: {
@@ -44,6 +44,14 @@ export const ALIMTALK_TEMPLATES: Record<AlimtalkKey, { title: string; env: strin
       "아래 링크에서 확인해 주세요.\n\n" +
       "#{링크}",
   },
+  CONSENT: {
+    title: "학부모 동의 요청",
+    env: "SOLAPI_TEMPLATE_CONSENT",
+    body:
+      "[#{학원}] #{이름} 학부모님, 안녕하세요. 출결·공지 안내를 카카오톡으로 보내드리려고 합니다. " +
+      "아래 링크에서 내용을 확인하고 동의해 주세요.\n" +
+      "#{링크}",
+  },
 };
 
 export type AlimtalkVars = Record<string, string>; // { 학원: "현샘영수", 이름: "김하늘", ... }
@@ -53,7 +61,7 @@ export function alimtalkConfig(key: AlimtalkKey): { pfId: string; templateId: st
   const pfId = process.env.SOLAPI_KAKAO_PF_ID?.trim();
   const templateId = process.env[ALIMTALK_TEMPLATES[key].env]?.trim();
   if (!pfId || !templateId) return null;
-  if ((key === "FEEDBACK" || key === "NOTICE") && !appUrl()) return null; // 링크를 못 만들면 문자로 본문을 보냄
+  if ((key === "FEEDBACK" || key === "NOTICE" || key === "CONSENT") && !appUrl()) return null; // 링크를 못 만들면 문자로 본문을 보냄
   return { pfId, templateId };
 }
 
@@ -68,14 +76,14 @@ export function solapiVariables(vars: AlimtalkVars) {
 }
 
 // ───── 학부모님이 여는 링크 ─────
-// /f/<메모 id>.<서명 16자> (수업 피드백), /n/<공지 id>.<서명 16자> (단체 공지)
+// /f/<메모 id>.<서명 16자> (수업 피드백), /n/<공지 id>.<서명 16자> (단체 공지), /c/<학생 id>.<서명 16자> (학부모 동의)
 // 서명이 맞아야 열림 (id 를 바꿔 남의 메모·공지를 볼 수 없게). 서명에 종류를 섞어서 서로 바꿔 쓸 수 없음
 
 export function appUrl() {
   return process.env.APP_URL?.trim().replace(/\/+$/, "") || "";
 }
 
-type LinkKind = "feedback" | "notice";
+type LinkKind = "feedback" | "notice" | "consent";
 
 function sign(kind: LinkKind, id: string) {
   const secret = process.env.SESSION_SECRET ?? "";
@@ -111,4 +119,14 @@ export function noticeLink(noticeId: string) {
 /** 링크 코드 → 공지 id (서명이 틀리면 null) */
 export function readNoticeCode(code: string): string | null {
   return readCode("notice", code);
+}
+
+/** 학부모 동의 링크 — 학생 id 로 만들지만, 열면 같은 학부모 번호의 형제 모두에게 적용된다 */
+export function consentLink(studentId: string) {
+  return `${appUrl()}/c/${studentId}.${sign("consent", studentId)}`;
+}
+
+/** 링크 코드 → 학생 id (서명이 틀리면 null) */
+export function readConsentCode(code: string): string | null {
+  return readCode("consent", code);
 }

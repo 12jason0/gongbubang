@@ -14,6 +14,7 @@ export type RowData = {
   notifiedTime: string | null; // 등원 문자 보낸 시각
   note: string;
   noteSentTime: string | null; // 피드백 보낸 시각
+  noConsent: boolean; // 학부모 동의 전(대기·거부) → 등원·피드백 카톡 안 감
 };
 
 type Msg = { text: string; tone: "ok" | "warn" | "err"; retry?: boolean };
@@ -51,7 +52,9 @@ export function AttendanceRow({ row, date }: { row: RowData; date: string }) {
       toast({
         text: `${row.name} ${target ? STATUS_DONE[target] : "체크 지움"}`,
         sub:
-          res.sms === "sent"
+          res.sms === "noconsent"
+            ? "학부모 동의 전이라 등원 카톡은 안 갔어요"
+            : res.sms === "sent"
             ? "등원 문자 보냄 · 되돌려도 문자는 취소되지 않아요"
             : res.sms === "test"
               ? "등원 문자 기록됨 (테스트 모드) · 되돌려도 취소되지 않아요"
@@ -131,6 +134,9 @@ export function AttendanceRow({ row, date }: { row: RowData; date: string }) {
           <p className="truncate text-[16px] font-semibold leading-tight">
             {row.name}
             <span className="ml-1.5 text-xs font-medium text-slate-400">{row.grade}</span>
+            {row.noConsent && (
+              <span className="ml-1.5 rounded-full bg-gold-soft px-1.5 py-0.5 align-[2px] text-[10.5px] font-semibold text-[#8a6d35]">동의 대기</span>
+            )}
           </p>
           <p className="mt-0.5 flex items-center gap-2 overflow-hidden text-[11px] leading-tight whitespace-nowrap text-slate-400">
             {row.notifiedTime ? (

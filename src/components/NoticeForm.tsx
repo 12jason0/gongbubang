@@ -36,6 +36,7 @@ const PLUS_PRICE = `${PLANS.PLUS.price.toLocaleString("ko-KR")}원`;
 export function NoticeForm({
   academyName,
   students,
+  waiting,
   classes,
   linkMode,
   remaining,
@@ -43,6 +44,7 @@ export function NoticeForm({
 }: {
   academyName: string;
   students: Student[];
+  waiting: number; // 학부모 동의 대기·거부 학생 수 (공지를 안 받음)
   classes: { id: string; name: string }[];
   linkMode: boolean; // APP_URL 이 있으면 "새 공지 + 링크", 없으면 문자에 공지 전체
   remaining: number; // 이번 달 남은 카톡 통수
@@ -233,6 +235,15 @@ export function NoticeForm({
           </div>
           {linkMode && <p className="mt-1.5 text-[11px] text-slate-400">링크를 누르면 위에 쓴 공지 전체가 보여요 (로그인 없이)</p>}
         </div>
+      )}
+
+      {waiting > 0 && (
+        <p className="mt-3 rounded-xl bg-gold-soft px-3 py-2 text-[13px] text-[#8a6d35]">
+          학부모 동의 대기 {waiting}명은 빠져요 ·{" "}
+          <Link href="/students" className="font-semibold underline">
+            동의 요청 보내기
+          </Link>
+        </p>
       )}
 
       {short && recipients > 0 && (

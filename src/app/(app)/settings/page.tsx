@@ -76,9 +76,7 @@ export default async function SettingsPage() {
       </div>
 
       <div className="max-md:mt-3 md:sticky md:top-20">
-        <ConsentNotice academyId={academy.id} academyName={academy.name} />
-
-      <section className="card mt-3 rounded-2xl p-4 text-sm">
+      <section className="card rounded-2xl p-4 text-sm">
         <div className="flex items-center justify-between">
           <span className="text-slate-500">문자 보내는 번호</span>
           <span className="font-semibold tabular-nums">
@@ -97,6 +95,9 @@ export default async function SettingsPage() {
         </div>
         <p className="mt-2 text-xs text-slate-400">보내는 번호를 바꾸려면 관리자에게 문의해 주세요.</p>
       </section>
+
+      {/* 학부모 동의는 학생·반 화면 [동의 요청 보내기]가 기본. 이건 종이·문자로 직접 받을 때만 */}
+      <ConsentNotice academyId={academy.id} academyName={academy.name} />
 
       </div>
       </div>
