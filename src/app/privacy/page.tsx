@@ -21,7 +21,7 @@ export default async function PrivacyPage({ searchParams }: { searchParams: Prom
           .from(academies)
           .where(eq(academies.id, a))
       : [];
-  const who = academy ? `${academy.name}` : "이 출석부를 쓰는 공부방";
+  const who = academy ? `${academy.name}` : "이 공부방노트를 쓰는 공부방";
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-8 text-[15px] leading-relaxed text-slate-700">
@@ -86,12 +86,12 @@ export default async function PrivacyPage({ searchParams }: { searchParams: Prom
             </tr>
             <tr>
               <td className="border border-slate-200 px-2 py-1.5">Neon, Vercel</td>
-              <td className="border border-slate-200 px-2 py-1.5">출석부 서버·데이터 보관</td>
+              <td className="border border-slate-200 px-2 py-1.5">공부방노트 서버·데이터 보관</td>
             </tr>
           </tbody>
         </table>
         <p className="mt-2 text-[14px]">
-          서버·데이터 보관 업체(Neon, Vercel)는 해외(싱가포르 등) 클라우드에 데이터를 암호화된 연결로 저장합니다(국외 이전). 출석부를
+          서버·데이터 보관 업체(Neon, Vercel)는 해외(싱가포르 등) 클라우드에 데이터를 암호화된 연결로 저장합니다(국외 이전). 공부방노트를
           쓰는 동안 위 1번 정보가 저장되며, 보관 기간은 3번과 같습니다.
         </p>
       </Section>

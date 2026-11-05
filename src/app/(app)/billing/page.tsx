@@ -35,7 +35,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
 
   return (
     <main className="px-3 pt-4 md:max-w-2xl">
-      <PageTitle title="이용권·충전" sub="출석부 이용권과 학부모님께 가는 카톡·문자 충전금" />
+      <PageTitle title="이용권·충전" sub="공부방노트 이용권과 학부모님께 가는 카톡·문자 충전금" />
 
       {(state.kind === "EXPIRED" || fromBlocked) && (
         <p className="mb-3 flex gap-2 rounded-xl bg-rose-50 px-3.5 py-3 text-[14px] leading-relaxed text-rose-800 ring-1 ring-rose-200">

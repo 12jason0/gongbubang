@@ -25,7 +25,7 @@ export function billingReady() {
 }
 
 export function orderName(kind: OrderKind, amount: number) {
-  return kind === "SUBSCRIPTION" ? "출석부 1개월 이용권" : `카톡·문자 충전금 ${amount.toLocaleString("ko-KR")}원`;
+  return kind === "SUBSCRIPTION" ? "공부방노트 1개월 이용권" : `카톡·문자 충전금 ${amount.toLocaleString("ko-KR")}원`;
 }
 
 /** 금액은 화면이 아니라 서버가 정한다 */

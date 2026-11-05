@@ -2,7 +2,8 @@
 
 import { useState, useTransition, type FormEvent } from "react";
 import Link from "next/link";
-import { ClipboardCheck, Gift } from "lucide-react";
+import Image from "next/image";
+import { Gift } from "lucide-react";
 import { signup } from "../actions";
 
 const input =
@@ -21,10 +22,8 @@ export default function SignupPage() {
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-6 py-10">
-      <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand text-gold">
-        <ClipboardCheck size={28} />
-      </span>
-      <h1 className="mt-5 text-[26px] font-bold tracking-tight">출석부 시작하기</h1>
+      <Image src="/icons/icon-192.png" alt="공부방노트" width={56} height={56} preload className="rounded-2xl" />
+      <h1 className="mt-5 text-[26px] font-bold tracking-tight">공부방노트 시작하기</h1>
       <p className="mt-2 flex items-start gap-2 rounded-xl bg-gold-soft px-3.5 py-3 text-[14px] leading-relaxed text-[#6b5428]">
         <Gift size={18} className="mt-0.5 shrink-0" />
         <span>
