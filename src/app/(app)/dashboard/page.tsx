@@ -1,6 +1,6 @@
 import { and, count, desc, eq, gte } from "drizzle-orm";
 import { db, attendance, classes, classStudents, messageLogs, notices, payments, students } from "@/db";
-import { requireAcademy } from "@/lib/session";
+import { currentAcademyId, requireAcademy } from "@/lib/session";
 import { shiftDate, thisMonthKST, timeKST, todayKST } from "@/lib/date";
 import { byTimeName, parseDays, weekdayOf } from "@/lib/templates";
 import { quotaNote, quotaState } from "@/lib/plan";
@@ -11,45 +11,46 @@ const KIND_LABEL: Record<string, string> = { ATTENDANCE: "등원", FEEDBACK: "�
 
 /** PC 첫 화면 — 학생·출석·원비·공지·메시지 기록에서 바로 계산 (따로 저장하는 표 없음) */
 export default async function DashboardPage() {
-  const academy = await requireAcademy();
+  const academyId = await currentAcademyId(); // 쿠키만 확인 — 아래 쿼리를 공부방 조회와 동시에
   const today = todayKST();
   const month = thisMonthKST();
   const from30 = shiftDate(today, -29);
   const weekday = weekdayOf(today);
   const monday = shiftDate(today, -((weekday + 6) % 7));
 
-  const [studentRows, classRows, memberRows, attRows, monthPaid, lastPaid, [{ n: noticesThisWeek }], logRows] = await Promise.all([
+  const [academy, studentRows, classRows, memberRows, attRows, monthPaid, lastPaid, [{ n: noticesThisWeek }], logRows] = await Promise.all([
+    requireAcademy(),
     db
       .select({ id: students.id, name: students.name, grade: students.grade })
       .from(students)
-      .where(and(eq(students.academyId, academy.id), eq(students.active, true))),
+      .where(and(eq(students.academyId, academyId), eq(students.active, true))),
     db
       .select({ id: classes.id, name: classes.name, days: classes.days, time: classes.time })
       .from(classes)
-      .where(and(eq(classes.academyId, academy.id), eq(classes.active, true))),
+      .where(and(eq(classes.academyId, academyId), eq(classes.active, true))),
     db
       .select({ classId: classStudents.classId, studentId: classStudents.studentId })
       .from(classStudents)
       .innerJoin(classes, eq(classes.id, classStudents.classId))
-      .where(eq(classes.academyId, academy.id)),
+      .where(eq(classes.academyId, academyId)),
     db
       .select({ studentId: attendance.studentId, date: attendance.date, status: attendance.status })
       .from(attendance)
-      .where(and(eq(attendance.academyId, academy.id), gte(attendance.date, from30))),
+      .where(and(eq(attendance.academyId, academyId), gte(attendance.date, from30))),
     db
       .selectDistinct({ studentId: payments.studentId })
       .from(payments)
-      .where(and(eq(payments.academyId, academy.id), eq(payments.period, month))),
+      .where(and(eq(payments.academyId, academyId), eq(payments.period, month))),
     // 미납 금액은 학생별 가장 최근 납부액으로 어림 (월별 화면 입력칸 기본값과 같은 기준)
     db
       .selectDistinctOn([payments.studentId], { studentId: payments.studentId, tuition: payments.tuition, otherFee: payments.otherFee })
       .from(payments)
-      .where(eq(payments.academyId, academy.id))
+      .where(eq(payments.academyId, academyId))
       .orderBy(payments.studentId, desc(payments.createdAt)),
     db
       .select({ n: count() })
       .from(notices)
-      .where(and(eq(notices.academyId, academy.id), gte(notices.sentAt, new Date(`${monday}T00:00:00+09:00`)))),
+      .where(and(eq(notices.academyId, academyId), gte(notices.sentAt, new Date(`${monday}T00:00:00+09:00`)))),
     db
       .select({
         id: messageLogs.id,
@@ -62,7 +63,7 @@ export default async function DashboardPage() {
       })
       .from(messageLogs)
       .leftJoin(students, eq(students.id, messageLogs.studentId))
-      .where(eq(messageLogs.academyId, academy.id))
+      .where(eq(messageLogs.academyId, academyId))
       .orderBy(desc(messageLogs.createdAt))
       .limit(6),
   ]);

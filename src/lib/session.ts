@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
@@ -21,10 +22,20 @@ export async function deleteSession() {
   (await cookies()).delete(SESSION_COOKIE);
 }
 
-/** 로그인한 공부방. 없으면 로그인 화면으로 */
-export async function requireAcademy() {
+/**
+ * 로그인 쿠키의 공부방 id (서명 확인만, DB 안 감). 없으면 로그인 화면으로.
+ * 화면은 이 id 로 자기 쿼리를 requireAcademy 와 "동시에" 시작해서 DB 왕복을 한 번 줄인다.
+ * (그 공부방이 DB 에 없으면 requireAcademy 가 로그인 화면으로 보내므로 결과는 안 쓰임)
+ */
+export const currentAcademyId = cache(async () => {
   const academyId = await verifyToken((await cookies()).get(SESSION_COOKIE)?.value);
   if (!academyId) redirect("/login");
+  return academyId;
+});
+
+/** 로그인한 공부방. 없으면 로그인 화면으로 — 한 요청 안에서는 한 번만 조회 (레이아웃·화면이 같이 써도) */
+export const requireAcademy = cache(async () => {
+  const academyId = await currentAcademyId();
 
   const [academy] = await db
     .select({
@@ -49,7 +60,7 @@ export async function requireAcademy() {
   // 쿠키는 맞는데 공부방이 없음(지워진 계정 등) → proxy 가 쿠키를 지우게 표시해서 보냄 (무한 이동 방지)
   if (!academy) redirect("/login?stale=1");
   return academy;
-}
+});
 
 export type CurrentAcademy = Awaited<ReturnType<typeof requireAcademy>>;
 

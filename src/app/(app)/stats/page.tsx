@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight, MessageSquare, Printer, Wallet } from "lucide-react";
 import { and, desc, eq, gte, like, lt, ne } from "drizzle-orm";
 import { db, attendance, messageLogs, students, payments, classes, classStudents } from "@/db";
-import { requireAcademy } from "@/lib/session";
+import { currentAcademyId, requireAcademy } from "@/lib/session";
 import { isValidMonth, quarterOf, shiftMonth, thisMonthKST, todayKST } from "@/lib/date";
 import { isLongMessage, usesAlimtalk } from "@/lib/sms";
 import { formatWon } from "@/lib/money";
@@ -14,7 +14,7 @@ const KIND_LABEL: Record<string, string> = { ATTENDANCE: "등원", FEEDBACK: "�
 const NAV_BTN = "flex h-11 w-[84px] items-center gap-0.5 rounded-xl px-1.5 text-[13px] text-slate-500 active:bg-black/5";
 
 export default async function StatsPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
-  const academy = await requireAcademy();
+  const academyId = await currentAcademyId(); // 쿠키만 확인 — 아래 쿼리를 공부방 조회와 동시에
   const sp = await searchParams;
   const current = thisMonthKST();
   const last = shiftMonth(current, 6); // 선납 확인용으로 반년 앞까지
@@ -25,39 +25,40 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
   const from = new Date(`${month}-01T00:00:00+09:00`);
   const to = new Date(`${shiftMonth(month, 1)}-01T00:00:00+09:00`);
 
-  const [studentRows, attRows, logs, monthPayments, lastPayments, classRows, reminders] = await Promise.all([
-    db.select().from(students).where(eq(students.academyId, academy.id)),
+  const [, studentRows, attRows, logs, monthPayments, lastPayments, classRows, reminders] = await Promise.all([
+    requireAcademy(), // 공부방이 없거나 지워졌으면 여기서 로그인 화면으로
+    db.select().from(students).where(eq(students.academyId, academyId)),
     db
       .select({ studentId: attendance.studentId, status: attendance.status })
       .from(attendance)
-      .where(and(eq(attendance.academyId, academy.id), like(attendance.date, `${month}-%`))),
+      .where(and(eq(attendance.academyId, academyId), like(attendance.date, `${month}-%`))),
     db
       .select({ kind: messageLogs.kind, channel: messageLogs.channel, text: messageLogs.text, status: messageLogs.status })
       .from(messageLogs)
-      .where(and(eq(messageLogs.academyId, academy.id), gte(messageLogs.createdAt, from), lt(messageLogs.createdAt, to))),
+      .where(and(eq(messageLogs.academyId, academyId), gte(messageLogs.createdAt, from), lt(messageLogs.createdAt, to))),
     db
       .select()
       .from(payments)
-      .where(and(eq(payments.academyId, academy.id), eq(payments.period, month)))
+      .where(and(eq(payments.academyId, academyId), eq(payments.period, month)))
       .orderBy(payments.paidOn),
     // 학생별 가장 최근 납부 — 입력 칸 기본값 (지난번과 같은 금액·과목·수단)
     db
       .selectDistinctOn([payments.studentId])
       .from(payments)
-      .where(eq(payments.academyId, academy.id))
+      .where(eq(payments.academyId, academyId))
       .orderBy(payments.studentId, desc(payments.createdAt)),
     db
       .select({ studentId: classStudents.studentId, name: classes.name })
       .from(classStudents)
       .innerJoin(classes, eq(classes.id, classStudents.classId))
-      .where(eq(classes.academyId, academy.id)),
+      .where(eq(classes.academyId, academyId)),
     // 이 달 원비 안내를 보낸 기록 (실패 제외) — "10/31 안내함" 표시
     db
       .select({ studentId: messageLogs.studentId, createdAt: messageLogs.createdAt })
       .from(messageLogs)
       .where(
         and(
-          eq(messageLogs.academyId, academy.id),
+          eq(messageLogs.academyId, academyId),
           eq(messageLogs.kind, "PAYMENT"),
           eq(messageLogs.refDate, month),
           ne(messageLogs.status, "FAILED"),

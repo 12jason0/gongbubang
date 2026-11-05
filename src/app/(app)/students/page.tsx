@@ -1,16 +1,17 @@
 import Link from "next/link";
 import { eq } from "drizzle-orm";
 import { db, students, classes, classStudents } from "@/db";
-import { requireAcademy } from "@/lib/session";
+import { currentAcademyId, requireAcademy } from "@/lib/session";
 import { StudentManager } from "@/components/StudentManager";
 import { ClassManager } from "@/components/ClassManager";
 import { byGradeName, byTimeName } from "@/lib/templates";
 
 export default async function StudentsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
-  const academy = await requireAcademy();
+  const academyId = await currentAcademyId(); // 쿠키만 확인 — 아래 쿼리를 공부방 조회와 동시에
   const tab = (await searchParams).tab === "classes" ? "classes" : "students";
 
-  const [studentRows, classRows, memberRows] = await Promise.all([
+  const [, studentRows, classRows, memberRows] = await Promise.all([
+    requireAcademy(), // 공부방이 없거나 지워졌으면 여기서 로그인 화면으로
     db
       .select({
         id: students.id,
@@ -21,16 +22,16 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
         active: students.active,
       })
       .from(students)
-      .where(eq(students.academyId, academy.id)),
+      .where(eq(students.academyId, academyId)),
     db
       .select({ id: classes.id, name: classes.name, days: classes.days, time: classes.time })
       .from(classes)
-      .where(eq(classes.academyId, academy.id)),
+      .where(eq(classes.academyId, academyId)),
     db
       .select({ classId: classStudents.classId, studentId: classStudents.studentId })
       .from(classStudents)
       .innerJoin(classes, eq(classes.id, classStudents.classId))
-      .where(eq(classes.academyId, academy.id)),
+      .where(eq(classes.academyId, academyId)),
   ]);
 
   classRows.sort(byTimeName);

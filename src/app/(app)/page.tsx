@@ -2,7 +2,7 @@ import Link from "next/link";
 import { CheckCircle2, ChevronLeft, ChevronRight, History, ListChecks, Send, Users } from "lucide-react";
 import { and, eq } from "drizzle-orm";
 import { db, students, attendance, notes, classes, classStudents } from "@/db";
-import { requireAcademy } from "@/lib/session";
+import { currentAcademyId, requireAcademy } from "@/lib/session";
 import { formatDateLabel, isValidDate, shiftDate, timeKST, todayKST } from "@/lib/date";
 import { byGradeName, byTimeName, parseDays, weekdayOf } from "@/lib/templates";
 import type { RowData } from "@/components/AttendanceRow";
@@ -19,30 +19,31 @@ export default async function AttendancePage({
 }: {
   searchParams: Promise<{ date?: string; c?: string }>;
 }) {
-  const academy = await requireAcademy();
+  const academyId = await currentAcademyId(); // 쿠키만 확인 — 아래 쿼리를 공부방 조회와 동시에
   const sp = await searchParams;
   const today = todayKST();
   const date = isValidDate(sp.date) && sp.date <= today ? sp.date : today;
   const isToday = date === today;
   const weekday = weekdayOf(date);
 
-  const [studentRows, classRows, memberRows, attRows, noteRows, failed] = await Promise.all([
+  const [, studentRows, classRows, memberRows, attRows, noteRows, failed] = await Promise.all([
+    requireAcademy(), // 공부방이 없거나 지워졌으면 여기서 로그인 화면으로
     db
       .select()
       .from(students)
-      .where(and(eq(students.academyId, academy.id), eq(students.active, true))),
+      .where(and(eq(students.academyId, academyId), eq(students.active, true))),
     db
       .select()
       .from(classes)
-      .where(and(eq(classes.academyId, academy.id), eq(classes.active, true))),
+      .where(and(eq(classes.academyId, academyId), eq(classes.active, true))),
     db
       .select({ classId: classStudents.classId, studentId: classStudents.studentId })
       .from(classStudents)
       .innerJoin(classes, eq(classes.id, classStudents.classId))
-      .where(eq(classes.academyId, academy.id)),
-    db.select().from(attendance).where(and(eq(attendance.academyId, academy.id), eq(attendance.date, date))),
-    db.select().from(notes).where(and(eq(notes.academyId, academy.id), eq(notes.date, date))),
-    countFailedMessages(academy.id),
+      .where(eq(classes.academyId, academyId)),
+    db.select().from(attendance).where(and(eq(attendance.academyId, academyId), eq(attendance.date, date))),
+    db.select().from(notes).where(and(eq(notes.academyId, academyId), eq(notes.date, date))),
+    countFailedMessages(academyId),
   ]);
 
   // 이 날짜 요일에 수업 있는 반

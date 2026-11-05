@@ -1,7 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { Inbox } from "lucide-react";
 import { db, notices, students, classes, classStudents } from "@/db";
-import { requireAcademy } from "@/lib/session";
+import { currentAcademyId, requireAcademy } from "@/lib/session";
 import { byGradeName, byTimeName } from "@/lib/templates";
 import { appUrl } from "@/lib/alimtalk";
 import { quotaState } from "@/lib/plan";
@@ -9,23 +9,24 @@ import { NoticeForm } from "@/components/NoticeForm";
 import { PageTitle } from "@/components/PageTitle";
 
 export default async function NoticePage() {
-  const academy = await requireAcademy();
+  const academyId = await currentAcademyId(); // 쿠키만 확인 — 아래 쿼리를 공부방 조회와 동시에
 
-  const [studentRows, classRows, memberRows, history] = await Promise.all([
+  const [academy, studentRows, classRows, memberRows, history] = await Promise.all([
+    requireAcademy(),
     db
       .select({ id: students.id, name: students.name, grade: students.grade, phone: students.parentPhone })
       .from(students)
-      .where(and(eq(students.academyId, academy.id), eq(students.active, true))),
+      .where(and(eq(students.academyId, academyId), eq(students.active, true))),
     db
       .select()
       .from(classes)
-      .where(and(eq(classes.academyId, academy.id), eq(classes.active, true))),
+      .where(and(eq(classes.academyId, academyId), eq(classes.active, true))),
     db
       .select({ classId: classStudents.classId, studentId: classStudents.studentId })
       .from(classStudents)
       .innerJoin(classes, eq(classes.id, classStudents.classId))
-      .where(eq(classes.academyId, academy.id)),
-    db.select().from(notices).where(eq(notices.academyId, academy.id)).orderBy(desc(notices.sentAt)).limit(20),
+      .where(eq(classes.academyId, academyId)),
+    db.select().from(notices).where(eq(notices.academyId, academyId)).orderBy(desc(notices.sentAt)).limit(20),
   ]);
 
   classRows.sort(byTimeName);
