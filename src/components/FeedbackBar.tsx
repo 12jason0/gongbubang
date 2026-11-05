@@ -17,7 +17,7 @@ export function FeedbackBar({ date, pending, waiting = 0 }: { date: string; pend
       const res = await sendFeedbacks(date);
       setConfirming(false);
       if (res.failed) setMsg(`${res.sent}명 보냄, ${res.failed}명 실패 (${res.error ?? ""}) — 다시 누르면 실패한 분만 재발송`);
-      else setMsg(`${res.sent}명에게 피드백을 보냈어요${res.waiting ? ` · 동의 대기 ${res.waiting}명은 빠졌어요` : ""}${res.test ? " (테스트 모드)" : ""}`);
+      else setMsg(`${res.sent}명에게 피드백을 보냈어요${res.waiting ? ` · 동의 안 한 ${res.waiting}명은 빠졌어요` : ""}${res.test ? " (테스트 모드)" : ""}`);
     });
   }
 
@@ -35,7 +35,7 @@ export function FeedbackBar({ date, pending, waiting = 0 }: { date: string; pend
           <p className="text-center text-sm">
             메모를 쓴 학생 <b>{pending - waiting}명</b>의 학부모님께 보낼까요?
             {waiting > 0 && (
-              <span className="mt-0.5 block text-[12px] text-[#8a6d35]">학부모 동의 대기 {waiting}명은 빠져요 (메모는 남아 있어요)</span>
+              <span className="mt-0.5 block text-[12px] text-[#8a6d35]">동의 안 한 {waiting}명은 빠져요 (메모는 남아 있어요)</span>
             )}
           </p>
           <div className="mt-2 flex gap-2">

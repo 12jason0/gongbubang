@@ -135,7 +135,7 @@ export function AttendanceRow({ row, date }: { row: RowData; date: string }) {
             {row.name}
             <span className="ml-1.5 text-xs font-medium text-slate-400">{row.grade}</span>
             {row.noConsent && (
-              <span className="ml-1.5 rounded-full bg-gold-soft px-1.5 py-0.5 align-[2px] text-[10.5px] font-semibold text-[#8a6d35]">동의 대기</span>
+              <span className="ml-1.5 rounded-full bg-gold-soft px-1.5 py-0.5 align-[2px] text-[10.5px] font-semibold text-[#8a6d35]">동의 안 함</span>
             )}
           </p>
           <p className="mt-0.5 flex items-center gap-2 overflow-hidden text-[11px] leading-tight whitespace-nowrap text-slate-400">

@@ -420,7 +420,7 @@ export async function sendPaymentReminders(month: string, studentIds: string[]) 
   const waiting = targets.filter((s) => !paid.has(s.id) && s.consent !== "AGREED").length;
   if (unpaid.length === 0) {
     return waiting
-      ? { ok: false, sent: 0, failed: 0, waiting, test: false, error: `학부모 동의 대기 ${waiting}명이라 보내지 않았어요` }
+      ? { ok: false, sent: 0, failed: 0, waiting, test: false, error: `학부모 동의 안 한 ${waiting}명이라 보내지 않았어요` }
       : { ok: true, sent: 0, failed: 0, waiting, test: false };
   }
 

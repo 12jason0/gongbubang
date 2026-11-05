@@ -239,7 +239,7 @@ export function NoticeForm({
 
       {waiting > 0 && (
         <p className="mt-3 rounded-xl bg-gold-soft px-3 py-2 text-[13px] text-[#8a6d35]">
-          학부모 동의 대기 {waiting}명은 빠져요 ·{" "}
+          동의 안 한 {waiting}명은 빠져요 ·{" "}
           <Link href="/students" className="font-semibold underline">
             동의 요청 보내기
           </Link>

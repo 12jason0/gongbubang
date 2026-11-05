@@ -32,7 +32,7 @@ export function UnpaidReminder({ month, label, list, via }: { month: string; lab
       if (res.failed) setMsg({ ok: false, text: `${res.sent}명 보냄, ${res.failed}명 실패 (${res.error ?? ""}) — 출석부 위 '다시 보내기'로 재발송돼요` });
       else if (res.error) setMsg({ ok: false, text: res.error });
       else {
-        setMsg({ ok: true, text: `${res.sent}명에게 원비 안내를 보냈어요${res.waiting ? ` · 학부모 동의 대기 ${res.waiting}명은 빠졌어요` : ""}${res.test ? " (테스트 모드)" : ""}` });
+        setMsg({ ok: true, text: `${res.sent}명에게 원비 안내를 보냈어요${res.waiting ? ` · 동의 안 한 ${res.waiting}명은 빠졌어요` : ""}${res.test ? " (테스트 모드)" : ""}` });
         setPicked(new Set());
       }
     });
