@@ -33,7 +33,11 @@ export const academies = pgTable("academies", {
   // 탈퇴: 이 줄은 지우지 않고(결제 기록 orders 를 법정 기간 보관하려고) 이름·연락처·아이디·비밀번호를 비우고 시각만 남긴다
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
   // 탈퇴한 원장님 연락처를 되돌릴 수 없게 바꾼 값 — 같은 번호로 다시 가입해도 무료 체험을 또 주지 않으려고 (lib/account.ts)
+  // 가입 때도 넣는다(체험을 쓴 번호). 탈퇴해서 연락처를 지워도 이 값으로 같은 번호 재가입을 알아본다
   trialPhoneHash: text("trial_phone_hash").notNull().default(""),
+  // 학부모 번호가 다른 공부방과 5개 이상 겹쳐 체험을 끝낸 계정: "" / BLOCKED(막힘) / CLEARED(관리자가 풀어줌 → 다시 검사 안 함)
+  trialBlock: text("trial_block").notNull().default(""),
+  trialBlockNote: text("trial_block_note").notNull().default(""), // 어느 계정과 몇 개 겹쳤는지 (관리자 확인용)
   creditWon: integer("credit_won").notNull().default(0), // (안 씀) 예전 충전금 잔액 — 요금제로 바뀌며 기록만 남김
   createdAt: createdAt(),
 });
@@ -202,6 +206,17 @@ export const orders = pgTable(
     doneAt: timestamp("done_at", { withTimezone: true }),
   },
   (t) => [index("orders_academy_idx").on(t.academyId, t.createdAt)],
+);
+
+// 탈퇴한 공부방의 학부모 번호 — 번호는 지우고 되돌릴 수 없는 값(HMAC)만 남긴다.
+// 탈퇴 뒤 같은 학부모 명단으로 다시 가입해 무료 체험을 또 받는지 비교하는 데만 쓴다 (lib/account.ts)
+export const deletedParentHashes = pgTable(
+  "deleted_parent_hashes",
+  {
+    academyId: text("academy_id").notNull().references(() => academies.id, { onDelete: "cascade" }),
+    hash: text("hash").notNull(),
+  },
+  (t) => [uniqueIndex("deleted_parent_hashes_uq").on(t.academyId, t.hash), index("deleted_parent_hashes_hash_idx").on(t.hash)],
 );
 
 export type Student = typeof students.$inferSelect;

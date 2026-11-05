@@ -20,6 +20,8 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
   const sp = await searchParams;
   const fromBlocked = sp.expired === "1";
   const trialUsed = sp.trial === "used";
+  // 학부모 번호가 다른 공부방과 겹쳐 체험이 끝난 계정 (lib/account.ts endTrialIfOverlap) — 어느 화면에서 와도 이 안내
+  const overlap = academy.trialBlock === "BLOCKED" && state.kind === "EXPIRED";
 
   const status =
     state.kind === "UNLIMITED"
@@ -34,11 +36,22 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
 
       {trialUsed && (
         <p className="mb-3 rounded-xl bg-gold-soft px-3.5 py-3 text-[14px] leading-relaxed text-[#6b5428] ring-1 ring-gold/40">
-          이 연락처로 무료 체험을 이미 쓰셨어요. 요금제를 결제하면 바로 쓸 수 있어요.
+          이 번호로 무료 체험을 이미 쓰셨어요. 요금제를 결제하면 바로 쓸 수 있어요.
         </p>
       )}
 
-      {!trialUsed && (state.kind === "EXPIRED" || fromBlocked) && (
+      {overlap && (
+        <p className="mb-3 rounded-xl bg-gold-soft px-3.5 py-3 text-[14px] leading-relaxed text-[#6b5428] ring-1 ring-gold/40">
+          <b>이미 체험한 공부방으로 확인됐어요.</b> 무료 체험은 공부방마다 한 번이에요. 요금제를 결제하면 바로 쓸 수 있어요.
+          잘못 확인된 것 같으면{" "}
+          <Link href="/terms" className="font-semibold underline">
+            이용약관
+          </Link>
+          의 연락처로 말씀해 주세요.
+        </p>
+      )}
+
+      {!trialUsed && !overlap && (state.kind === "EXPIRED" || fromBlocked) && (
         <p className="mb-3 flex gap-2 rounded-xl bg-rose-50 px-3.5 py-3 text-[14px] leading-relaxed text-rose-800 ring-1 ring-rose-200">
           <TriangleAlert size={18} className="mt-0.5 shrink-0 text-rose-500" />
           <span>

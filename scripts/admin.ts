@@ -6,11 +6,13 @@
 //   npm run admin -- days <아이디> <일수>            오늘부터 N일까지 쓸 수 있게 (예: 1달 무료 → days hyunsaem 30)
 //   npm run admin -- unlimited <아이디>              기한 없음 (두나 데모 계정)
 //   npm run admin -- notify <아이디> <on|off>         출석 체크하면 등원 카톡 보내기 켜기/끄기 (설정 화면 스위치와 같음)
+//   npm run admin -- blocked                       학부모 번호 겹침으로 체험이 막힌 공부방 (어느 계정과 몇 개 겹쳤는지)
+//   npm run admin -- unblock <아이디> [일수]          막힌 체험 풀어주기 (다시 검사 안 함). 일수 없으면 원래 체험 끝나는 날까지
 
 import { desc, eq } from "drizzle-orm";
 import { db, academies } from "../src/db";
 import { addMonths, quotaState } from "../src/lib/plan";
-import { PLANS, type Tier } from "../src/lib/pricing";
+import { PLANS, TRIAL_DAYS, type Tier } from "../src/lib/pricing";
 
 const [cmd, loginId, arg] = process.argv.slice(2);
 
@@ -28,7 +30,7 @@ async function main() {
     const rows = await db.select().from(academies).orderBy(desc(academies.createdAt));
     for (const a of rows) {
       const q = quotaState(a);
-      console.log(`${a.loginId.padEnd(14)} ${a.name.padEnd(10)} ${q.label.padEnd(5)} ~${day(a.serviceUntil)}  카톡 ${q.remaining}/${q.total}통  등원카톡 ${a.attendanceNotify ? "켬" : "끔"}  ${a.ownerPhone}${a.deletedAt ? `  [탈퇴 ${day(a.deletedAt)}]` : ""}`);
+      console.log(`${a.loginId.padEnd(14)} ${a.name.padEnd(10)} ${q.label.padEnd(5)} ~${day(a.serviceUntil)}  카톡 ${q.remaining}/${q.total}통  등원카톡 ${a.attendanceNotify ? "켬" : "끔"}  ${a.ownerPhone}${a.deletedAt ? `  [탈퇴 ${day(a.deletedAt)}]` : ""}${a.trialBlock === "BLOCKED" ? "  [체험 막힘]" : ""}`);
     }
   } else if (cmd === "plan") {
     const a = await find(loginId);
@@ -52,6 +54,19 @@ async function main() {
     const until = new Date(Date.now() + n * 86_400_000);
     await db.update(academies).set({ serviceUntil: until }).where(eq(academies.id, a.id));
     console.log(`${a.name}: ${day(until)} 까지 사용`);
+  } else if (cmd === "blocked") {
+    const rows = await db.select().from(academies).where(eq(academies.trialBlock, "BLOCKED")).orderBy(desc(academies.createdAt));
+    if (!rows.length) console.log("체험이 막힌 공부방이 없어요");
+    for (const a of rows) console.log(`${a.loginId.padEnd(14)} ${a.name.padEnd(10)} 가입 ${day(a.createdAt)}  ${a.ownerPhone}  ${a.trialBlockNote}`);
+  } else if (cmd === "unblock") {
+    const a = await find(loginId);
+    if (a.trialBlock !== "BLOCKED") throw new Error(`${a.name} 은(는) 막힌 계정이 아니에요`);
+    const n = arg === undefined ? null : Number(arg);
+    if (n !== null && (!Number.isInteger(n) || n < 1)) throw new Error("일수를 1 이상 숫자로 넣어 주세요");
+    const until = n ? new Date(Date.now() + n * 86_400_000) : new Date(a.createdAt.getTime() + TRIAL_DAYS * 86_400_000);
+    if (until <= new Date()) throw new Error(`원래 체험 기간(${day(until)})이 이미 지났어요. 일수를 넣어 주세요 (예: unblock ${a.loginId} 7)`);
+    await db.update(academies).set({ trialBlock: "CLEARED", serviceUntil: until }).where(eq(academies.id, a.id));
+    console.log(`${a.name}: 체험 풀어줌 → ${day(until)} 까지 (학부모 번호 겹침 검사 다시 안 함)`);
   } else if (cmd === "notify") {
     const a = await find(loginId);
     if (arg !== "on" && arg !== "off") throw new Error("on 또는 off 로 넣어 주세요");

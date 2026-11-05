@@ -6,6 +6,7 @@ import Image from "next/image";
 import { Gift } from "lucide-react";
 import { signup } from "@/app/actions";
 import { PLANS } from "@/lib/pricing";
+import { PHONE_VERIFY } from "@/lib/phone-verify";
 
 const input =
   "w-full rounded-xl border-0 px-4 py-3.5 text-base outline-none focus:ring-2 focus:ring-gold field";
@@ -40,6 +41,8 @@ export default function SignupPage() {
         <input name="loginId" autoComplete="username" placeholder="아이디 (영문 소문자·숫자 4~20자)" className={input} />
         <input name="password" type="password" autoComplete="new-password" placeholder="비밀번호 (8자 이상)" className={input} />
         <input name="ownerPhone" inputMode="tel" placeholder="원장님 휴대폰 번호 (연락용)" className={input} />
+        {/* 문자 인증 (lib/phone-verify.ts) — 지금은 꺼 둠. 켤 때 "인증번호 받기" 버튼을 옆에 붙인다 */}
+        {PHONE_VERIFY && <input name="phoneCode" inputMode="numeric" autoComplete="one-time-code" placeholder="인증번호 6자리" className={input} />}
 
         <label className="flex cursor-pointer items-start gap-2.5 px-1 pt-1 text-[14px] text-slate-600">
           <input

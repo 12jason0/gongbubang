@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { and, eq, inArray, isNull, ne } from "drizzle-orm";
-import { db, academies, students, attendance, notes, notices, classes, classStudents, payments, messageLogs } from "@/db";
+import { db, academies, students, attendance, notes, notices, classes, classStudents, payments, messageLogs, deletedParentHashes } from "@/db";
 import { createSession, deleteSession, requireAcademy, requireActiveAcademy } from "@/lib/session";
 import { sendMessages, smsBytes } from "@/lib/sms";
 import { unresolvedFailures } from "@/lib/failed";
@@ -15,7 +15,8 @@ import { isPaymentMethod, parseWon } from "@/lib/money";
 import { isValidMobile, normalizePhone } from "@/lib/phone";
 import { parseRoster, rosterKey, ROSTER_MAX_LINES } from "@/lib/roster";
 import { TRIAL_DAYS, isPaidTier } from "@/lib/pricing";
-import { trialPhoneHash } from "@/lib/account";
+import { endTrialIfOverlap, parentPhoneHash, trialPhoneHash, trialUsedByPhone } from "@/lib/account";
+import { PHONE_VERIFY, phoneCodeOk } from "@/lib/phone-verify";
 import { billingReady, createOrderRow, orderName, priceFor, type OrderKind } from "@/lib/billing";
 
 // ───────────────────────── 로그인 ─────────────────────────
@@ -60,16 +61,15 @@ export async function signup(_prev: string | null, formData: FormData): Promise<
   if (password.length < 8) return "비밀번호는 8자 이상으로 만들어 주세요.";
   if (!isValidMobile(ownerPhone)) return "원장님 휴대폰 번호를 확인해 주세요.";
   if (formData.get("agree") !== "on") return "이용약관과 개인정보 처리방침에 동의해 주세요.";
+  if (PHONE_VERIFY && !(await phoneCodeOk(ownerPhone, String(formData.get("phoneCode") ?? "")))) {
+    return "휴대폰 인증번호를 확인해 주세요.";
+  }
 
   const [taken] = await db.select({ id: academies.id }).from(academies).where(eq(academies.loginId, loginId));
   if (taken) return "이미 쓰고 있는 아이디예요. 다른 아이디로 해 주세요.";
 
-  // 탈퇴했던 번호면 무료 체험 없이 바로 요금제 결제로 (lib/account.ts)
-  const [usedTrial] = await db
-    .select({ id: academies.id })
-    .from(academies)
-    .where(eq(academies.trialPhoneHash, trialPhoneHash(ownerPhone)))
-    .limit(1);
+  // 이 번호로 체험을 쓴 계정(살아 있는 계정·탈퇴 계정)이 있으면 무료 체험 없이 바로 요금제 결제로 (lib/account.ts)
+  const usedTrial = await trialUsedByPhone(ownerPhone);
 
   const [created] = await db
     .insert(academies)
@@ -82,6 +82,7 @@ export async function signup(_prev: string | null, formData: FormData): Promise<
       plan: "TRIAL",
       serviceUntil: usedTrial ? new Date() : new Date(Date.now() + TRIAL_DAYS * 86_400_000),
       attendanceNotify: false, // 등원 카톡은 원장님이 설정에서 켤 때부터
+      trialPhoneHash: trialPhoneHash(ownerPhone), // 체험을 쓴 번호 — 연락처를 바꾸거나 탈퇴해도 남는다
     })
     .onConflictDoNothing({ target: academies.loginId })
     .returning({ id: academies.id });
@@ -553,6 +554,7 @@ export async function addStudent(_prev: FormResult, formData: FormData): Promise
   await setStudentClasses(academy.id, created.id, parsed.classIds);
   revalidatePath("/students");
   revalidatePath("/");
+  if (await endTrialIfOverlap(academy)) redirect("/billing");
   return { ok: true, message: `${parsed.data.name} 학생을 추가했어요.` };
 }
 
@@ -572,6 +574,7 @@ export async function updateStudent(_prev: FormResult, formData: FormData): Prom
 
   revalidatePath("/students");
   revalidatePath("/");
+  if (await endTrialIfOverlap(academy)) redirect("/billing");
   return { ok: true, message: "저장했어요." };
 }
 
@@ -633,6 +636,7 @@ export async function addStudentsBulk(_prev: FormResult, formData: FormData): Pr
     });
     revalidatePath("/students");
     revalidatePath("/");
+    if (await endTrialIfOverlap(academy)) redirect("/billing");
   }
 
   const skipped = [
@@ -815,6 +819,7 @@ export async function changePassword(_prev: FormResult, formData: FormData): Pro
  * - 남김: 결제 기록(orders, 예전 충전금 내역) — 전자상거래법상 5년. 공부방 줄은 지우지 않고(지우면 결제 기록도 같이 지워짐)
  *   이름·아이디·비밀번호·연락처·발신번호를 비워서 사람과의 연결을 끊는다
  * - 원장님 연락처는 되돌릴 수 없는 값(trialPhoneHash)으로만 남겨서, 같은 번호로 다시 가입하면 무료 체험을 또 주지 않는다
+ * - 학부모 번호도 되돌릴 수 없는 값(deleted_parent_hashes)으로만 남겨서, 같은 명단으로 다시 체험하는지 비교한다
  */
 export async function deleteAccount(_prev: FormResult, formData: FormData): Promise<FormResult> {
   const academy = await requireAcademy();
@@ -823,7 +828,14 @@ export async function deleteAccount(_prev: FormResult, formData: FormData): Prom
     return { ok: false, message: "비밀번호가 맞지 않아요." };
   }
   const id = academy.id;
+  const parentPhones = await db.selectDistinct({ p: students.parentPhone }).from(students).where(eq(students.academyId, id));
   await db.transaction(async (tx) => {
+    if (parentPhones.length) {
+      await tx
+        .insert(deletedParentHashes)
+        .values(parentPhones.map((r) => ({ academyId: id, hash: parentPhoneHash(r.p) })))
+        .onConflictDoNothing();
+    }
     // 학생을 지우면 반 배정·출결·메모·교습비도 같이 지워지지만(FK cascade), 공부방 기준으로도 한 번 더 지운다
     await tx.delete(attendance).where(eq(attendance.academyId, id));
     await tx.delete(notes).where(eq(notes.academyId, id));
@@ -847,7 +859,8 @@ export async function deleteAccount(_prev: FormResult, formData: FormData): Prom
         serviceUntil: new Date(),
         msgUsed: 0,
         msgPeriod: "",
-        trialPhoneHash: academy.ownerPhone ? trialPhoneHash(academy.ownerPhone) : "",
+        // 가입 때 넣은 값(체험을 쓴 번호)을 지키고, 예전 계정이라 없으면 지금 연락처로
+        trialPhoneHash: academy.trialPhoneHash || (academy.ownerPhone ? trialPhoneHash(academy.ownerPhone) : ""),
         deletedAt: new Date(),
       })
       .where(eq(academies.id, id));
