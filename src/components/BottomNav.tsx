@@ -22,7 +22,7 @@ const isActive = (pathname: string, href: string) => (href === "/" ? pathname ==
 export function BottomNav() {
   const pathname = usePathname();
   return (
-    <nav className="glass fixed inset-x-0 bottom-0 z-20 mx-auto flex max-w-md rounded-t-[22px] bg-white/80 pb-[env(safe-area-inset-bottom)] md:hidden">
+    <nav className="glass fixed inset-x-0 bottom-0 z-20 mx-auto flex max-w-md rounded-t-[22px] bg-white/35 pb-[env(safe-area-inset-bottom)] md:hidden">
       {TABS.map(({ href, label, Icon }) => {
         const active = isActive(pathname, href);
         return (

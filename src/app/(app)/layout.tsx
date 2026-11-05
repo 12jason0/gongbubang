@@ -28,8 +28,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
       </header>
       <SideNav academyName={academy.name} />
-      {/* PC에서는 본문을 넓게, 너무 퍼지지 않게 가운데 */}
-      <div className="md:mx-auto md:max-w-6xl md:px-5 md:pt-3">
+      {/* PC: 본문은 사이드바 바로 옆부터, 최대 폭만 제한 (가운데 정렬하면 사이드바와 사이가 비어 보임) */}
+      <div className="md:max-w-[1180px] md:px-5 md:pt-3">
         {/* PC 위쪽 바: 공부방 이름 · 오늘 날짜 · 테스트 모드 (휴대폰은 위 초록 헤더 그대로) */}
         <header className="glass sticky top-3 z-10 mb-4 hidden h-14 items-center gap-3 rounded-full pr-2 pl-5 md:flex">
           <span className="h-5 w-1 shrink-0 rounded-full bg-gold" aria-hidden />
