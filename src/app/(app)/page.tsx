@@ -142,7 +142,7 @@ export default async function AttendancePage({
       <SmsStatus testMode={isTestMode()} balance={null} low={false} failed={failed} />
 
       {isToday && rows.length > 0 && (
-        <p className="mb-2 flex items-center gap-2 rounded-xl bg-white px-3.5 py-2.5 text-[15px] font-medium ring-1 ring-black/5">
+        <p className="card mb-2 flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-[15px] font-medium">
           <todo.Icon size={18} className={`shrink-0 ${todo.tone}`} />
           <span>{todo.text}</span>
         </p>
@@ -151,7 +151,7 @@ export default async function AttendancePage({
       {/* PC: 날짜와 요약을 한 줄에 */}
       <div className="md:grid md:grid-cols-2 md:items-center md:gap-3">
       {/* 날짜 */}
-      <div className="flex items-center justify-between md:rounded-2xl md:bg-white md:px-2 md:py-1.5 md:ring-1 md:ring-black/5">
+      <div className="flex items-center justify-between md:rounded-2xl md:px-2 md:py-1.5 md:card">
         <Link
           href={q(shiftDate(date, -1), null)}
           className={DAY_BTN}
@@ -178,7 +178,7 @@ export default async function AttendancePage({
       </div>
 
       {/* 요약 */}
-      <section className="mt-1 rounded-2xl bg-white px-4 py-3 ring-1 ring-black/5 md:mt-0">
+      <section className="card mt-1 rounded-2xl px-4 py-3 md:mt-0">
         <div className="flex items-center gap-4">
           <Stat label="출석" value={present} className="text-emerald-600" />
           <Stat label="결석" value={absent} className="text-rose-500" />
@@ -205,7 +205,7 @@ export default async function AttendancePage({
             key={c.key}
             href={q(date, c.key === (dayClasses.length ? "today" : "all") ? null : c.key)}
             className={`shrink-0 rounded-full px-3.5 py-1.5 text-[13px] font-medium whitespace-nowrap ${
-              c.key === filter ? "bg-brand text-white" : "bg-white text-slate-500 ring-1 ring-black/5"
+              c.key === filter ? "bg-brand text-white" : "card text-slate-500"
             }`}
           >
             {c.label} <span className={c.key === filter ? "text-gold" : "text-slate-300"}>{c.n}</span>
@@ -218,14 +218,14 @@ export default async function AttendancePage({
         </Link>
       )}
       {filter === "today" && rows.length === 0 && (
-        <p className="mt-2 rounded-xl bg-white px-3 py-6 text-center text-sm text-slate-400 ring-1 ring-black/5">
+        <p className="card mt-2 rounded-xl px-3 py-6 text-center text-sm text-slate-400">
           이 날 수업 있는 반에 학생이 없어요
         </p>
       )}
 
       {/* 학생 목록 */}
       {all.length === 0 ? (
-        <div className="mt-3 rounded-2xl bg-white px-4 py-14 text-center ring-1 ring-black/5">
+        <div className="card mt-3 rounded-2xl px-4 py-14 text-center">
           <Users className="mx-auto text-slate-300" size={32} />
           <p className="mt-2 font-semibold">첫 학생을 등록해 주세요</p>
           <p className="mt-1 text-sm text-slate-400">학부모 번호를 넣으면 바로 출석 문자를 보낼 수 있어요.</p>

@@ -25,7 +25,7 @@ type S = {
 type C = { id: string; name: string; days: string; time: string };
 
 const input =
-  "w-full rounded-xl border-0 bg-slate-50 px-3 py-3 text-[15px] ring-1 ring-black/5 outline-none focus:bg-white focus:ring-2 focus:ring-gold";
+  "w-full rounded-xl border-0 px-3 py-3 text-[15px] outline-none focus:ring-2 focus:ring-gold field";
 
 function StudentFields({ s, classes }: { s?: S; classes: C[] }) {
   return (
@@ -129,7 +129,7 @@ function AddPanel({ onClose, classes, students }: { onClose?: () => void; classe
     `flex-1 rounded-lg py-1.5 text-center text-[13px] font-semibold ${on ? "bg-white text-brand shadow-sm" : "text-slate-500"}`;
 
   return (
-    <div className="mb-3 rounded-2xl bg-white p-4 ring-2 ring-gold/60">
+    <div className="card mb-3 rounded-2xl p-4 outline-2 outline-gold/60">
       <div className="mb-3 flex items-center gap-2">
         <div className="flex flex-1 rounded-xl bg-black/5 p-1">
           <button type="button" onClick={() => setBulk(false)} className={tab(!bulk)}>
@@ -364,7 +364,7 @@ export function StudentManager({ students, classes }: { students: S[]; classes: 
         </div>
       )}
 
-      <ul className="divide-y divide-black/5 rounded-2xl bg-white ring-1 ring-black/5">
+      <ul className="card divide-y divide-black/5 rounded-2xl">
         {active.map((s) => (
           <StudentItem key={s.id} s={s} classes={classes} />
         ))}
@@ -373,7 +373,7 @@ export function StudentManager({ students, classes }: { students: S[]; classes: 
       {inactive.length > 0 && (
         <>
           <p className="mt-5 px-1 text-[13px] font-semibold text-slate-400">그만둔 학생 · 출결 기록은 남아 있어요</p>
-          <ul className="mt-2 divide-y divide-black/5 rounded-2xl bg-white ring-1 ring-black/5">
+          <ul className="card mt-2 divide-y divide-black/5 rounded-2xl">
             {inactive.map((s) => (
               <StudentItem key={s.id} s={s} classes={classes} />
             ))}

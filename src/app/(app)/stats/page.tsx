@@ -138,18 +138,18 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
       {/* PC: 왼쪽 학생 표, 오른쪽 합계·문자 사용량 (휴대폰 순서는 그대로) */}
       <div className="lg:mt-2 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:grid-rows-[auto_auto_auto_1fr] lg:items-start lg:gap-x-4 lg:gap-y-3">
       <div className="mt-2 grid grid-cols-2 gap-2 lg:col-start-2 lg:row-start-1 lg:mt-0">
-        <div className="rounded-2xl bg-white p-4 ring-1 ring-black/5">
+        <div className="card rounded-2xl p-4">
           <p className="text-[11px] font-medium text-slate-400">이번 달 출석</p>
           <p className="text-[26px] leading-tight font-bold text-emerald-600 tabular-nums">{totalPresent}</p>
         </div>
-        <div className="rounded-2xl bg-white p-4 ring-1 ring-black/5">
+        <div className="card rounded-2xl p-4">
           <p className="text-[11px] font-medium text-slate-400">이번 달 결석</p>
           <p className="text-[26px] leading-tight font-bold text-rose-500 tabular-nums">{totalAbsent}</p>
         </div>
       </div>
 
       {/* 교습비 합계 */}
-      <section className="mt-2 flex items-center gap-3 rounded-2xl bg-white p-4 ring-1 ring-black/5 lg:col-start-2 lg:row-start-2 lg:mt-0">
+      <section className="card mt-2 flex items-center gap-3 rounded-2xl p-4 lg:col-start-2 lg:row-start-2 lg:mt-0">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand">
           <Wallet size={19} />
         </span>
@@ -179,7 +179,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
         </div>
       )}
 
-      <section className="mt-3 rounded-2xl bg-white ring-1 ring-black/5 lg:col-start-1 lg:row-span-4 lg:row-start-1 lg:mt-0">
+      <section className="card mt-3 rounded-2xl lg:col-start-1 lg:row-span-4 lg:row-start-1 lg:mt-0">
         <div className="flex px-4 pt-3 pb-2 text-[11px] font-medium text-slate-400">
           <span className="flex-1">학생 · 누르면 납부 기록</span>
           <span className="w-10 text-right">출석</span>
@@ -197,7 +197,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
         )}
       </section>
 
-      <section className="mt-3 flex items-center gap-3 rounded-2xl bg-white p-4 ring-1 ring-black/5 lg:col-start-2 lg:row-start-4 lg:mt-0">
+      <section className="card mt-3 flex items-center gap-3 rounded-2xl p-4 lg:col-start-2 lg:row-start-4 lg:mt-0">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gold-soft text-[#8a6d35]">
           <MessageSquare size={19} />
         </span>

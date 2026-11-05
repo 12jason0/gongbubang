@@ -24,7 +24,7 @@ export default async function SettingsPage() {
     <main className="px-3 pt-4 md:max-w-2xl">
       <PageTitle title="설정" sub="학원 이름과 학부모님께 가는 문자 문구" />
 
-      <Link href="/billing" className="mb-3 flex items-center gap-3 rounded-2xl bg-white p-4 ring-1 ring-black/5">
+      <Link href="/billing" className="card mb-3 flex items-center gap-3 rounded-2xl p-4">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand text-gold">
           <CreditCard size={19} />
         </span>
@@ -61,7 +61,7 @@ export default async function SettingsPage() {
         <ConsentNotice academyId={academy.id} academyName={academy.name} />
       </div>
 
-      <section className="mt-3 rounded-2xl bg-white p-4 text-sm ring-1 ring-black/5">
+      <section className="card mt-3 rounded-2xl p-4 text-sm">
         <div className="flex items-center justify-between">
           <span className="text-slate-500">문자 보내는 번호</span>
           <span className="font-semibold tabular-nums">
@@ -82,7 +82,7 @@ export default async function SettingsPage() {
       </section>
 
       <form action={logout} className="mt-3">
-        <button className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white py-3.5 text-sm font-medium text-slate-500 ring-1 ring-black/5">
+        <button className="card flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-medium text-slate-500">
           <LogOut size={16} /> 로그아웃
         </button>
       </form>

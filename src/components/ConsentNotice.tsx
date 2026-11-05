@@ -34,7 +34,7 @@ export function ConsentNotice({ academyId, academyName }: { academyId: string; a
   }
 
   return (
-    <section className="rounded-2xl bg-white p-4 ring-1 ring-black/5">
+    <section className="card rounded-2xl p-4">
       <h2 className="text-[15px] font-bold">학부모님 동의 안내 문구</h2>
       <p className="mt-0.5 text-[12px] text-slate-500">학생을 추가하기 전에 이 문구를 보내고 동의를 받아 주세요</p>
       <textarea
@@ -42,7 +42,7 @@ export function ConsentNotice({ academyId, academyName }: { academyId: string; a
         readOnly
         value={text}
         rows={6}
-        className="mt-3 w-full resize-none rounded-xl border-0 bg-slate-50 px-3 py-2.5 text-[14px] leading-relaxed ring-1 ring-black/5 outline-none"
+        className="mt-3 w-full resize-none rounded-xl border-0 px-3 py-2.5 text-[14px] leading-relaxed outline-none field"
       />
       <div className="mt-2 flex gap-2">
         <button

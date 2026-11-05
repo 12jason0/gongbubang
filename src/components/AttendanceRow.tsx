@@ -205,7 +205,7 @@ export function AttendanceRow({ row, date }: { row: RowData; date: string }) {
       {open && (
         <div className="px-3 pb-3 pl-[54px]">
           {row.noteSentTime ? (
-            <div className="rounded-xl bg-white px-3 py-2.5 text-sm text-slate-600 ring-1 ring-black/5">
+            <div className="card rounded-xl px-3 py-2.5 text-sm text-slate-600">
               <p className="whitespace-pre-wrap">{row.note}</p>
               <p className="mt-1.5 flex items-center gap-1 text-[11px] text-brand">
                 <MessageSquareText size={12} /> 학부모님께 보냄 {row.noteSentTime}
@@ -224,7 +224,7 @@ export function AttendanceRow({ row, date }: { row: RowData; date: string }) {
                 rows={3}
                 maxLength={900}
                 placeholder="오늘 수업 메모 (예: 분수 나눗셈 이해함, 숙제 24~25쪽)"
-                className="w-full resize-none rounded-xl border-0 bg-white px-3 py-2.5 text-[15px] leading-relaxed ring-1 ring-black/10 outline-none focus:ring-2 focus:ring-gold"
+                className="w-full resize-none rounded-xl border-0 px-3 py-2.5 text-[15px] leading-relaxed outline-none focus:ring-2 focus:ring-gold field"
               />
               <p className="mt-1 text-right text-[11px] text-slate-400">
                 {noteState === "saving" && "저장 중…"}

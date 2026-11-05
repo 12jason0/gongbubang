@@ -14,7 +14,7 @@ const CLOSE_BTN = "flex h-9 items-center gap-1 rounded-lg px-2 text-[13px] text-
 type C = { id: string; name: string; days: string; time: string; count: number };
 
 const input =
-  "w-full rounded-xl border-0 bg-slate-50 px-3 py-3 text-[15px] ring-1 ring-black/5 outline-none focus:bg-white focus:ring-2 focus:ring-gold";
+  "w-full rounded-xl border-0 px-3 py-3 text-[15px] outline-none focus:ring-2 focus:ring-gold field";
 
 function ClassFields({ c }: { c?: C }) {
   const days = new Set(c ? parseDays(c.days) : []);
@@ -67,7 +67,7 @@ function Result({ r }: { r: FormResult }) {
 function AddClassForm({ onClose }: { onClose?: () => void }) {
   const { res, pending, onSubmit } = useForm(addClass, (f) => f.reset());
   return (
-    <form onSubmit={onSubmit} className="mb-3 rounded-2xl bg-white p-4 ring-2 ring-gold/60">
+    <form onSubmit={onSubmit} className="card mb-3 rounded-2xl p-4 outline-2 outline-gold/60">
       <div className="mb-3 flex items-center justify-between">
         <p className="text-[15px] font-semibold">새 반</p>
         {onClose && (
@@ -183,7 +183,7 @@ export function ClassManager({ classes }: { classes: C[] }) {
         </div>
       )}
       {classes.length > 0 && (
-        <ul className="divide-y divide-black/5 rounded-2xl bg-white ring-1 ring-black/5">
+        <ul className="card divide-y divide-black/5 rounded-2xl">
           {classes.map((c) => (
             <ClassItem key={c.id} c={c} />
           ))}

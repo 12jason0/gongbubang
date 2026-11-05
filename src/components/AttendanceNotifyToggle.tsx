@@ -17,7 +17,7 @@ export function AttendanceNotifyToggle({ on }: { on: boolean }) {
   }
 
   return (
-    <div className="mb-3 flex items-center gap-3 rounded-2xl bg-white p-4 ring-1 ring-black/5">
+    <div className="card mb-3 flex items-center gap-3 rounded-2xl p-4">
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand">
         <BellRing size={19} />
       </span>

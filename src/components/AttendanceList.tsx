@@ -19,7 +19,7 @@ export function AttendanceList({ rows, date }: { rows: RowData[]; date: string }
   ];
 
   return (
-    <ul className="mt-2.5 divide-y divide-black/5 overflow-hidden rounded-2xl bg-white ring-1 ring-black/5 lg:grid lg:grid-cols-2 lg:divide-y-0">
+    <ul className="card mt-2.5 divide-y divide-black/5 overflow-hidden rounded-2xl lg:grid lg:grid-cols-2 lg:divide-y-0">
       {ids.map((id) => {
         const r = byId.get(id)!;
         return <AttendanceRow key={`${r.id}-${date}-${r.noteSentTime ?? ""}`} row={r} date={date} />;

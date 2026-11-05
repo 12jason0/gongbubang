@@ -124,7 +124,7 @@ export function NoticeForm({
   const sampleNames = (groups[0] ?? [{ name: "김민수" }]).map((s) => s.name).join("·");
 
   return (
-    <div className="rounded-2xl bg-white p-4 ring-1 ring-black/5">
+    <div className="card rounded-2xl p-4">
       <p className="text-[13px] font-semibold text-slate-500">받는 분</p>
       <div className="mt-2 flex flex-wrap gap-1.5">
         {chips.map((t) => (
@@ -204,7 +204,7 @@ export function NoticeForm({
         onChange={(e) => setContent(e.target.value)}
         rows={4}
         placeholder={"11월 15일(토)은 휴원입니다.\n보강 일정은 따로 안내드리겠습니다."}
-        className="mt-2 w-full resize-none rounded-xl border-0 bg-slate-50 px-3 py-2.5 text-[15px] leading-relaxed ring-1 ring-black/5 outline-none focus:bg-white focus:ring-2 focus:ring-gold"
+        className="mt-2 w-full resize-none rounded-xl border-0 px-3 py-2.5 text-[15px] leading-relaxed outline-none focus:ring-2 focus:ring-gold field"
       />
       {linkMode ? (
         <p className={`text-right text-[11px] ${tooLong ? "text-rose-500" : "text-slate-400"}`}>

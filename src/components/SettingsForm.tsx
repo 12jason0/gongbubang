@@ -15,7 +15,7 @@ import {
 const SAMPLE = { name: "김하늘", time: "4시 5분", memo: "분수 나눗셈 개념 잘 이해했어요. 숙제는 교재 24~25쪽입니다." };
 
 const input =
-  "mt-1.5 w-full rounded-xl border-0 bg-slate-50 px-3 py-3 text-[15px] ring-1 ring-black/5 outline-none focus:bg-white focus:ring-2 focus:ring-gold";
+  "mt-1.5 w-full rounded-xl border-0 px-3 py-3 text-[15px] outline-none focus:ring-2 focus:ring-gold field";
 
 function bytes(text: string) {
   let n = 0;
@@ -103,7 +103,7 @@ export function SettingsForm({ initial, kakao = {} }: { initial: Settings; kakao
 
   return (
     <div className="space-y-3">
-      <section className="rounded-2xl bg-white p-4 ring-1 ring-black/5">
+      <section className="card rounded-2xl p-4">
         <Field label="학원 이름 (문자 맨 앞 이름)" value={w.name} onChange={set("name")} max={20} />
         <p className="mt-1 text-[11px] text-slate-400">모든 문자 맨 앞 [ ] 안에 들어가요</p>
         <Field
@@ -116,7 +116,7 @@ export function SettingsForm({ initial, kakao = {} }: { initial: Settings; kakao
         <p className="mt-1 text-[11px] text-slate-400">교습비 영수증 원부(월별 화면에서 인쇄)에 들어가요</p>
       </section>
 
-      <section className="rounded-2xl bg-white p-4 ring-1 ring-black/5">
+      <section className="card rounded-2xl p-4">
         <h2 className="text-[15px] font-bold">등원 {kakao.attendance ? "알림" : "문자"}</h2>
         <p className="mt-0.5 text-[12px] text-slate-500">출석을 누르면 학부모님께 바로 가요</p>
         {kakao.attendance ? (
@@ -153,7 +153,7 @@ export function SettingsForm({ initial, kakao = {} }: { initial: Settings; kakao
         )}
       </section>
 
-      <section className="rounded-2xl bg-white p-4 ring-1 ring-black/5">
+      <section className="card rounded-2xl p-4">
         <h2 className="text-[15px] font-bold">수업 피드백 {kakao.feedback ? "알림" : "문자"}</h2>
         <p className="mt-0.5 text-[12px] text-slate-500">출석부에서 &lsquo;피드백 보내기&rsquo;를 누르면 가요</p>
         {kakao.feedback && (

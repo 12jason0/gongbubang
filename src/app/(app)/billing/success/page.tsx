@@ -23,7 +23,7 @@ export default async function BillingSuccessPage({
 
   return (
     <main className="px-3 pt-10 md:max-w-md">
-      <div className="rounded-2xl bg-white p-6 text-center ring-1 ring-black/5">
+      <div className="card rounded-2xl p-6 text-center">
         {result.ok ? (
           <>
             <CheckCircle2 size={40} className="mx-auto text-emerald-500" />

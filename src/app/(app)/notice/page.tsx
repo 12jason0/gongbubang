@@ -64,12 +64,12 @@ export default async function NoticePage() {
       <section>
       <h2 className="mt-6 px-1 text-[13px] font-semibold text-slate-500 lg:mt-0 lg:pb-0.5">보낸 공지</h2>
       {history.length === 0 ? (
-        <div className="mt-2 flex flex-col items-center rounded-2xl bg-white py-10 text-center ring-1 ring-black/5">
+        <div className="card mt-2 flex flex-col items-center rounded-2xl py-10 text-center">
           <Inbox className="text-slate-300" size={28} />
           <p className="mt-2 text-sm text-slate-400">보낸 공지가 여기에 쌓여요</p>
         </div>
       ) : (
-        <ul className="mt-2 divide-y divide-black/5 rounded-2xl bg-white ring-1 ring-black/5">
+        <ul className="card mt-2 divide-y divide-black/5 rounded-2xl">
           {history.map((n) => (
             <li key={n.id} className="px-4 py-3">
               <div className="flex items-center gap-2 text-[11px] text-slate-400">

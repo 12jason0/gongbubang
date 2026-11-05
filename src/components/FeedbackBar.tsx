@@ -31,7 +31,7 @@ export function FeedbackBar({ date, pending }: { date: string; pending: number }
           <CheckCircle2 size={18} /> {msg}
         </button>
       ) : confirming ? (
-        <div className="rounded-2xl bg-white p-3 shadow-xl ring-1 ring-black/10">
+        <div className="card rounded-2xl p-3 shadow-xl">
           <p className="text-center text-sm">
             메모를 쓴 학생 <b>{pending}명</b>의 학부모님께 보낼까요?
           </p>

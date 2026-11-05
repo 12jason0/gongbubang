@@ -39,7 +39,7 @@ export function UnpaidReminder({ month, label, list, via }: { month: string; lab
   }
 
   return (
-    <section className="mt-2 rounded-2xl bg-white ring-1 ring-black/5 lg:mt-0">
+    <section className="card mt-2 rounded-2xl lg:mt-0">
       <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-3 p-4 text-left">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-500">
           <BellRing size={19} />

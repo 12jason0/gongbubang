@@ -39,7 +39,7 @@ export default async function FeedbackPage({ params }: { params: Promise<{ code:
         {row.academyName}
       </p>
 
-      <article className="mt-3 rounded-2xl bg-white p-5 ring-1 ring-black/5">
+      <article className="card mt-3 rounded-2xl p-5">
         <div className="flex items-start gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand text-gold">
             <NotebookPen size={19} />

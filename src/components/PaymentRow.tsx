@@ -29,7 +29,7 @@ export type StatsStudent = {
 type Defaults = { subject: string; tuition: number; otherFee: number; method: string };
 
 const input =
-  "w-full rounded-xl border-0 bg-slate-50 px-3 py-2.5 text-[15px] ring-1 ring-black/5 outline-none focus:bg-white focus:ring-2 focus:ring-gold";
+  "w-full rounded-xl border-0 px-3 py-2.5 text-[15px] outline-none focus:ring-2 focus:ring-gold field";
 
 const monthLabel = (m: string) => `${Number(m.slice(0, 4))}년 ${Number(m.slice(5))}월`;
 const shortDate = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8))}`;
@@ -104,7 +104,7 @@ function PaidItem({ p }: { p: PaymentItem }) {
   const [confirm, setConfirm] = useState(false);
   const [pending, start] = useTransition();
   return (
-    <li className="rounded-xl bg-white px-3 py-2 text-[13px] ring-1 ring-black/5">
+    <li className="card rounded-xl px-3 py-2 text-[13px]">
       <div className="flex items-center gap-2">
         <div className="min-w-0 flex-1">
           <p className="font-semibold">
@@ -181,7 +181,7 @@ function AddPaymentForm({
     return (
       <button
         onClick={() => setShow(true)}
-        className="flex w-full items-center justify-center gap-1 rounded-xl bg-white py-2.5 text-[13px] font-semibold text-slate-500 ring-1 ring-black/5"
+        className="card flex w-full items-center justify-center gap-1 rounded-xl py-2.5 text-[13px] font-semibold text-slate-500"
       >
         <Plus size={15} className="text-gold" /> 납부 기록 더 넣기 (선납·추가 납부)
       </button>
@@ -189,7 +189,7 @@ function AddPaymentForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="rounded-xl bg-white p-3 ring-1 ring-black/5">
+    <form onSubmit={onSubmit} className="card rounded-xl p-3">
       <p className="mb-2 text-[13px] font-semibold text-slate-600">납부 기록 넣기</p>
       <input type="hidden" name="studentId" value={studentId} />
       <div className="grid grid-cols-2 gap-2">

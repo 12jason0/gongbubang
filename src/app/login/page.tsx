@@ -6,7 +6,7 @@ import Image from "next/image";
 import { login } from "../actions";
 
 const input =
-  "w-full rounded-xl border-0 bg-white px-4 py-3.5 text-base ring-1 ring-black/10 outline-none focus:ring-2 focus:ring-gold";
+  "w-full rounded-xl border-0 px-4 py-3.5 text-base outline-none focus:ring-2 focus:ring-gold field";
 
 export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
@@ -24,6 +24,7 @@ export default function LoginPage() {
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-6">
+      <div className="glass rounded-[28px] px-5 py-7 sm:px-7">
       <Image src="/icons/icon-192.png" alt="공부방노트" width={56} height={56} preload className="rounded-2xl" />
       <h1 className="mt-5 text-[28px] font-bold tracking-tight">공부방노트</h1>
       <p className="mt-1 text-[15px] text-slate-500">출석, 학부모 공지, 원비 장부를 한 곳에서</p>
@@ -47,6 +48,7 @@ export default function LoginPage() {
           2주 무료로 시작하기
         </Link>
       </p>
+      </div>
     </main>
   );
 }

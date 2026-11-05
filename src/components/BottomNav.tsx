@@ -22,7 +22,7 @@ const isActive = (pathname: string, href: string) => (href === "/" ? pathname ==
 export function BottomNav() {
   const pathname = usePathname();
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto flex max-w-md border-t border-black/5 bg-white pb-[env(safe-area-inset-bottom)] md:hidden">
+    <nav className="glass fixed inset-x-0 bottom-0 z-20 mx-auto flex max-w-md rounded-t-[22px] bg-white/80 pb-[env(safe-area-inset-bottom)] md:hidden">
       {TABS.map(({ href, label, Icon }) => {
         const active = isActive(pathname, href);
         return (
@@ -30,7 +30,7 @@ export function BottomNav() {
             key={href}
             href={href}
             className={`relative flex flex-1 flex-col items-center gap-1 pt-2.5 pb-2 text-[11px] ${
-              active ? "font-semibold text-brand" : "text-slate-400"
+              active ? "font-semibold text-brand" : "text-slate-500"
             }`}
           >
             {active && <span className="absolute top-0 h-0.5 w-8 rounded-full bg-gold" aria-hidden />}

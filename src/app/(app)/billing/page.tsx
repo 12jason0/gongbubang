@@ -41,7 +41,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
       )}
 
       {/* 지금 상태 */}
-      <section className="rounded-2xl bg-white p-4 ring-1 ring-black/5">
+      <section className="card rounded-2xl p-4">
         <div className="flex items-center gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand">
             <CalendarCheck size={19} />
@@ -84,7 +84,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
             <section
               key={t}
               id={t}
-              className={`scroll-mt-20 rounded-2xl bg-white p-4 ring-1 ${t === "PLUS" ? "ring-2 ring-gold" : "ring-black/5"}`}
+              className={`card scroll-mt-20 rounded-2xl p-4 ${t === "PLUS" ? "outline-2 outline-gold" : ""}`}
             >
               <div className="flex items-center justify-between">
                 <h2 className="text-[17px] font-bold">{p.label}</h2>

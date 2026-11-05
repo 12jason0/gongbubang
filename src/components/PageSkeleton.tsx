@@ -4,7 +4,7 @@ const Bar = ({ className = "" }: { className?: string }) => <div className={`ske
 
 function Rows({ n }: { n: number }) {
   return (
-    <div className="card mt-2 divide-y divide-black/5 overflow-hidden">
+    <div className="card mt-2 divide-y rounded-2xl divide-black/5 overflow-hidden">
       {Array.from({ length: n }, (_, i) => (
         <div key={i} className="flex items-center gap-3 px-4 py-3.5">
           <div className="skeleton size-9 shrink-0 rounded-full" />
@@ -28,7 +28,7 @@ export function PageSkeleton({ kind = "list" }: { kind?: "list" | "dashboard" | 
           <Bar className="h-7 w-32" />
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="card h-[132px] p-5">
+              <div key={i} className="card h-[132px] rounded-[28px] p-5">
                 <Bar className="h-3.5 w-20" />
                 <Bar className="mt-4 h-7 w-16" />
                 <Bar className="mt-3 h-3 w-28" />
@@ -36,14 +36,14 @@ export function PageSkeleton({ kind = "list" }: { kind?: "list" | "dashboard" | 
             ))}
           </div>
           <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
-            <div className="card h-64" />
-            <div className="card h-64" />
+            <div className="card h-64 rounded-[28px]" />
+            <div className="card h-64 rounded-[28px]" />
           </div>
         </div>
       ) : kind === "form" ? (
         <div className="space-y-3">
           <Bar className="h-7 w-28" />
-          <div className="card space-y-3 p-4">
+          <div className="card space-y-3 rounded-2xl p-4">
             <Bar className="h-4 w-20" />
             <Bar className="h-11 w-full rounded-xl" />
             <Bar className="h-4 w-24" />
@@ -60,11 +60,11 @@ export function PageSkeleton({ kind = "list" }: { kind?: "list" | "dashboard" | 
           </div>
           {kind === "stats" ? (
             <div className="mt-2 grid grid-cols-2 gap-2">
-              <div className="card h-[78px]" />
-              <div className="card h-[78px]" />
+              <div className="card h-[78px] rounded-2xl" />
+              <div className="card h-[78px] rounded-2xl" />
             </div>
           ) : (
-            <div className="card mt-2 h-[78px]" />
+            <div className="card mt-2 h-[78px] rounded-2xl" />
           )}
           <Rows n={6} />
         </>
