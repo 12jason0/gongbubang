@@ -51,6 +51,8 @@ export const students = pgTable(
     grade: text("grade").notNull(), // 예: 초5, 중2
     parentPhone: text("parent_phone").notNull(), // 숫자만. 예: 01012345678
     birthDate: text("birth_date"), // 생년월일 "2014-03-02" (선택, 영수증 원부용)
+    monthlyFee: integer("monthly_fee"), // 월 교습비(원, 선택) — 납부 기록 미리 채우기·미납 금액·원비 안내
+    dueDay: integer("due_day"), // 납부일 매달 1~31 (31 = 말일, 선택). 없으면 미납 판단은 예전처럼(기록 없으면 미납)
     // 학부모 동의 — AGREED(동의) / PENDING(대기) / DECLINED(거부). 동의한 학부모님께만 등원·피드백·공지·원비 안내가 간다
     // (이 칸이 생기기 전 학생은 원장님이 체크하고 추가했으므로 AGREED)
     consent: text("consent").notNull().default("AGREED"),

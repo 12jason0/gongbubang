@@ -5,7 +5,7 @@ import { db, attendance, messageLogs, students, payments, classes, classStudents
 import { currentAcademyId, requireAcademy } from "@/lib/session";
 import { isValidMonth, quarterOf, shiftMonth, thisMonthKST, todayKST } from "@/lib/date";
 import { isLongMessage, usesAlimtalk } from "@/lib/sms";
-import { formatWon } from "@/lib/money";
+import { beforeDue, feeLabel, formatWon } from "@/lib/money";
 import { byGradeName, monthLabel } from "@/lib/templates";
 import { PaymentRow, type PaymentItem } from "@/components/PaymentRow";
 import { UnpaidReminder } from "@/components/UnpaidReminder";
@@ -70,11 +70,16 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
   const paidBy = new Map<string, PaymentItem[]>();
   for (const p of monthPayments) paidBy.set(p.studentId, [...(paidBy.get(p.studentId) ?? []), p]);
   const lastBy = new Map(lastPayments.map((p) => [p.studentId, p]));
-  const defaultsOf = (sid: string) => {
-    const lp = lastBy.get(sid);
-    if (lp) return { subject: lp.subject, tuition: lp.tuition, otherFee: lp.otherFee, method: lp.method };
-    const names = classRows.filter((c) => c.studentId === sid).map((c) => c.name);
-    return { subject: names.join(", "), tuition: 0, otherFee: 0, method: "결제선생" };
+  // 납부 기록 입력 칸 미리 채우기: 교습비는 등록한 금액(없으면 지난번), 과목은 듣는 반 이름(없으면 지난번), 결제수단은 지난번
+  const defaultsOf = (s: { id: string; monthlyFee: number | null }) => {
+    const lp = lastBy.get(s.id);
+    const names = classRows.filter((c) => c.studentId === s.id).map((c) => c.name).join(", ");
+    return {
+      subject: names || lp?.subject || "",
+      tuition: s.monthlyFee ?? lp?.tuition ?? 0,
+      otherFee: lp?.otherFee ?? 0,
+      method: lp?.method ?? "결제선생",
+    };
   };
 
   const tally = new Map<string, { present: number; absent: number }>();
@@ -89,7 +94,12 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
   const rows = studentRows
     .filter((s) => s.active || tally.has(s.id) || paidBy.has(s.id))
     .sort(byGradeName)
-    .map((s) => ({ ...s, ...(tally.get(s.id) ?? { present: 0, absent: 0 }) }));
+    .map((s) => ({
+      ...s,
+      ...(tally.get(s.id) ?? { present: 0, absent: 0 }),
+      fee: feeLabel(s.monthlyFee, s.dueDay),
+      beforeDue: beforeDue(month, s.dueDay, todayKST()), // 이 달 납부일 전이면 기록이 없어도 미납 아님
+    }));
 
   // 문자 사용량 (월 관리비·문자비 계산 근거)
   const sentLogs = logs.filter((l) => l.status !== "FAILED");
@@ -105,7 +115,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
   const totalPresent = rows.reduce((n, r) => n + r.present, 0);
   const totalAbsent = rows.reduce((n, r) => n + r.absent, 0);
   const totalPaid = monthPayments.reduce((n, p) => n + p.tuition + p.otherFee, 0);
-  const unpaidRows = rows.filter((r) => r.active && !paidBy.has(r.id));
+  const unpaidRows = rows.filter((r) => r.active && !paidBy.has(r.id) && !r.beforeDue);
   const unpaid = unpaidRows.length;
   const remindedOn = new Map<string, string>();
   for (const r of reminders) {
@@ -191,7 +201,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
         ) : (
           <ul className="divide-y divide-black/5 border-t border-black/5">
             {rows.map((r) => (
-              <PaymentRow key={r.id} s={r} paid={paidBy.get(r.id) ?? []} defaults={defaultsOf(r.id)} month={month} today={todayKST()} />
+              <PaymentRow key={r.id} s={r} paid={paidBy.get(r.id) ?? []} defaults={defaultsOf(r)} month={month} today={todayKST()} />
             ))}
           </ul>
         )}

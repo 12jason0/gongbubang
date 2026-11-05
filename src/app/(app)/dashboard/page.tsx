@@ -4,6 +4,7 @@ import { currentAcademyId, requireAcademy } from "@/lib/session";
 import { shiftDate, thisMonthKST, timeKST, todayKST } from "@/lib/date";
 import { byTimeName, parseDays, weekdayOf } from "@/lib/templates";
 import { quotaNote, quotaState } from "@/lib/plan";
+import { beforeDue } from "@/lib/money";
 import type { DashboardData } from "@/lib/dashboard-example";
 import { Dashboard } from "@/components/Dashboard";
 
@@ -21,7 +22,7 @@ export default async function DashboardPage() {
   const [academy, studentRows, classRows, memberRows, attRows, monthPaid, lastPaid, [{ n: noticesThisWeek }], logRows] = await Promise.all([
     requireAcademy(),
     db
-      .select({ id: students.id, name: students.name, grade: students.grade })
+      .select({ id: students.id, name: students.name, grade: students.grade, monthlyFee: students.monthlyFee, dueDay: students.dueDay })
       .from(students)
       .where(and(eq(students.academyId, academyId), eq(students.active, true))),
     db
@@ -41,7 +42,7 @@ export default async function DashboardPage() {
       .selectDistinct({ studentId: payments.studentId })
       .from(payments)
       .where(and(eq(payments.academyId, academyId), eq(payments.period, month))),
-    // 미납 금액은 학생별 가장 최근 납부액으로 어림 (월별 화면 입력칸 기본값과 같은 기준)
+    // 미납 금액: 등록한 월 교습비, 없으면 학생별 가장 최근 납부액으로 어림
     db
       .selectDistinctOn([payments.studentId], { studentId: payments.studentId, tuition: payments.tuition, otherFee: payments.otherFee })
       .from(payments)
@@ -90,8 +91,8 @@ export default async function DashboardPage() {
   const paidIds = new Set(monthPaid.map((p) => p.studentId));
   const lastAmount = new Map(lastPaid.map((p) => [p.studentId, p.tuition + p.otherFee]));
   const unpaidList = studentRows
-    .filter((s) => !paidIds.has(s.id))
-    .map((s) => ({ id: s.id, name: s.name, grade: s.grade, amount: lastAmount.get(s.id) ?? null }));
+    .filter((s) => !paidIds.has(s.id) && !beforeDue(month, s.dueDay, today))
+    .map((s) => ({ id: s.id, name: s.name, grade: s.grade, amount: s.monthlyFee ?? lastAmount.get(s.id) ?? null }));
 
   const yesterday = shiftDate(today, -1);
   const when = (d: Date) => {

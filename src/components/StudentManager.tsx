@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition, type FormEvent } from "react";
 import { ClipboardList, Pencil, Plus, Send, UserMinus, UserPlus, X } from "lucide-react";
 import { addStudent, addStudentsBulk, sendConsentRequests, setStudentActive, updateStudent, type StudentFormResult } from "@/app/actions";
 import { formatPhone } from "@/lib/phone";
+import { feeLabel } from "@/lib/money";
 import { parseRoster, rosterKey, ROSTER_MAX_LINES } from "@/lib/roster";
 import { Confirm } from "./Confirm";
 import { PageTitle } from "./PageTitle";
@@ -20,6 +21,8 @@ type S = {
   grade: string;
   parentPhone: string;
   birthDate: string | null;
+  monthlyFee: number | null;
+  dueDay: number | null;
   active: boolean;
   classIds: string[];
   consent: string; // AGREED(동의) / PENDING(대기) / DECLINED(거부)
@@ -53,6 +56,22 @@ function StudentFields({ s, classes }: { s?: S; classes: C[] }) {
           <span className="w-24 shrink-0 pl-1 text-[13px] text-slate-500">생년월일 (선택)</span>
           <input name="birthDate" type="date" defaultValue={s?.birthDate ?? ""} className={input} />
         </label>
+        <input
+          name="monthlyFee"
+          defaultValue={s?.monthlyFee ? s.monthlyFee.toLocaleString("ko-KR") : ""}
+          placeholder="월 교습비 (선택)"
+          inputMode="numeric"
+          className={input}
+        />
+        <select name="dueDay" defaultValue={s?.dueDay ? String(s.dueDay) : ""} className={input}>
+          <option value="">납부일 (선택)</option>
+          {Array.from({ length: 30 }, (_, i) => (
+            <option key={i + 1} value={i + 1}>
+              매달 {i + 1}일
+            </option>
+          ))}
+          <option value="31">매달 말일</option>
+        </select>
       </div>
       <ClassChips classes={classes} checked={s?.classIds} label="듣는 반 (여러 개 선택 가능)" />
     </>
@@ -185,10 +204,10 @@ function AddForm({ classes }: { classes: C[] }) {
 
 const ROSTER_PLACEHOLDER = `한 줄에 한 명씩: 이름 학년 학부모 번호
 김민준 초5 010-1234-5678
-이서연 중2 010-9876-5432 2012-03-02
+이서연 중2 010-9876-5432 2012-03-02 25만원 10일
 
 엑셀에서 칸째로 복사해 붙여도 돼요.
-생년월일은 있으면 넣고, 없으면 빼도 돼요.`;
+생년월일·교습비·납부일은 있으면 넣고, 없으면 빼도 돼요.`;
 
 function BulkForm({ classes, students }: { classes: C[]; students: S[] }) {
   const [text, setText] = useState("");
@@ -229,6 +248,7 @@ function BulkForm({ classes, students }: { classes: C[]; students: S[] }) {
                   <span className="w-5 shrink-0 text-right text-slate-300 tabular-nums">{r.line}</span>
                   <span className="font-semibold">{r.name}</span>
                   <span className="text-slate-500">{r.grade}</span>
+                  {feeLabel(r.monthlyFee, r.dueDay) && <span className="text-[#8a6d35]">{feeLabel(r.monthlyFee, r.dueDay)}</span>}
                   <span className="ml-auto text-slate-500 tabular-nums">{formatPhone(r.parentPhone)}</span>
                 </li>
               ) : (
@@ -328,6 +348,7 @@ function StudentItem({ s, classes }: { s: S; classes: C[] }) {
           </p>
           <p className="truncate text-[12px] text-slate-500">
             <span className="tabular-nums">{formatPhone(s.parentPhone)}</span>
+            {feeLabel(s.monthlyFee, s.dueDay) && <span className="text-[#8a6d35]"> · {feeLabel(s.monthlyFee, s.dueDay)}</span>}
             <span className="text-slate-400">
               {" · "}
               {classes

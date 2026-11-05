@@ -29,7 +29,9 @@ export const ALIMTALK_TEMPLATES: Record<AlimtalkKey, { title: string; env: strin
     env: "SOLAPI_TEMPLATE_PAYMENT",
     body:
       "[#{학원}] 교습비 납부 안내\n\n" +
-      "#{이름} 학생의 #{월} 교습비 납부 안내드립니다.\n" +
+      "#{이름} 학생의 #{월} 교습비 납부 안내드립니다.\n\n" +
+      "교습비: #{금액}\n" +
+      "납부일: #{납부일}\n\n" +
       "이미 납부하셨다면 이 안내는 넘기셔도 됩니다.",
   },
   NOTICE: {

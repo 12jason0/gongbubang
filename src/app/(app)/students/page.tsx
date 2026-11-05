@@ -19,6 +19,8 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
         grade: students.grade,
         parentPhone: students.parentPhone,
         birthDate: students.birthDate,
+        monthlyFee: students.monthlyFee,
+        dueDay: students.dueDay,
         active: students.active,
         consent: students.consent,
         requestedAt: students.consentRequestedAt,

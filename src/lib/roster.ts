@@ -5,17 +5,30 @@
 //   김민준 초5 010-1234-5678
 //   이서연	중2	01098765432	2012-03-02   ← 엑셀에서 복사하면 탭으로 나뉨
 //   010 2222 3333, 박지호, 고1
+//   최하은 초3 010-3333-4444 25만원 10일   ← 교습비(원·만원)·납부일(○일·말일)은 있으면
 
 import { isValidDate, todayKST } from "./date";
 import { isValidMobile } from "./phone";
+import { parseDueDay, parseFee } from "./money";
 
 export const ROSTER_MAX_LINES = 100;
 
-export type RosterOk = { line: number; ok: true; name: string; grade: string; parentPhone: string; birthDate: string | null };
+export type RosterOk = {
+  line: number;
+  ok: true;
+  name: string;
+  grade: string;
+  parentPhone: string;
+  birthDate: string | null;
+  monthlyFee: number | null;
+  dueDay: number | null;
+};
 export type RosterErr = { line: number; ok: false; text: string; error: string };
 export type RosterRow = RosterOk | RosterErr;
 
 const PHONE = /(?<!\d)01[016789][\s.-]*\d{3,4}[\s.-]*\d{4}(?!\d)/;
+const FEE = /(?<![\d.])\d{1,3}(?:,\d{3})+\s*원?|(?<![\d.])\d+(?:\.\d+)?\s*만\s*원?|(?<![\d.])\d{4,8}\s*원/;
+const DUE = /(?<![\d.])(?:[1-9]|[12]\d|3[01])\s*일(?![가-힣])|말일/;
 const DATE = /(19|20)\d{2}\s*[.\-/년]\s*\d{1,2}\s*[.\-/월]\s*\d{1,2}\s*일?\.?|(?<!\d)(19|20)\d{6}(?!\d)/;
 
 /** "초등5" "초등학교 5학년" "중 2" → "초5" "중2". 모르는 모양은 그대로 둔다 */
@@ -53,6 +66,20 @@ function parseLine(text: string, line: number): RosterRow | null {
     rest = rest.replace(dateMatch[0], " ");
   }
 
+  let monthlyFee: number | null = null;
+  const feeMatch = rest.match(FEE);
+  if (feeMatch) {
+    monthlyFee = parseFee(feeMatch[0]);
+    if (!Number.isFinite(monthlyFee)) return { line, ok: false, text, error: "교습비를 확인해 주세요" };
+    rest = rest.replace(feeMatch[0], " ");
+  }
+  let dueDay: number | null = null;
+  const dueMatch = rest.match(DUE);
+  if (dueMatch) {
+    dueDay = parseDueDay(dueMatch[0]);
+    rest = rest.replace(dueMatch[0], " ");
+  }
+
   // 남은 칸: 이름 → 학년. "중 2"처럼 학년이 띄어 써져도 붙여서 본다
   const cells = rest
     .split(/[\s,，;|]+/)
@@ -67,7 +94,7 @@ function parseLine(text: string, line: number): RosterRow | null {
   }
   if (name.length > 20) return { line, ok: false, text, error: "이름이 너무 길어요" };
 
-  return { line, ok: true, name, grade, parentPhone, birthDate };
+  return { line, ok: true, name, grade, parentPhone, birthDate, monthlyFee, dueDay };
 }
 
 /** 붙여넣은 글 전체 → 줄마다 결과. 같은 학생(이름+번호)이 두 번 있으면 두 번째는 오류 */

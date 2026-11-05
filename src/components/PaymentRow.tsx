@@ -24,6 +24,8 @@ export type StatsStudent = {
   active: boolean;
   present: number;
   absent: number;
+  fee: string; // "25만 원 · 10일" (등록 안 했으면 "")
+  beforeDue: boolean; // 이 달 납부일 전 → 기록 없어도 "미납" 대신 "납부일 전"
 };
 
 type Defaults = { subject: string; tuition: number; otherFee: number; method: string };
@@ -59,6 +61,7 @@ export function PaymentRow({
           <p className="truncate text-[15px] font-medium">
             {s.name} <span className="text-xs text-slate-400">{s.grade}</span>
             {!s.active && <span className="ml-1 text-xs text-slate-400">(그만둠)</span>}
+            {s.fee && <span className="ml-1.5 text-[11.5px] text-[#8a6d35]">{s.fee}</span>}
           </p>
           <div className="mt-1 flex h-1.5 w-24 overflow-hidden rounded-full bg-slate-100" aria-hidden>
             {total > 0 && (
@@ -76,6 +79,8 @@ export function PaymentRow({
         <span className="flex w-[76px] items-center justify-end gap-0.5">
           {sum > 0 ? (
             <span className="text-[14px] font-semibold text-brand tabular-nums">{shortWon(sum)}</span>
+          ) : s.beforeDue ? (
+            <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11.5px] font-medium whitespace-nowrap text-slate-500">납부일 전</span>
           ) : (
             <span className="rounded-md bg-rose-50 px-1.5 py-0.5 text-[12px] font-semibold text-rose-500">미납</span>
           )}

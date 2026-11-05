@@ -11,7 +11,7 @@ import { unresolvedFailures } from "@/lib/failed";
 import { byGradeName, fitKakao, monthLabel, NOTICE_MAX_CHARS, noticeLinkText, noticeText, parseDays } from "@/lib/templates";
 import { formatDateLabel, isValidDate, isValidMonth, spokenTimeKST, thisMonthKST, todayKST } from "@/lib/date";
 import { ALIMTALK_TEMPLATES, appUrl, consentLink, feedbackLink, noticeLink, readConsentCode, renderAlimtalk } from "@/lib/alimtalk";
-import { isPaymentMethod, parseWon } from "@/lib/money";
+import { dueDayLabel, formatWon, isPaymentMethod, parseDueDay, parseFee, parseWon } from "@/lib/money";
 import { isValidMobile, normalizePhone } from "@/lib/phone";
 import { parseRoster, rosterKey, ROSTER_MAX_LINES } from "@/lib/roster";
 import { TRIAL_DAYS, isPaidTier } from "@/lib/pricing";
@@ -136,11 +136,19 @@ function feedbackMessage(academy: Wording, s: StudentLite, note: { id: string; c
   };
 }
 
-function paymentMessage(academy: Wording, s: StudentLite, month: string) {
+/** 원비 안내: 등록한 교습비·납부일이 있으면 같이 (없으면 "-") */
+function paymentMessage(academy: Wording, s: StudentLite & { monthlyFee: number | null; dueDay: number | null }, month: string) {
+  const vars = {
+    학원: academy.name,
+    이름: s.name,
+    월: monthLabel(month),
+    금액: s.monthlyFee ? formatWon(s.monthlyFee) : "-",
+    납부일: s.dueDay ? `매달 ${dueDayLabel(s.dueDay)}` : "-",
+  };
   return {
     to: s.parentPhone,
-    text: renderAlimtalk("PAYMENT", { 학원: academy.name, 이름: s.name, 월: monthLabel(month) }),
-    alimtalk: { key: "PAYMENT" as const, vars: { 학원: academy.name, 이름: s.name, 월: monthLabel(month) } },
+    text: renderAlimtalk("PAYMENT", vars),
+    alimtalk: { key: "PAYMENT" as const, vars },
     studentId: s.id,
     refDate: month,
   };
@@ -638,6 +646,8 @@ function readStudentForm(formData: FormData) {
   const parentPhone = normalizePhone(String(formData.get("parentPhone") ?? ""));
   const birthDate = String(formData.get("birthDate") ?? "").trim() || null;
   const classIds = formData.getAll("classIds").map(String);
+  const monthlyFee = parseFee(String(formData.get("monthlyFee") ?? ""));
+  const dueDay = parseDueDay(String(formData.get("dueDay") ?? ""));
 
   if (!name) return { error: "학생 이름을 입력해 주세요." } as const;
   if (!grade) return { error: "학년을 입력해 주세요. (예: 초5)" } as const;
@@ -645,7 +655,9 @@ function readStudentForm(formData: FormData) {
   if (birthDate && (!isValidDate(birthDate) || birthDate > todayKST() || birthDate < "1900-01-01")) {
     return { error: "생년월일을 확인해 주세요." } as const;
   }
-  return { data: { name, grade, parentPhone, birthDate }, classIds } as const;
+  if (Number.isNaN(monthlyFee)) return { error: "교습비를 확인해 주세요. (예: 250000 또는 25만)" } as const;
+  if (Number.isNaN(dueDay)) return { error: "납부일을 확인해 주세요. (1~31일 또는 말일)" } as const;
+  return { data: { name, grade, parentPhone, birthDate, monthlyFee, dueDay }, classIds } as const;
 }
 
 /** 학생의 반을 통째로 다시 지정 (이 공부방의 반만 허용) */
@@ -748,6 +760,8 @@ export async function addStudentsBulk(_prev: FormResult, formData: FormData): Pr
             grade: r.grade,
             parentPhone: r.parentPhone,
             birthDate: r.birthDate,
+            monthlyFee: r.monthlyFee,
+            dueDay: r.dueDay,
             ...consentFields(paper),
           })),
         )
