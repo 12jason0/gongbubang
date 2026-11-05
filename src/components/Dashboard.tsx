@@ -161,7 +161,7 @@ export function Dashboard({ data: real, today }: { data: DashboardData; today: s
                 <span className="text-[18px] font-semibold text-slate-400"> / {d.quota.total}통</span>
               </span>
             }
-            detail={d.quota.remaining === 0 ? "다 썼어요 · 요금제를 올리면 바로 보낼 수 있어요" : `${d.quota.label} 요금제 · ${d.quota.resetOn}에 다시 채워져요`}
+            detail={d.quota.remaining === 0 ? "다 썼어요 · 요금제를 올리면 바로 보낼 수 있어요" : d.quota.note}
           />
           <Kpi
             Icon={Megaphone}

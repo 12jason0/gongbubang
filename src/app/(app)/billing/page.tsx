@@ -68,7 +68,8 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
               />
             </div>
             <p className="mt-1.5 text-[12px] text-slate-400">
-              {formatUntil(quota.end)}부터 다시 {quota.total}통 · 알림톡·문자 모두 1건 = 1통, 보내지 못한 건은 안 세요
+              {quota.refillOn ? `${formatUntil(quota.refillOn)}부터 다시 ${quota.total}통` : "이용 기간이 끝나면 요금제를 결제해서 이어 써요"} · 알림톡·문자
+              모두 1건 = 1통, 보내지 못한 건은 안 세요
             </p>
           </div>
         )}

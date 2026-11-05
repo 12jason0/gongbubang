@@ -7,7 +7,7 @@ export type DashboardData = {
   studentCount: number;
   today: { present: number; total: number };
   unpaid: { month: string; count: number; amount: number; unknown: number };
-  quota: { remaining: number; total: number; label: string; resetOn: string }; // 이번 기간 카톡 통수
+  quota: { remaining: number; total: number; note: string }; // 이번 기간 카톡 통수
   noticesThisWeek: number;
   daily: { date: string; present: number; checked: number }[]; // 최근 30일, 오래된 날 → 오늘
   classSizes: { id: string; name: string; count: number }[];
@@ -25,7 +25,7 @@ export function exampleDashboard(today: string): DashboardData {
     studentCount: 15,
     today: { present: 9, total: 11 },
     unpaid: { month: today.slice(0, 7), count: 2, amount: 570000, unknown: 0 },
-    quota: { remaining: 112, total: 150, label: "기본", resetOn: "다음 결제일" },
+    quota: { remaining: 112, total: 150, note: "기본 요금제 · 다음 결제일에 다시 채워져요" },
     noticesThisWeek: 2,
     daily: RATES.map((r, i) => ({ date: shiftDate(today, i - 29), present: Math.round((r / 100) * 11), checked: r ? 11 : 0 })),
     classSizes: [

@@ -3,7 +3,7 @@ import { db, attendance, classes, classStudents, messageLogs, notices, payments,
 import { requireAcademy } from "@/lib/session";
 import { shiftDate, thisMonthKST, timeKST, todayKST } from "@/lib/date";
 import { byTimeName, parseDays, weekdayOf } from "@/lib/templates";
-import { formatUntil, quotaState } from "@/lib/plan";
+import { quotaNote, quotaState } from "@/lib/plan";
 import type { DashboardData } from "@/lib/dashboard-example";
 import { Dashboard } from "@/components/Dashboard";
 
@@ -112,7 +112,7 @@ export default async function DashboardPage() {
     },
     quota: (() => {
       const q = quotaState(academy);
-      return { remaining: q.remaining, total: q.total, label: q.label, resetOn: formatUntil(q.end) };
+      return { remaining: q.remaining, total: q.total, note: quotaNote(q, academy.serviceUntil) };
     })(),
     noticesThisWeek,
     daily: Array.from({ length: 30 }, (_, i) => {

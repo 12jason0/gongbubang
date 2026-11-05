@@ -44,7 +44,14 @@ export function extendOneMonth(current: Date | null, now = new Date()) {
 // 기준일(periodStart: 마지막 결제일, 없으면 가입일)부터 한 달씩 끊어서 센다.
 // msgPeriod 에는 "지금 세고 있는 기간의 시작"을 적어 두고, 기간이 바뀌면 msgUsed 는 0 부터 다시.
 
-export type QuotaInfo = { plan: string; periodStart: Date | null; createdAt: Date; msgPeriod: string; msgUsed: number };
+export type QuotaInfo = {
+  plan: string;
+  periodStart: Date | null;
+  createdAt: Date;
+  msgPeriod: string;
+  msgUsed: number;
+  serviceUntil?: Date | null; // 있으면: 이용 기간이 다음 기간 전에 끝나는지 (화면에 "다시 채워져요"를 띄울지)
+};
 
 /** 지금이 들어 있는 한 달 기간 [start, end) */
 export function currentPeriod(anchor: Date, now = new Date()) {
@@ -59,7 +66,16 @@ export function quotaState(a: QuotaInfo, now = new Date()) {
   const key = start.toISOString();
   const total = PLANS[tier].quota;
   const used = a.msgPeriod === key ? a.msgUsed : 0;
-  return { tier, label: PLANS[tier].label, key, end, total, used, remaining: Math.max(0, total - used) };
+  // 다음 기간이 시작되기 전에 이용 기간(체험 포함)이 끝나면 "다시 채워지는 날"은 없음
+  const refillOn = a.serviceUntil === undefined || a.serviceUntil === null || end < a.serviceUntil ? end : null;
+  return { tier, label: PLANS[tier].label, key, end, refillOn, total, used, remaining: Math.max(0, total - used) };
+}
+
+/** 화면 한 줄: "기본 요금제 · 12월 5일에 다시 채워져요" / "무료 체험 · 11월 19일까지" */
+export function quotaNote(q: QuotaState, serviceUntil: Date | null) {
+  const name = q.tier === "TRIAL" ? q.label : `${q.label} 요금제`;
+  if (q.refillOn) return `${name} · ${formatUntil(q.refillOn)}에 다시 채워져요`;
+  return serviceUntil ? `${name} · ${formatUntil(serviceUntil)}까지` : name;
 }
 
 export type QuotaState = ReturnType<typeof quotaState>;
