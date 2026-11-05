@@ -8,6 +8,7 @@ import { beforeDue } from "@/lib/money";
 import { classHex } from "@/lib/class-colors";
 import type { DashboardData } from "@/lib/dashboard-example";
 import { Dashboard } from "@/components/Dashboard";
+import { countNewConsults } from "@/lib/consult-db";
 
 const KIND_LABEL: Record<string, string> = { ATTENDANCE: "등원", FEEDBACK: "피드백", NOTICE: "공지", PAYMENT: "원비 안내", CONSENT: "동의 요청" };
 
@@ -20,7 +21,7 @@ export default async function DashboardPage() {
   const weekday = weekdayOf(today);
   const monday = shiftDate(today, -((weekday + 6) % 7));
 
-  const [academy, studentRows, classRows, memberRows, attRows, monthPaid, lastPaid, [{ n: noticesThisWeek }], logRows] = await Promise.all([
+  const [academy, studentRows, classRows, memberRows, attRows, monthPaid, lastPaid, [{ n: noticesThisWeek }], logRows, consultNew] = await Promise.all([
     requireAcademy(),
     db
       .select({
@@ -76,6 +77,7 @@ export default async function DashboardPage() {
       .where(eq(messageLogs.academyId, academyId))
       .orderBy(desc(messageLogs.createdAt))
       .limit(6),
+    countNewConsults(academyId),
   ]);
 
   const activeIds = new Set(studentRows.map((s) => s.id));
@@ -132,6 +134,7 @@ export default async function DashboardPage() {
       return { remaining: q.remaining, total: q.total, note: quotaNote(q, academy.serviceUntil) };
     })(),
     noticesThisWeek,
+    consultNew,
     daily: Array.from({ length: 30 }, (_, i) => {
       const date = shiftDate(from30, i);
       return { date, ...(byDate.get(date) ?? { present: 0, checked: 0 }) };

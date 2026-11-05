@@ -13,6 +13,8 @@ import { FeedbackBar } from "@/components/FeedbackBar";
 import { SmsStatus } from "@/components/SmsStatus";
 import { isTestMode } from "@/lib/sms";
 import { countFailedMessages } from "@/lib/failed";
+import { countNewConsults } from "@/lib/consult-db";
+import { ConsultBanner } from "@/components/ConsultBanner";
 
 const DAY_BTN = "flex h-11 w-[72px] items-center gap-0.5 rounded-xl px-1 text-[13px] text-slate-500 active:bg-black/5";
 
@@ -28,7 +30,7 @@ export default async function AttendancePage({
   const isToday = date === today;
   const weekday = weekdayOf(date);
 
-  const [, studentRows, classRows, memberRows, attRows, noteRows, failed] = await Promise.all([
+  const [, studentRows, classRows, memberRows, attRows, noteRows, failed, consultNew] = await Promise.all([
     requireAcademy(), // 공부방이 없거나 지워졌으면 여기서 로그인 화면으로
     db
       .select()
@@ -46,6 +48,7 @@ export default async function AttendancePage({
     db.select().from(attendance).where(and(eq(attendance.academyId, academyId), eq(attendance.date, date))),
     db.select().from(notes).where(and(eq(notes.academyId, academyId), eq(notes.date, date))),
     countFailedMessages(academyId),
+    countNewConsults(academyId),
   ]);
 
   // 이 날짜 요일에 수업 있는 반
@@ -142,6 +145,7 @@ export default async function AttendancePage({
 
   return (
     <main className="px-3 pt-3">
+      <ConsultBanner n={consultNew} className="mb-2" />
       {/* 카톡 통수 부족은 맨 위 PlanBanner 가 알려줌 (솔라피 잔액은 두나가 관리) */}
       <SmsStatus testMode={isTestMode()} balance={null} low={false} failed={failed} />
 

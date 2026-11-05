@@ -20,7 +20,8 @@ const SIDE_TABS = [{ href: "/dashboard", label: "대시보드", Icon: LayoutDash
 const isActive = (pathname: string, href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
 /** 휴대폰: 화면 아래 떠 있는 알약 모양 메뉴 (아래 12px + 아이폰 홈 바 영역, 양옆 12px). md 이상에서는 숨김 */
-export function BottomNav() {
+/** dotHref: 그 탭 아이콘에 빨간 점 (새 상담 신청이 있으면 달력) */
+export function BottomNav({ dotHref }: { dotHref?: string | null }) {
   const pathname = usePathname();
   return (
     <nav
@@ -38,7 +39,10 @@ export function BottomNav() {
               active ? "bg-brand font-semibold text-white shadow-[0_6px_14px_-8px_rgb(12_86_59/0.8)]" : "text-slate-500 active:bg-black/5"
             }`}
           >
-            <Icon size={20} strokeWidth={active ? 2.2 : 1.8} className={active ? "text-gold" : ""} />
+            <span className="relative">
+              <Icon size={20} strokeWidth={active ? 2.2 : 1.8} className={active ? "text-gold" : ""} />
+              {dotHref === href && <span className="absolute -top-0.5 -right-1 size-2 rounded-full bg-rose-500 ring-2 ring-white" aria-label="새 상담 신청" />}
+            </span>
             {label}
           </Link>
         );

@@ -46,6 +46,8 @@ export const requireAcademy = cache(async () => {
       loginId: academies.loginId,
       ownerPhone: academies.ownerPhone,
       attendanceNotify: academies.attendanceNotify,
+      consultHours: academies.consultHours,
+      consultMinutes: academies.consultMinutes,
       serviceUntil: academies.serviceUntil,
       plan: academies.plan,
       periodStart: academies.periodStart,

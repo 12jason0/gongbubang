@@ -83,7 +83,7 @@ export function appUrl() {
   return process.env.APP_URL?.trim().replace(/\/+$/, "") || "";
 }
 
-type LinkKind = "feedback" | "notice" | "consent";
+type LinkKind = "feedback" | "notice" | "consent" | "consult";
 
 function sign(kind: LinkKind, id: string) {
   const secret = process.env.SESSION_SECRET ?? "";
@@ -129,4 +129,14 @@ export function consentLink(studentId: string) {
 /** 링크 코드 → 학생 id (서명이 틀리면 null) */
 export function readConsentCode(code: string): string | null {
   return readCode("consent", code);
+}
+
+/** 상담 신청 링크 — 공부방마다 하나 (원장님이 문자·카톡으로 돌림). 학부모님은 로그인 없이 연다 */
+export function consultLink(academyId: string) {
+  return `${appUrl()}/r/${academyId}.${sign("consult", academyId)}`;
+}
+
+/** 링크 코드 → 공부방 id (서명이 틀리면 null) */
+export function readConsultCode(code: string): string | null {
+  return readCode("consult", code);
 }

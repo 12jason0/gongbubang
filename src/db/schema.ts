@@ -1,6 +1,7 @@
 // 공부방 출결·학부모 문자 알림 — DB 테이블
 // 모든 테이블에 academyId 를 둬서, 원장님이 늘어나도 같은 코드로 데이터만 나눠 쓴다.
 
+import { sql } from "drizzle-orm";
 import { pgTable, text, boolean, integer, timestamp, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { createId } from "./id";
 
@@ -39,6 +40,9 @@ export const academies = pgTable("academies", {
   trialBlock: text("trial_block").notNull().default(""),
   trialBlockNote: text("trial_block_note").notNull().default(""), // 어느 계정과 몇 개 겹쳤는지 (관리자 확인용)
   creditWon: integer("credit_won").notNull().default(0), // (안 씀) 예전 충전금 잔액 — 요금제로 바뀌며 기록만 남김
+  // 상담 예약 — 받는 시간: [{"days":[1,3],"start":"14:00","end":"16:00"}] (JSON, lib/consult.ts). "" = 아직 안 정함 → 신청 링크는 "받지 않아요"
+  consultHours: text("consult_hours").notNull().default(""),
+  consultMinutes: integer("consult_minutes").notNull().default(30), // 상담 한 번 길이 (분)
   createdAt: createdAt(),
 });
 
@@ -258,6 +262,30 @@ export const calendarMemos = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }), // 고친 적 있으면
   },
   (t) => [index("calendar_memos_academy_date_idx").on(t.academyId, t.date)],
+);
+
+// 상담 신청 — 학부모님이 링크(/r/)에서 로그인 없이 넣음. 원장님이 [확정]·[다른 시간 제안]·[취소]
+// status: NEW(새 신청) / CONFIRMED(확정) / PROPOSED(원장님이 다른 시간 제안 — date·start 가 제안한 시간) / CANCELED(취소)
+export const consultations = pgTable(
+  "consultations",
+  {
+    id: id(),
+    academyId: text("academy_id").notNull().references(() => academies.id, { onDelete: "cascade" }),
+    date: text("date").notNull(), // "2026-11-10"
+    start: text("start").notNull(), // "14:00"
+    end: text("end").notNull(), // "14:30"
+    parentName: text("parent_name").notNull(),
+    parentPhone: text("parent_phone").notNull(), // 숫자만
+    grade: text("grade").notNull(), // 학생 학년 (예: 초5)
+    message: text("message").notNull().default(""), // 문의 내용 (선택)
+    status: text("status").notNull().default("NEW"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("consultations_academy_date_idx").on(t.academyId, t.date),
+    // 같은 시각 두 번 신청 막기 (동시에 눌러도). 취소한 건 빼고
+    uniqueIndex("consultations_slot_uq").on(t.academyId, t.date, t.start).where(sql`${t.status} <> 'CANCELED'`),
+  ],
 );
 
 export type Student = typeof students.$inferSelect;

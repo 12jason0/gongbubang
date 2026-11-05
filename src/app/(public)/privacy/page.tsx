@@ -6,7 +6,7 @@ import { formatPhone } from "@/lib/phone";
 
 export const metadata: Metadata = { title: "개인정보 처리방침" };
 
-const EFFECTIVE = "2026년 11월 5일";
+const EFFECTIVE = "2026년 11월 6일";
 
 /**
  * 개인정보 처리방침 — 로그인 없이 열림 (학부모님이 동의 안내 문자의 링크로 들어옴)
@@ -50,6 +50,9 @@ export default async function PrivacyPage({ searchParams }: { searchParams: Prom
           <li>
             <b>다니면서 생기는 기록</b>: 출석·결석, 수업 메모, 교습비 납부 기록, 보낸 카카오톡·문자 기록
           </li>
+          <li id="consult">
+            <b>상담 신청</b>(상담 신청 링크로 직접 적어 주신 것): 학부모님 성함, 연락처, 학생 학년, 문의 내용(선택)
+          </li>
         </ul>
       </Section>
 
@@ -57,6 +60,7 @@ export default async function PrivacyPage({ searchParams }: { searchParams: Prom
         <ul className="list-disc space-y-1 pl-5">
           <li>출결·수업·공지 안내를 카카오톡(알림톡)·문자로 보내기</li>
           <li>교습비 영수증 원부 등 개인과외교습자가 법에 따라 갖춰야 하는 장부 작성</li>
+          <li>상담 신청: 상담 시간을 정하고 연락드리기 (상담 연락에만 씀)</li>
         </ul>
         <p className="mt-2">이 밖의 목적(광고 등)으로 쓰거나 다른 곳에 팔지 않습니다.</p>
       </Section>
@@ -69,7 +73,10 @@ export default async function PrivacyPage({ searchParams }: { searchParams: Prom
             지웁니다.
           </li>
           <li>
-            공부방이 공부방노트를 그만 쓰면(탈퇴) 학생·학부모님 정보와 출결·수업 메모·교습비·문자 기록을 공부방노트에서{" "}
+            상담 신청 정보는 <b>상담 날짜에서 6개월이 지나면 자동으로 지웁니다</b>. 상담 뒤 등록하시면 그때부터는 위 학생 정보로 다룹니다.
+          </li>
+          <li>
+            공부방이 공부방노트를 그만 쓰면(탈퇴) 학생·학부모님 정보와 출결·수업 메모·교습비·문자·상담 신청 기록을 공부방노트에서{" "}
             <b>바로 지웁니다</b>. 5년 보관해야 하는 교습비 영수증 원부는 공부방이 탈퇴 전에 인쇄·저장해서 따로 보관합니다. 다만 같은 명단으로 무료 체험을
             반복하는지 확인하려고 학부모님 휴대폰 번호를 원래 번호로 되돌릴 수 없는 값으로만 바꿔 5년 보관하며, 이 확인 외에는 쓰지
             않습니다.

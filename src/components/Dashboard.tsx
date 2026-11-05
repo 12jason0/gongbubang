@@ -6,6 +6,7 @@ import { formatWon } from "@/lib/money";
 import type { DashboardData } from "@/lib/dashboard-example";
 import { useSyncExternalStore } from "react";
 import { useOpenGuide } from "./Help";
+import { ConsultBanner } from "./ConsultBanner";
 
 const PANEL = "glass rounded-[28px] p-5";
 const md = (date: string) => `${Number(date.slice(5, 7))}/${Number(date.slice(8))}`;
@@ -145,6 +146,7 @@ export function Dashboard({ data: d, today }: { data: DashboardData; today: stri
     <>
       {/* 휴대폰: 대시보드는 PC 전용 */}
       <main className="px-3 pt-10 text-center md:hidden">
+        <ConsultBanner n={d.consultNew} className="mb-4 md:mb-0" />
         <p className="text-[15px] text-slate-500">대시보드는 PC 화면에서 볼 수 있어요</p>
         <Link href="/" className="mt-4 inline-block rounded-xl bg-brand px-4 py-3 text-[15px] font-semibold text-white">
           출석부로 가기
@@ -162,6 +164,7 @@ export function Dashboard({ data: d, today }: { data: DashboardData; today: stri
         </div>
 
         <StartChecklist setup={d.setup} />
+        <ConsultBanner n={d.consultNew} />
 
         {/* 숫자 카드 4개 */}
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

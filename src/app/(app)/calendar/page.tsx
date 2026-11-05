@@ -1,5 +1,6 @@
-import { and, count, eq, gte, lt, lte } from "drizzle-orm";
-import { db, calendarChanges, calendarMemos, classes, classStudents, notices, students } from "@/db";
+import { and, count, eq, gte, inArray, lt, lte } from "drizzle-orm";
+import { db, calendarChanges, calendarMemos, classes, classStudents, consultations, notices, students } from "@/db";
+import { ACTIVE_STATUS } from "@/lib/consult";
 import { currentAcademyId, requireAcademy } from "@/lib/session";
 import { isValidDate, isValidMonth, shiftDate, shiftMonth, thisMonthKST, timeKST, todayKST } from "@/lib/date";
 import { dueDateOf } from "@/lib/money";
@@ -29,7 +30,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const sentFrom = new Date(`${from}T00:00:00+09:00`);
   const sentTo = new Date(`${shiftDate(to, 1)}T00:00:00+09:00`);
 
-  const [, classRows, counts, changes, memos, sent, dueRows] = await Promise.all([
+  const [, classRows, counts, changes, memos, sent, dueRows, consultRows] = await Promise.all([
     requireAcademy(),
     db
       .select({ id: classes.id, name: classes.name, days: classes.days, time: classes.time, endTime: classes.endTime, color: classes.color })
@@ -60,6 +61,13 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
       .select({ name: students.name, dueDay: students.dueDay })
       .from(students)
       .where(and(eq(students.academyId, academyId), eq(students.active, true))),
+    // 상담 (취소 빼고) — 달력에는 그날만 있는 일정처럼 같이 그림
+    db
+      .select()
+      .from(consultations)
+      .where(
+        and(eq(consultations.academyId, academyId), gte(consultations.date, from), lte(consultations.date, to), inArray(consultations.status, ACTIVE_STATUS)),
+      ),
   ]);
 
   const countOf = new Map(counts.map((c) => [c.classId, c.n]));
@@ -75,7 +83,10 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
       today={today}
       initialDate={date && date >= from && date <= to ? date : undefined}
       classes={classRows.sort(byTimeName).map((c) => ({ ...c, hex: classHex(c), count: countOf.get(c.id) ?? 0 }))}
-      changes={changes.map((c) => ({ id: c.id, date: c.date, kind: c.kind, classId: c.classId, name: c.name, start: c.start, end: c.end }))}
+      changes={[
+        ...changes.map((c) => ({ id: c.id, date: c.date, kind: c.kind, classId: c.classId, name: c.name, start: c.start, end: c.end })),
+        ...consultRows.map((c) => ({ id: c.id, date: c.date, kind: "CONSULT", classId: null, name: `상담 ${c.parentName}`, start: c.start, end: c.end, status: c.status })),
+      ]}
       memos={memos.map((m) => ({ id: m.id, date: m.date, content: m.content, at: stamp(m.createdAt), edited: !!m.updatedAt }))}
       notices={sent.map((n) => ({ id: n.id, date: todayKST(n.sentAt), time: timeKST(n.sentAt), target: n.target, count: n.recipientCount, content: n.content }))}
       dues={dueRows.flatMap((s) =>

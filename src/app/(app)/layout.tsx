@@ -1,4 +1,5 @@
-import { requireAcademy } from "@/lib/session";
+import { currentAcademyId, requireAcademy } from "@/lib/session";
+import { countNewConsults } from "@/lib/consult-db";
 import { isTestMode } from "@/lib/sms";
 import { planState, quotaState } from "@/lib/plan";
 import { PlanBanner } from "@/components/PlanBanner";
@@ -9,7 +10,7 @@ import { formatDateLabel, todayKST } from "@/lib/date";
 import { StickyBar } from "@/components/StickyBar";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const academy = await requireAcademy();
+  const [academy, consultNew] = await Promise.all([requireAcademy(), currentAcademyId().then(countNewConsults)]);
   const testMode = isTestMode();
 
   return (
@@ -51,7 +52,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <PlanBanner state={planState(academy)} quota={quotaState(academy)} />
         <ToastProvider>{children}</ToastProvider>
       </div>
-      <BottomNav />
+      <BottomNav dotHref={consultNew > 0 ? "/calendar" : null} />
       </HelpProvider>
     </div>
   );

@@ -23,13 +23,14 @@ import { Confirm } from "./Confirm";
 import { InfoTip, TipExample } from "./InfoTip";
 
 type Cls = { id: string; name: string; days: string; time: string; endTime: string; color: string; hex: string; count: number };
-type Change = { id: string; date: string; kind: string; classId: string | null; name: string; start: string; end: string };
+type Change = { id: string; date: string; kind: string; classId: string | null; name: string; start: string; end: string; status?: string }; // kind CONSULT = 상담 (status: NEW·CONFIRMED·PROPOSED)
 type Memo = { id: string; date: string; content: string; at: string; edited: boolean };
 type Notice = { id: string; date: string; time: string; target: string; count: number; content: string };
 type Due = { date: string; name: string };
-type Lesson = { id: string; name: string; start: string; end: string; kind: "SLOT" | "EXTRA"; canceled: boolean; hex: string; count: number | null };
+type Lesson = { id: string; name: string; start: string; end: string; kind: "SLOT" | "EXTRA" | "CONSULT"; canceled: boolean; hex: string; count: number | null; status?: string };
 
 const EXTRA_HEX = "#b08a3e"; // 보강 (반과 상관없는 그날 수업) — 금색
+const CONSULT_HEX = "#1e293b"; // 상담 — 짙은 남색 빗금 (반 색 8가지·보강 금색과 안 겹치게, chip 참고)
 const input = "w-full rounded-xl border-0 px-3 py-2.5 text-[15px] outline-none focus:ring-2 focus:ring-gold field";
 const SMALL_BTN = "shrink-0 rounded-lg px-2 py-1.5 text-[12.5px] font-medium text-slate-500 hover:bg-black/5 disabled:opacity-50";
 const NAV = "grid size-10 place-items-center rounded-xl text-slate-500 hover:bg-white/60 active:bg-black/5";
@@ -46,12 +47,18 @@ function lessonsOf(date: string, classes: Cls[], changes: Change[]): Lesson[] {
     ...today
       .filter((c) => c.kind === "EXTRA")
       .map((c) => ({ id: c.id, name: c.name, start: c.start, end: c.end, kind: "EXTRA" as const, canceled: false, hex: EXTRA_HEX, count: null })),
+    ...today
+      .filter((c) => c.kind === "CONSULT")
+      .map((c) => ({ id: c.id, name: c.name, start: c.start, end: c.end, kind: "CONSULT" as const, canceled: false, hex: CONSULT_HEX, count: null, status: c.status })),
   ].sort((a, b) => a.start.localeCompare(b.start));
 }
 
 /** 색 칩 모양: 옅은 반 색 바탕 + 왼쪽 진한 줄. 휴강은 회색 + 줄 긋기 */
 const chip = (l: Lesson): CSSProperties =>
-  l.canceled
+  l.kind === "CONSULT"
+    ? // 상담: 빗금 무늬 + 짙은 남색 줄 (반 색·휴강 회색과 한눈에 구분)
+      { background: `repeating-linear-gradient(135deg, ${CONSULT_HEX}12 0 6px, ${CONSULT_HEX}26 6px 12px)`, borderLeft: `3px solid ${CONSULT_HEX}` }
+    : l.canceled
     ? { background: "rgb(148 163 184 / 0.16)", borderLeft: "3px solid rgb(148 163 184 / 0.7)" }
     : { background: `${l.hex}1f`, borderLeft: `3px solid ${l.hex}` };
 
@@ -416,7 +423,7 @@ function WeekGrid({
                       left: `calc(${(lane[i].lane / lane[i].n) * 100}% + 2px)`,
                       width: `calc(${100 / lane[i].n}% - 4px)`,
                       ...chip(l),
-                      ...(l.canceled ? {} : { background: `${l.hex}2e` }),
+                      ...(l.canceled || l.kind === "CONSULT" ? {} : { background: `${l.hex}2e` }),
                     }}
                   >
                     <span className={`block truncate font-semibold ${l.canceled ? "line-through" : ""}`}>{l.name}</span>
@@ -428,6 +435,8 @@ function WeekGrid({
                       <span className="block truncate font-semibold">휴강</span>
                     ) : l.kind === "EXTRA" ? (
                       <span className="block truncate opacity-80">보강</span>
+                    ) : l.kind === "CONSULT" ? (
+                      <span className="block truncate opacity-80">{l.status === "NEW" ? "새 신청" : l.status === "PROPOSED" ? "제안함" : "확정"}</span>
                     ) : (
                       <span className="hidden truncate opacity-80 md:block">학생 {l.count}명</span>
                     )}
@@ -496,8 +505,14 @@ function DayPanel({
                 </span>
               </span>
               {l.kind === "EXTRA" && <span className="rounded-md bg-gold-soft px-1.5 py-0.5 text-[11px] font-semibold text-[#8a6d35]">보강</span>}
+              {l.kind === "CONSULT" && l.status === "NEW" && <span className="rounded-md bg-rose-50 px-1.5 py-0.5 text-[11px] font-semibold text-rose-600">새 신청</span>}
+              {l.kind === "CONSULT" && l.status === "PROPOSED" && <span className="rounded-md bg-white/70 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600">제안함</span>}
               {l.canceled && <span className="rounded-md bg-white/70 px-1.5 py-0.5 text-[11px] font-semibold text-slate-500">휴강</span>}
-              {l.kind === "SLOT" ? (
+              {l.kind === "CONSULT" ? (
+                <Link href="/consult" className="shrink-0 rounded-lg bg-white/70 px-2.5 py-1.5 text-[12.5px] font-semibold text-slate-600 hover:bg-white">
+                  보기
+                </Link>
+              ) : l.kind === "SLOT" ? (
                 <button
                   type="button"
                   disabled={pending}

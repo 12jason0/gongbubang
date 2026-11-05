@@ -3,19 +3,22 @@
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { and, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
-import { db, academies, students, attendance, notes, notices, classes, classStudents, payments, messageLogs, deletedParentHashes, calendarChanges, calendarMemos } from "@/db";
+import { and, eq, gte, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
+import { db, academies, students, attendance, notes, notices, classes, classStudents, payments, messageLogs, deletedParentHashes, calendarChanges, calendarMemos, consultations } from "@/db";
 import { createSession, deleteSession, requireAcademy, requireActiveAcademy } from "@/lib/session";
 import { sendMessages, smsBytes } from "@/lib/sms";
 import { unresolvedFailures } from "@/lib/failed";
 import { byGradeName, fitKakao, monthLabel, NOTICE_MAX_CHARS, noticeLinkText, noticeText, parseDays } from "@/lib/templates";
-import { formatDateLabel, isValidDate, isValidMonth, spokenTimeKST, thisMonthKST, todayKST } from "@/lib/date";
-import { ALIMTALK_TEMPLATES, appUrl, consentLink, feedbackLink, noticeLink, readConsentCode, renderAlimtalk } from "@/lib/alimtalk";
+import { formatDateLabel, isValidDate, isValidMonth, spokenTimeKST, thisMonthKST, timeKST, todayKST } from "@/lib/date";
+import { ALIMTALK_TEMPLATES, appUrl, consentLink, feedbackLink, noticeLink, readConsentCode, readConsultCode, renderAlimtalk } from "@/lib/alimtalk";
 import { dueDayLabel, formatWon, isPaymentMethod, parseDueDay, parseFee, parseWon } from "@/lib/money";
 import { isValidMobile, normalizePhone } from "@/lib/phone";
 import { checkImportRow, parseRoster, rosterKey, ROSTER_MAX_LINES, type ImportInput } from "@/lib/roster";
 import { TRIAL_DAYS, isPaidTier } from "@/lib/pricing";
 import { classColorKey, isColorKey, nextColor } from "@/lib/class-colors";
+import { ACTIVE_STATUS, checkHours, freeSlotsOn, parseHours } from "@/lib/consult";
+import { isActive } from "@/lib/plan";
+import { fromMin, toMin } from "@/lib/class-colors";
 import { endTrialIfOverlap, parentPhoneHash, trialPhoneHash, trialUsedByPhone } from "@/lib/account";
 import { PHONE_VERIFY, phoneCodeOk } from "@/lib/phone-verify";
 import { billingReady, createOrderRow, orderName, priceFor, type OrderKind } from "@/lib/billing";
@@ -1258,4 +1261,112 @@ export async function createOrder(kind: OrderKind) {
     clientKey: process.env.TOSS_CLIENT_KEY!,
     customerKey: academy.id,
   };
+}
+
+// ───────────────────────── 상담 예약 ─────────────────────────
+
+/** 같은 시각 두 번 신청 (consultations_slot_uq) */
+function isSlotTaken(e: unknown) {
+  const err = e as { code?: string; cause?: { code?: string } };
+  return err?.code === "23505" || err?.cause?.code === "23505";
+}
+
+const REVALIDATE_CONSULT = () => ["/consult", "/calendar", "/dashboard", "/settings"].forEach((p) => revalidatePath(p));
+
+/** 설정 → 상담 받는 시간 (요일+시간대 여러 줄) + 상담 길이 */
+export async function saveConsultHours(rules: unknown, minutes: number): Promise<FormResult> {
+  const academy = await requireActiveAcademy();
+  const r = checkHours(rules, Number(minutes));
+  if (!r.ok) return r;
+  await db.update(academies).set({ consultHours: r.json, consultMinutes: Number(minutes) }).where(eq(academies.id, academy.id));
+  REVALIDATE_CONSULT();
+  return { ok: true, message: r.json ? "저장했어요. 이제 신청 링크에서 이 시간만 보여요." : "저장했어요. 받는 시간이 없어서 신청 링크는 닫혀 있어요." };
+}
+
+const MAX_OPEN_REQUESTS = 30; // 확인 안 한 새 신청이 이만큼 쌓이면 더 받지 않음 (링크가 퍼져 장난 신청이 몰릴 때)
+
+/**
+ * 학부모님 상담 신청 (/r/ 링크, 로그인 없음). 고른 시간이 지금도 비어 있는지 서버에서 다시 계산한다.
+ * 같은 번호로 아직 안 끝난 신청이 있으면 한 번만.
+ */
+export async function requestConsult(
+  code: string,
+  input: { date: string; start: string; parentName: string; parentPhone: string; grade: string; message: string; agree: boolean },
+): Promise<FormResult> {
+  const academyId = readConsultCode(String(code));
+  if (!academyId) return { ok: false, message: "링크가 올바르지 않아요." };
+  if (input?.agree !== true) return { ok: false, message: "개인정보 수집·이용에 동의해 주세요." };
+  const [academy] = await db.select().from(academies).where(and(eq(academies.id, academyId), isNull(academies.deletedAt)));
+  if (!academy || !isActive(academy)) return { ok: false, message: "지금은 상담 신청을 받지 않아요." };
+
+  const str = (v: unknown, n: number) => (typeof v === "string" ? v.trim().slice(0, n) : "");
+  const date = str(input?.date, 10);
+  const start = str(input?.start, 5);
+  const parentName = str(input?.parentName, 40);
+  const parentPhone = normalizePhone(str(input?.parentPhone, 20));
+  const grade = str(input?.grade, 10);
+  const message = str(input?.message, 300);
+  if (!parentName || parentName.length > 20) return { ok: false, message: "학부모님 성함을 넣어 주세요." };
+  if (!isValidMobile(parentPhone)) return { ok: false, message: "휴대폰 번호를 확인해 주세요." };
+  if (!grade) return { ok: false, message: "학생 학년을 골라 주세요." };
+  if (!isValidDate(date)) return { ok: false, message: "날짜를 골라 주세요." };
+
+  const today = todayKST();
+  const active = await db
+    .select({ date: consultations.date, start: consultations.start, end: consultations.end, status: consultations.status, parentPhone: consultations.parentPhone })
+    .from(consultations)
+    .where(and(eq(consultations.academyId, academy.id), gte(consultations.date, today), inArray(consultations.status, ACTIVE_STATUS)));
+  if (active.some((c) => c.parentPhone === parentPhone)) return { ok: false, message: "이미 신청하셨어요. 원장님이 확인 후 연락드려요." };
+  if (active.filter((c) => c.status === "NEW").length >= MAX_OPEN_REQUESTS) return { ok: false, message: "지금은 신청이 많아요. 공부방에 직접 연락해 주세요." };
+
+  const slot = freeSlotsOn(date, parseHours(academy.consultHours), academy.consultMinutes, active, today, timeKST()).find((x) => x.start === start);
+  if (!slot) return { ok: false, message: "그 시간은 방금 찼거나 고를 수 없어요. 다른 시간을 골라 주세요." };
+  try {
+    await db.insert(consultations).values({ academyId: academy.id, date, start: slot.start, end: slot.end, parentName, parentPhone, grade, message });
+  } catch (e) {
+    if (isSlotTaken(e)) return { ok: false, message: "그 시간은 방금 찼어요. 다른 시간을 골라 주세요." };
+    throw e;
+  }
+  REVALIDATE_CONSULT();
+  return { ok: true, message: "신청했어요." };
+}
+
+/** [확정] / [취소] */
+export async function setConsultStatus(id: string, status: "CONFIRMED" | "CANCELED"): Promise<FormResult> {
+  const academy = await requireActiveAcademy();
+  if (status !== "CONFIRMED" && status !== "CANCELED") return { ok: false, message: "다시 눌러 주세요." };
+  const done = await db
+    .update(consultations)
+    .set({ status })
+    .where(and(eq(consultations.id, id), eq(consultations.academyId, academy.id), ne(consultations.status, "CANCELED")))
+    .returning({ id: consultations.id });
+  if (!done.length) return { ok: false, message: "신청을 찾을 수 없어요." };
+  REVALIDATE_CONSULT();
+  return { ok: true, message: status === "CONFIRMED" ? "확정했어요." : "취소했어요." };
+}
+
+/** [다른 시간 제안] — 원장님이 정한 날짜·시각으로 옮겨 두고(그 시간은 다른 신청을 못 받음) 학부모님 답을 기다림 */
+export async function proposeConsult(id: string, date: string, start: string): Promise<FormResult> {
+  const academy = await requireActiveAcademy();
+  if (!isValidDate(date) || date < todayKST()) return { ok: false, message: "오늘이나 그 뒤 날짜를 골라 주세요." };
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(start)) return { ok: false, message: "시각을 골라 주세요." };
+  const end = fromMin(Math.min(toMin(start) + academy.consultMinutes, 24 * 60 - 1));
+  const others = await db
+    .select({ id: consultations.id, start: consultations.start, end: consultations.end })
+    .from(consultations)
+    .where(and(eq(consultations.academyId, academy.id), eq(consultations.date, date), inArray(consultations.status, ACTIVE_STATUS)));
+  if (others.some((o) => o.id !== id && o.start < end && start < o.end)) return { ok: false, message: "그 시간엔 다른 상담이 있어요." };
+  try {
+    const done = await db
+      .update(consultations)
+      .set({ date, start, end, status: "PROPOSED" })
+      .where(and(eq(consultations.id, id), eq(consultations.academyId, academy.id), ne(consultations.status, "CANCELED")))
+      .returning({ id: consultations.id });
+    if (!done.length) return { ok: false, message: "신청을 찾을 수 없어요." };
+  } catch (e) {
+    if (isSlotTaken(e)) return { ok: false, message: "그 시간엔 다른 상담이 있어요." };
+    throw e;
+  }
+  REVALIDATE_CONSULT();
+  return { ok: true, message: "옮겨 두었어요. 학부모님께 문자로 알려 주세요." };
 }

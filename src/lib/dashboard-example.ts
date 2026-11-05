@@ -7,6 +7,7 @@ export type DashboardData = {
   unpaid: { month: string; count: number; amount: number; unknown: number };
   quota: { remaining: number; total: number; note: string }; // 이번 기간 카톡 통수
   noticesThisWeek: number;
+  consultNew: number; // 확인 안 한 상담 신청 (오늘 이후)
   daily: { date: string; present: number; checked: number }[]; // 최근 30일, 오래된 날 → 오늘
   classSizes: { id: string; name: string; count: number }[];
   todayClasses: { id: string; name: string; time: string; hex: string; present: number; total: number }[];

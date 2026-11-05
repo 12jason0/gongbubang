@@ -2,11 +2,13 @@ import Link from "next/link";
 import { ChevronRight, CreditCard, UserRound } from "lucide-react";
 import { planState, quotaState, formatUntil } from "@/lib/plan";
 import { requireAcademy } from "@/lib/session";
-import { ALIMTALK_TEMPLATES } from "@/lib/alimtalk";
+import { ALIMTALK_TEMPLATES, consultLink } from "@/lib/alimtalk";
+import { parseHours } from "@/lib/consult";
 import { SettingsForm } from "@/components/SettingsForm";
 import { AttendanceNotifyToggle } from "@/components/AttendanceNotifyToggle";
 import { PageTitle } from "@/components/PageTitle";
 import { ConsentNotice } from "@/components/ConsentNotice";
+import { ConsultSettings } from "@/components/ConsultSettings";
 
 export default async function SettingsPage() {
   const academy = await requireAcademy();
@@ -17,7 +19,7 @@ export default async function SettingsPage() {
 
       {/* 보내는 번호·방식은 원장님 화면에 안 보임 (테스트 모드는 위쪽 바). 동의 안내 문구는 맨 아래 접힘
           PC(lg): 왼쪽 줄에 계정·이용권·등원 카톡·동의 문구, 오른쪽 줄에 학원 정보·카톡 미리보기 (휴대폰 순서는 그대로) */}
-      <div className="lg:grid lg:grid-cols-2 lg:grid-rows-[auto_auto_auto_1fr] lg:items-start lg:gap-x-5 [&>*]:lg:col-start-1">
+      <div className="lg:grid lg:grid-cols-2 lg:grid-rows-[auto_auto_auto_auto_1fr] lg:items-start lg:gap-x-5 [&>*]:lg:col-start-1">
 
       {/* 마이페이지 (휴대폰은 여기가 들어가는 곳) */}
       <Link href="/me" className="card mb-3 flex items-center gap-3 rounded-2xl p-4">
@@ -54,7 +56,14 @@ export default async function SettingsPage() {
 
       <AttendanceNotifyToggle on={academy.attendanceNotify} />
 
-      <div className="lg:col-start-2! lg:row-span-4 lg:row-start-1">
+      <ConsultSettings
+        rules={parseHours(academy.consultHours)}
+        minutes={academy.consultMinutes}
+        link={consultLink(academy.id)}
+        academyName={academy.name}
+      />
+
+      <div className="lg:col-start-2! lg:row-span-5 lg:row-start-1">
       <SettingsForm
         initial={{ name: academy.name, registrationNo: academy.registrationNo }}
         bodies={{ attendance: ALIMTALK_TEMPLATES.ATTENDANCE.body, feedback: ALIMTALK_TEMPLATES.FEEDBACK.body }}

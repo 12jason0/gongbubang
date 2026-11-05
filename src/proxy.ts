@@ -6,8 +6,9 @@ export async function proxy(request: NextRequest) {
   const academyId = await verifyToken(request.cookies.get(SESSION_COOKIE)?.value);
   const isLogin = request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/signup";
   const path = request.nextUrl.pathname;
-  // 학부모님도 보는 화면: 개인정보 처리방침, 카톡 링크로 여는 수업 피드백(/f/)·공지(/n/)·동의(/c/)
-  const isPublic = path === "/about" || path === "/privacy" || path === "/terms" || path.startsWith("/f/") || path.startsWith("/n/") || path.startsWith("/c/");
+  // 학부모님도 보는 화면: 개인정보 처리방침, 카톡 링크로 여는 수업 피드백(/f/)·공지(/n/)·동의(/c/)·상담 신청(/r/), Vercel Cron(/api/cron/ — 경로 안에서 CRON_SECRET 확인)
+  const isPublic =
+    path === "/about" || path === "/privacy" || path === "/terms" || path.startsWith("/f/") || path.startsWith("/n/") || path.startsWith("/c/") || path.startsWith("/r/") || path.startsWith("/api/cron/");
 
   if (isPublic) return NextResponse.next();
   // 쿠키는 맞는데 그 공부방이 DB 에 없을 때 (requireAcademy 가 보냄): 쿠키를 지우고 로그인 화면을 그대로 보여준다.
