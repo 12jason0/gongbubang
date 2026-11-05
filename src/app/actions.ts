@@ -8,9 +8,9 @@ import { db, academies, students, attendance, notes, notices, classes, classStud
 import { createSession, deleteSession, requireAcademy, requireActiveAcademy } from "@/lib/session";
 import { sendMessages, smsBytes } from "@/lib/sms";
 import { unresolvedFailures } from "@/lib/failed";
-import { attendanceText, byGradeName, feedbackText, monthLabel, NOTICE_MAX_CHARS, noticeLinkText, noticeText, parseDays, paymentText } from "@/lib/templates";
+import { attendanceText, byGradeName, fitKakao, monthLabel, NOTICE_MAX_CHARS, noticeLinkText, noticeText, parseDays, paymentText } from "@/lib/templates";
 import { formatDateLabel, isValidDate, isValidMonth, spokenTimeKST, thisMonthKST, todayKST } from "@/lib/date";
-import { appUrl, consentLink, feedbackLink, noticeLink, readConsentCode, renderAlimtalk } from "@/lib/alimtalk";
+import { ALIMTALK_TEMPLATES, appUrl, consentLink, feedbackLink, noticeLink, readConsentCode, renderAlimtalk } from "@/lib/alimtalk";
 import { isPaymentMethod, parseWon } from "@/lib/money";
 import { isValidMobile, normalizePhone } from "@/lib/phone";
 import { parseRoster, rosterKey, ROSTER_MAX_LINES } from "@/lib/roster";
@@ -119,14 +119,18 @@ function attendanceMessage(academy: Wording, s: StudentLite, time: string, date:
   };
 }
 
+/** 피드백: 메모가 카톡에 바로 보임 (1,000자 넘으면 앞부분 + 전체 보기 링크). 문자로 갈 때도 같은 글 */
 function feedbackMessage(academy: Wording, s: StudentLite, note: { id: string; content: string; date: string }) {
+  const vars = fitKakao(
+    ALIMTALK_TEMPLATES.FEEDBACK.body,
+    { 학원: academy.name, 이름: s.name, 날짜: formatDateLabel(note.date), 메모: note.content },
+    "메모",
+    feedbackLink(note.id),
+  );
   return {
     to: s.parentPhone,
-    text: feedbackText(academy, s.name, note.content),
-    alimtalk: {
-      key: "FEEDBACK" as const,
-      vars: { 학원: academy.name, 이름: s.name, 날짜: formatDateLabel(note.date), 링크: feedbackLink(note.id) },
-    },
+    text: renderAlimtalk("FEEDBACK", vars),
+    alimtalk: { key: "FEEDBACK" as const, vars },
     studentId: s.id,
     refDate: note.date,
   };
@@ -444,7 +448,8 @@ export type NoticeResult = { ok: boolean; message: string } | null;
 
 /**
  * 단체 공지 — 받을 학생: 전체(mode=all) / 반(mode=class, classId) / 개별(mode=pick, studentIds).
- * 학부모마다 따로 "[공부방] 김민수 학부모님, 새 공지가 있어요 + 링크(/n/…)" — 링크를 열면 공지 전체.
+ * 알림톡: 학부모마다 공지 내용이 카톡에 바로 (lib/alimtalk.ts NOTICE). 길면 앞부분 + 전체 보기 링크(/n/…).
+ * 알림톡 템플릿이 없으면 문자로 "[공부방] 김민수 학부모님, 새 공지가 있어요 + 링크".
  * 형제처럼 학부모 번호가 같으면 한 번만, 이름은 "김민수·김민지".
  * APP_URL 이 없어서 링크를 못 만들면 예전처럼 문자에 공지 전체를 넣는다.
  */
@@ -507,8 +512,12 @@ export async function sendNotice(_prev: NoticeResult, formData: FormData): Promi
       const names = kids.map((k) => k.name).join("·");
       return {
         to,
+        // 알림톡 템플릿이 있으면 공지 내용이 카톡에 바로(길면 앞부분 + 전체 보기 링크), 없으면 예전처럼 문자(링크 방식)
         text: linkMode ? noticeLinkText(academy.name, names, link) : noticeText(academy.name, content),
-        alimtalk: { key: "NOTICE" as const, vars: { 학원: academy.name, 이름: names, 링크: link } },
+        alimtalk: {
+          key: "NOTICE" as const,
+          vars: fitKakao(ALIMTALK_TEMPLATES.NOTICE.body, { 학원: academy.name, 이름: names, 공지내용: content }, "공지내용", link),
+        },
         studentId: kids[0].id,
       };
     }),

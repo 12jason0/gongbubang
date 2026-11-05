@@ -33,6 +33,28 @@ export function paymentText(academyName: string, studentName: string, monthLabel
   return `[${academyName}] ${studentName} 학생의 ${monthLabel} 교습비 납부 안내드립니다. 이미 납부하셨다면 이 안내는 넘기셔도 됩니다.`;
 }
 
+// ── 카톡 한 통 길이 ── 알림톡은 1,000자까지. 문자(장문)도 한글 약 1,000자라 같은 기준
+
+export const KAKAO_MAX_CHARS = 1000;
+
+/** 템플릿 #{변수} 채우기 (서버 발송·화면 미리보기 공통) */
+export function fillTemplate(body: string, vars: Record<string, string>) {
+  return body.replace(/#\{([^}]+)\}/g, (_, k: string) => vars[k] ?? "");
+}
+
+/**
+ * 내용 변수(field) 때문에 KAKAO_MAX_CHARS 를 넘으면 앞부분만 남기고 "…\n\n전체 보기: 링크" 를 붙인다.
+ * 넘지 않으면 vars 그대로.
+ */
+export function fitKakao(body: string, vars: Record<string, string>, field: string, link: string) {
+  const content = (vars[field] ?? "").trim();
+  const full = { ...vars, [field]: content };
+  if (fillTemplate(body, full).length <= KAKAO_MAX_CHARS) return full;
+  const tail = `…\n\n전체 보기: ${link}`;
+  const room = KAKAO_MAX_CHARS - fillTemplate(body, { ...vars, [field]: "" }).length - tail.length;
+  return { ...vars, [field]: content.slice(0, Math.max(0, room)).trimEnd() + tail };
+}
+
 /** "2026-10" → "10월분" */
 export function monthLabel(month: string) {
   return `${Number(month.slice(5, 7))}월분`;

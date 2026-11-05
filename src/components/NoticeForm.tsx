@@ -4,7 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { Link2, Send } from "lucide-react";
 import { sendNotice, type NoticeResult } from "@/app/actions";
-import { NOTICE_MAX_CHARS } from "@/lib/templates";
+import { fillTemplate, fitKakao, NOTICE_MAX_CHARS } from "@/lib/templates";
 import { PLANS } from "@/lib/pricing";
 import { formatDateLabel, shiftDate, todayKST } from "@/lib/date";
 import { useToast } from "./Toast";
@@ -39,6 +39,7 @@ export function NoticeForm({
   waiting,
   classes,
   linkMode,
+  kakaoBody,
   remaining,
   canUpgrade,
 }: {
@@ -47,6 +48,7 @@ export function NoticeForm({
   waiting: number; // 학부모 동의 대기·거부 학생 수 (공지를 안 받음)
   classes: { id: string; name: string }[];
   linkMode: boolean; // APP_URL 이 있으면 "새 공지 + 링크", 없으면 문자에 공지 전체
+  kakaoBody?: string; // 공지 알림톡 템플릿 (있으면 공지 내용이 카톡에 바로)
   remaining: number; // 이번 달 남은 카톡 통수
   canUpgrade: boolean; // 넉넉(9,900원)보다 아래 요금제면 true
 }) {
@@ -220,9 +222,15 @@ export function NoticeForm({
 
       {content.trim() && (
         <div className="mt-2">
-          <p className="mb-1.5 text-[11px] text-slate-400">학부모님 휴대폰에는 이렇게 보여요</p>
-          <div className="max-w-[85%] rounded-2xl rounded-tl-md bg-slate-100 px-3.5 py-2.5 text-[14px] leading-relaxed whitespace-pre-wrap">
-            {linkMode ? (
+          <p className="mb-1.5 text-[11px] text-slate-400">학부모님 휴대폰에는 이렇게 보여요{kakaoBody ? " · 카카오 알림톡" : ""}</p>
+          <div
+            className={`max-w-[85%] rounded-2xl rounded-tl-md px-3.5 py-2.5 text-[14px] leading-relaxed whitespace-pre-wrap ${
+              kakaoBody ? "bg-[#fef01b]/25 ring-1 ring-[#fef01b]/60" : "bg-slate-100"
+            }`}
+          >
+            {kakaoBody ? (
+              fillTemplate(kakaoBody, fitKakao(kakaoBody, { 학원: academyName, 이름: sampleNames, 공지내용: content }, "공지내용", "https://…/n/…"))
+            ) : linkMode ? (
               <>
                 [{academyName}] {sampleNames} 학부모님, 새 공지가 있어요. 아래 링크에서 확인해 주세요
                 <span className="mt-1 flex items-center gap-1 text-[13px] text-sky-700 underline">
@@ -233,7 +241,7 @@ export function NoticeForm({
               full
             )}
           </div>
-          {linkMode && <p className="mt-1.5 text-[11px] text-slate-400">링크를 누르면 위에 쓴 공지 전체가 보여요 (로그인 없이)</p>}
+          {!kakaoBody && linkMode && <p className="mt-1.5 text-[11px] text-slate-400">링크를 누르면 위에 쓴 공지 전체가 보여요 (로그인 없이)</p>}
         </div>
       )}
 

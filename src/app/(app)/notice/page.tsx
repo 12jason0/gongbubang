@@ -3,7 +3,8 @@ import { Inbox } from "lucide-react";
 import { db, notices, students, classes, classStudents } from "@/db";
 import { currentAcademyId, requireAcademy } from "@/lib/session";
 import { byGradeName, byTimeName } from "@/lib/templates";
-import { appUrl } from "@/lib/alimtalk";
+import { ALIMTALK_TEMPLATES, appUrl } from "@/lib/alimtalk";
+import { usesAlimtalk } from "@/lib/sms";
 import { quotaState } from "@/lib/plan";
 import { NoticeForm } from "@/components/NoticeForm";
 import { PageTitle } from "@/components/PageTitle";
@@ -54,7 +55,7 @@ export default async function NoticePage() {
 
   return (
     <main className="px-3 pt-4">
-      <PageTitle title="단체 공지" sub="학부모님마다 카톡으로 '새 공지' 링크가 가요" />
+      <PageTitle title="단체 공지" sub="학부모님 카톡으로 공지 내용이 바로 가요 · 할인·모집·이벤트 같은 광고는 보낼 수 없어요" />
 
       {/* PC: 왼쪽 쓰기, 오른쪽 보낸 공지 */}
       <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-5">
@@ -65,6 +66,7 @@ export default async function NoticePage() {
           waiting={waiting}
           classes={classRows.map((c) => ({ id: c.id, name: c.name }))}
           linkMode={!!appUrl()}
+          kakaoBody={usesAlimtalk("NOTICE") ? ALIMTALK_TEMPLATES.NOTICE.body : undefined}
           remaining={quotaState(academy).remaining}
           canUpgrade={quotaState(academy).tier !== "PLUS"}
         />

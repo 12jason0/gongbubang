@@ -1,14 +1,15 @@
 // 카카오 알림톡 템플릿
 //
-// 알림톡은 카카오가 미리 심사한 문구(템플릿)로만 보낼 수 있다. 그래서 매번 내용이 다른 수업 피드백은
-// 본문을 넣지 않고 "피드백이 도착했어요 + 링크"만 보내고, 학부모님이 링크를 열면 메모 전체가 보이게 한다.
-// 단체 공지도 같은 방식: "새 공지가 있어요 + 링크" → 링크(/n/…)를 열면 공지 전체.
+// 알림톡은 카카오가 미리 심사한 문구(템플릿)로만 보낼 수 있다. 수업 피드백·공지는 내용을 변수(#{메모}·#{공지내용})로
+// 넣어서 카톡에 바로 보이게 한다. 카톡 한 통은 1,000자까지라 넘으면 앞부분 + "전체 보기: 링크"(/f/…·/n/…)로 줄인다
+// (lib/templates.ts fitKakao). 템플릿 ID 가 없으면 예전처럼 문자로 나간다(공지는 링크 방식).
 //
 // 아래 body 를 솔라피 콘솔 → 카카오 알림톡 → 템플릿 등록에 "글자 하나 안 바꾸고" 그대로 넣는다.
 // 승인되면 나오는 템플릿 ID 를 env 이름 그대로 .env 에 넣으면 그 종류만 알림톡으로 바뀐다.
 // (ID 가 없는 종류는 지금처럼 문자로 나감. 알림톡이 실패하면 솔라피가 같은 내용을 문자로 대신 보냄)
 
 import crypto from "node:crypto";
+import { fillTemplate } from "./templates";
 
 export type AlimtalkKey = "ATTENDANCE" | "FEEDBACK" | "PAYMENT" | "NOTICE" | "CONSENT";
 
@@ -21,11 +22,7 @@ export const ALIMTALK_TEMPLATES: Record<AlimtalkKey, { title: string; env: strin
   FEEDBACK: {
     title: "수업 피드백 도착 알림",
     env: "SOLAPI_TEMPLATE_FEEDBACK",
-    body:
-      "[#{학원}] 수업 피드백 안내\n\n" +
-      "#{이름} 학생의 #{날짜} 수업 피드백이 도착했습니다.\n" +
-      "아래 주소를 눌러 확인해 주세요.\n\n" +
-      "#{링크}",
+    body: "[#{학원}] 수업 피드백\n\n" + "#{이름} 학생의 #{날짜} 수업 피드백입니다.\n\n" + "#{메모}",
   },
   PAYMENT: {
     title: "교습비 납부 안내",
@@ -36,13 +33,14 @@ export const ALIMTALK_TEMPLATES: Record<AlimtalkKey, { title: string; env: strin
       "이미 납부하셨다면 이 안내는 넘기셔도 됩니다.",
   },
   NOTICE: {
-    title: "새 공지 안내",
+    title: "공지사항 안내",
     env: "SOLAPI_TEMPLATE_NOTICE",
     body:
-      "[#{학원}] 새 공지 안내\n\n" +
-      "#{이름} 학부모님, 새 공지가 있어요.\n" +
-      "아래 링크에서 확인해 주세요.\n\n" +
-      "#{링크}",
+      "[#{학원}] 공지사항 안내\n\n" +
+      "#{이름} 학부모님, 안녕하세요.\n" +
+      "#{학원}에서 안내드립니다.\n\n" +
+      "#{공지내용}\n\n" +
+      "※ 수강 중인 학생의 학부모님께 보내드리는 안내입니다.",
   },
   CONSENT: {
     title: "학부모 동의 요청",
@@ -67,7 +65,7 @@ export function alimtalkConfig(key: AlimtalkKey): { pfId: string; templateId: st
 
 /** 템플릿 + 값 → 학부모님 휴대폰에 보이는 글 (기록·미리보기용, 솔라피가 만드는 글과 같음) */
 export function renderAlimtalk(key: AlimtalkKey, vars: AlimtalkVars) {
-  return ALIMTALK_TEMPLATES[key].body.replace(/#\{([^}]+)\}/g, (_, k: string) => vars[k] ?? "");
+  return fillTemplate(ALIMTALK_TEMPLATES[key].body, vars);
 }
 
 /** 솔라피 variables 모양: { "#{학원}": "현샘영수" } */
