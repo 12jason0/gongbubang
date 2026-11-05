@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition, type ReactNode } from "react";
 import { Download, FileSpreadsheet, RotateCcw } from "lucide-react";
 import { addStudentsImport, type FormResult } from "@/app/actions";
 import { FIELD_LABEL, cellText, gradeFromAge, gradeFromBirthYear, guessColumns, hasHeader, type Field } from "@/lib/excel-import";
-import { checkImportRow, rosterKey, ROSTER_MAX_LINES, type ImportInput } from "@/lib/roster";
+import { checkImportRow, phoneDigits, rosterKey, ROSTER_MAX_LINES, type ImportInput } from "@/lib/roster";
 import { formatPhone } from "@/lib/phone";
 import { feeLabel } from "@/lib/money";
 import { todayKST } from "@/lib/date";
@@ -152,6 +152,12 @@ export function ExcelImport({
   const tooMany = inputs.length > ROSTER_MAX_LINES;
   const unused = sheet ? sheet.header.filter((_, i) => !Object.values(map).includes(i) && sheet.body.some((r) => r[i])) : [];
   const ready = map.name >= 0 && map.phone >= 0;
+  // 칸 고르기 예시: 앞 0 빠진 번호·엑셀 날짜 숫자는 저장될 모양으로 보여 줌
+  const example = (i: number) => {
+    const v = sheet?.body[0]?.[i] ?? "";
+    if (i === map.birth && birthFix) return birthFix(v);
+    return /^1\d{9}$/.test(v) ? formatPhone(phoneDigits(v)) : v;
+  };
 
   function submit() {
     const fd = new FormData();
@@ -245,7 +251,7 @@ export function ExcelImport({
               <option value={-1}>{f === "name" || f === "phone" ? "골라 주세요" : "없음"}</option>
               {sheet.header.map((h, i) => (
                 <option key={i} value={i}>
-                  {h} {sheet.body[0]?.[i] ? `(예: ${sheet.body[0][i].slice(0, 14)})` : ""}
+                  {h} {sheet.body[0]?.[i] ? `(예: ${example(i).slice(0, 14)})` : ""}
                 </option>
               ))}
             </select>

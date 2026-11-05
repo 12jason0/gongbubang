@@ -75,7 +75,7 @@ export function UnpaidReminder({ month, label, list, via }: { month: string; lab
           </ul>
 
           <p className="mt-2 rounded-xl bg-slate-50 px-3 py-2 text-[12px] leading-relaxed text-slate-500">
-            {via}로 &ldquo;○○ 학생의 {label} 교습비 납부 안내드립니다. 이미 납부하셨다면 넘기셔도 됩니다.&rdquo;가 가요.
+            {via}로 &ldquo;○○ 학생의 {label} 교습비 납부 안내&rdquo;와 등록한 교습비·납부일이 가요. 동의 안 한 학부모님은 빠져요.
             결제는 지금처럼 받으시고, 받으면 학생을 눌러 납부 기록을 남겨 주세요.
           </p>
 
