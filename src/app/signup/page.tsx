@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Gift } from "lucide-react";
 import { signup } from "../actions";
+import { PLANS } from "@/lib/pricing";
 
 const input =
   "w-full rounded-xl border-0 px-4 py-3.5 text-base outline-none focus:ring-2 focus:ring-gold field";
@@ -30,7 +31,7 @@ export default function SignupPage() {
         <span>
           가입하면 <b>2주 동안 무료</b>로 모든 기능을 쓸 수 있어요.
           <br />
-          무료 기간에는 학부모님께 카톡·문자를 <b>10통</b>까지 보낼 수 있어요.
+          무료 기간에는 학부모님께 카톡·문자를 <b>{PLANS.TRIAL.quota}통</b>까지 보낼 수 있어요.
         </span>
       </p>
 

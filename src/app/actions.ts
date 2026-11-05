@@ -42,7 +42,7 @@ export async function logout() {
 
 /**
  * 가입하면 바로 로그인되고 무료 체험(TRIAL_DAYS일)이 시작된다.
- * 체험 중 카톡은 10통까지 (lib/pricing.ts PLANS.TRIAL).
+ * 체험 중 카톡은 30통까지 (lib/pricing.ts PLANS.TRIAL).
  * 문자 대체발송·문자 공지에 쓰는 발신번호는 공용 번호(DEFAULT_SENDER_PHONE) — 원장님 번호는 연락용으로만 보관.
  */
 export async function signup(_prev: string | null, formData: FormData): Promise<string | null> {
