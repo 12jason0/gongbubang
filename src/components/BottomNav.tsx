@@ -78,17 +78,17 @@ export function SideNav({ academyName, loginId }: { academyName: string; loginId
       {/* 맨 아래: 공부방 이름·아이디 → 마이페이지 */}
       <Link
         href="/me"
-        aria-current={pathname === "/me" ? "page" : undefined}
+        aria-current={pathname.startsWith("/me") ? "page" : undefined}
         className={`mt-auto flex items-center gap-2.5 rounded-2xl px-2.5 py-2.5 transition-colors ${
-          pathname === "/me" ? "bg-brand text-white" : "surface hover:bg-white/80"
+          pathname.startsWith("/me") ? "bg-brand text-white" : "surface hover:bg-white/80"
         }`}
       >
-        <span className={`flex size-8 shrink-0 items-center justify-center rounded-full ${pathname === "/me" ? "bg-white/15 text-gold" : "bg-brand-soft text-brand"}`}>
+        <span className={`flex size-8 shrink-0 items-center justify-center rounded-full ${pathname.startsWith("/me") ? "bg-white/15 text-gold" : "bg-brand-soft text-brand"}`}>
           <UserRound size={16} />
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[13.5px] font-semibold">{academyName}</span>
-          <span className={`block truncate text-[11.5px] ${pathname === "/me" ? "text-white/70" : "text-slate-500"}`}>{loginId} · 마이페이지</span>
+          <span className={`block truncate text-[11.5px] ${pathname.startsWith("/me") ? "text-white/70" : "text-slate-500"}`}>{loginId} · 마이페이지</span>
         </span>
         <ChevronRight size={15} className="shrink-0 opacity-60" />
       </Link>

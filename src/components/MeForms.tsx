@@ -1,9 +1,9 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { KeyRound, Phone, TriangleAlert } from "lucide-react";
-import { changePassword, deleteAccount, updateOwnerPhone, type FormResult } from "@/app/actions";
+import { KeyRound, LogOut, Phone, TriangleAlert, UserX } from "lucide-react";
+import { changePassword, deleteAccount, logout, updateOwnerPhone, type FormResult } from "@/app/actions";
 
 const input = "field w-full rounded-xl border-0 px-3 py-3 text-[15px] outline-none focus:ring-2 focus:ring-gold";
 const btn = "rounded-xl bg-brand px-4 py-3 text-[14px] font-semibold text-white disabled:opacity-50";
@@ -64,19 +64,99 @@ export function PasswordForm() {
   );
 }
 
-/** 탈퇴 — 경고 → 체크 → 비밀번호 확인 */
+/** 한 번 더 묻는 화면 안 팝업 (브라우저 alert 대신). 네이티브 <dialog> 라 Esc·포커스 가두기는 브라우저가 해 줌 */
+function Confirm({
+  open,
+  title,
+  body,
+  ok,
+  danger,
+  onCancel,
+  onOk,
+}: {
+  open: boolean;
+  title: string;
+  body?: string;
+  ok: string;
+  danger?: boolean;
+  onCancel: () => void;
+  onOk?: () => void; // 없으면 확인 버튼이 바깥 <form> 을 제출
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    if (open) ref.current?.showModal();
+    else ref.current?.close();
+  }, [open]);
+  return (
+    <dialog
+      ref={ref}
+      onCancel={onCancel}
+      onClick={(e) => e.target === e.currentTarget && onCancel()} // 바깥(어두운 곳) 누르면 닫기
+      className="glass m-auto w-[min(88vw,360px)] rounded-[24px] p-0 text-[#1c2230] backdrop:bg-[#0c281e]/35 backdrop:backdrop-blur-[3px]"
+    >
+      <div className="px-5 pt-6 pb-5">
+        <p className="text-[17px] font-bold">{title}</p>
+        {body && <p className="mt-2 text-[14px] leading-relaxed break-keep text-slate-600">{body}</p>}
+        <div className="mt-5 flex gap-2">
+          <button type="button" onClick={onCancel} autoFocus className="surface flex-1 rounded-xl py-3 text-[14px] font-semibold text-slate-600">
+            취소
+          </button>
+          <button
+            type={onOk ? "button" : "submit"}
+            onClick={onOk}
+            className={`flex-1 rounded-xl py-3 text-[14px] font-semibold text-white ${danger ? "bg-rose-600" : "bg-brand"}`}
+          >
+            {ok}
+          </button>
+        </div>
+      </div>
+    </dialog>
+  );
+}
+
+const ROW = "flex w-full items-center gap-3 px-4 py-3.5 text-left text-[15px] font-semibold";
+
+/** 로그아웃 — "로그아웃할까요?" 확인 뒤 */
+export function LogoutButton() {
+  const [ask, setAsk] = useState(false);
+  return (
+    <form action={logout}>
+      <button type="button" onClick={() => setAsk(true)} className={`${ROW} text-slate-700`}>
+        <LogOut size={18} className="text-slate-400" /> 로그아웃
+      </button>
+      <Confirm open={ask} title="로그아웃할까요?" ok="로그아웃" onCancel={() => setAsk(false)} />
+    </form>
+  );
+}
+
+/** 탈퇴 — 한 번 더 묻기 → 경고 → 체크 → 비밀번호 확인 */
 export function DeleteAccount() {
   const [r, action, pending] = useActionState(deleteAccount, null);
+  const [ask, setAsk] = useState(false);
   const [open, setOpen] = useState(false);
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="text-[13px] text-slate-500 underline">
-        공부방노트 탈퇴하기
-      </button>
+      <>
+        <button type="button" onClick={() => setAsk(true)} className={`${ROW} text-rose-600`}>
+          <UserX size={18} className="text-rose-400" /> 공부방노트 탈퇴
+        </button>
+        <Confirm
+          open={ask}
+          danger
+          title="정말 탈퇴할까요?"
+          body="학생·출결·원비 기록이 모두 지워지고 되돌릴 수 없어요"
+          ok="탈퇴 진행"
+          onCancel={() => setAsk(false)}
+          onOk={() => {
+            setAsk(false);
+            setOpen(true);
+          }}
+        />
+      </>
     );
   }
   return (
-    <form action={action} className="rounded-2xl bg-rose-50 p-4 text-[14px] leading-relaxed text-rose-900 ring-1 ring-rose-200">
+    <form action={action} className="m-3 rounded-2xl bg-rose-50 p-4 text-[14px] leading-relaxed text-rose-900 ring-1 ring-rose-200">
       <p className="flex items-center gap-1.5 font-bold">
         <TriangleAlert size={17} className="text-rose-500" /> 탈퇴하면 되돌릴 수 없어요
       </p>

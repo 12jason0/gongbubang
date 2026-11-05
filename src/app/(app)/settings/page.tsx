@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, CreditCard, LogOut, UserRound } from "lucide-react";
+import { ChevronRight, CreditCard, UserRound } from "lucide-react";
 import { planState, quotaState, formatUntil } from "@/lib/plan";
 import { requireAcademy } from "@/lib/session";
 import { isTestMode, usesAlimtalk } from "@/lib/sms";
@@ -9,7 +9,6 @@ import { SettingsForm } from "@/components/SettingsForm";
 import { AttendanceNotifyToggle } from "@/components/AttendanceNotifyToggle";
 import { PageTitle } from "@/components/PageTitle";
 import { ConsentNotice } from "@/components/ConsentNotice";
-import { logout } from "../../actions";
 
 export default async function SettingsPage() {
   const academy = await requireAcademy();
@@ -24,7 +23,7 @@ export default async function SettingsPage() {
     <main className="px-3 pt-4 md:max-w-5xl">
       <PageTitle title="설정" sub="학원 이름과 학부모님께 가는 문자 문구" />
 
-      {/* PC: 왼쪽 문구 설정, 오른쪽 동의 문구·보내는 번호·로그아웃 (휴대폰은 위에서 아래로 같은 순서) */}
+      {/* PC: 왼쪽 문구 설정, 오른쪽 동의 문구·보내는 번호 (휴대폰은 위에서 아래로 같은 순서) */}
       <div className="md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,380px)] md:items-start md:gap-4">
       <div>
 
@@ -36,7 +35,7 @@ export default async function SettingsPage() {
         <span className="min-w-0 flex-1">
           <span className="block text-[15px] font-semibold">마이페이지</span>
           <span className="block truncate text-[13px] text-slate-500">
-            {academy.loginId} · 연락처·비밀번호·결제 내역·탈퇴
+            {academy.loginId} · 연락처·비밀번호·결제 내역·계정 관리
           </span>
         </span>
         <ChevronRight size={18} className="shrink-0 text-slate-400" />
@@ -99,11 +98,6 @@ export default async function SettingsPage() {
         <p className="mt-2 text-xs text-slate-400">보내는 번호를 바꾸려면 관리자에게 문의해 주세요.</p>
       </section>
 
-      <form action={logout} className="mt-3">
-        <button className="card flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-medium text-slate-500">
-          <LogOut size={16} /> 로그아웃
-        </button>
-      </form>
       </div>
       </div>
     </main>

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { and, desc, eq, ne } from "drizzle-orm";
-import { ChevronRight, LogOut, MessageCircle, Receipt, UserRound } from "lucide-react";
+import { ChevronRight, MessageCircle, Receipt, UserRound } from "lucide-react";
 import { db, orders } from "@/db";
 import { currentAcademyId, requireAcademy } from "@/lib/session";
 import { formatUntil, planState, quotaNote, quotaState } from "@/lib/plan";
@@ -9,8 +9,7 @@ import { todayKST } from "@/lib/date";
 import { formatPhone } from "@/lib/phone";
 import { PLANS } from "@/lib/pricing";
 import { PageTitle } from "@/components/PageTitle";
-import { DeleteAccount, OwnerPhoneForm, PasswordForm } from "@/components/MeForms";
-import { logout } from "../../actions";
+import { OwnerPhoneForm, PasswordForm } from "@/components/MeForms";
 
 export const metadata = { title: "마이페이지" };
 
@@ -27,7 +26,7 @@ const STATUS: Record<string, { label: string; tone: string }> = {
   FAILED: { label: "실패", tone: "bg-rose-50 text-rose-600" },
 };
 
-/** 원장님 마이페이지 — 계정·요금제·결제 내역·로그아웃·탈퇴 */
+/** 원장님 마이페이지 — 계정·요금제·결제 내역. 로그아웃·탈퇴는 한 단계 안쪽(/me/account) */
 export default async function MePage() {
   const academyId = await currentAcademyId();
   const [academy, history] = await Promise.all([
@@ -131,15 +130,9 @@ export default async function MePage() {
         )}
       </section>
 
-      <form action={logout} className="mt-3">
-        <button className="card flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 text-[14px] font-semibold text-slate-600">
-          <LogOut size={16} /> 로그아웃
-        </button>
-      </form>
-
-      <div className="mt-6 mb-4 px-1">
-        <DeleteAccount />
-      </div>
+      <Link href="/me/account" className="mt-6 mb-4 flex items-center justify-end gap-0.5 px-1 text-[13px] text-slate-500">
+        계정 관리 <ChevronRight size={15} />
+      </Link>
     </main>
   );
 }
