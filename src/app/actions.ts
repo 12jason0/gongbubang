@@ -89,7 +89,7 @@ export async function signup(_prev: string | null, formData: FormData): Promise<
   if (!created) return "이미 쓰고 있는 아이디예요. 다른 아이디로 해 주세요.";
 
   await createSession(created.id);
-  redirect(usedTrial ? "/billing?trial=used" : "/students");
+  redirect(usedTrial ? "/billing?trial=used" : "/students?guide=1"); // guide=1: 처음 쓰는 법 안내가 저절로 뜸 (components/Help.tsx)
 }
 
 // ───────────────────────── 출석 ─────────────────────────

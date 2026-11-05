@@ -4,7 +4,7 @@ import { planState, quotaState } from "@/lib/plan";
 import { PlanBanner } from "@/components/PlanBanner";
 import { BottomNav, SideNav } from "@/components/BottomNav";
 import { ToastProvider } from "@/components/Toast";
-import { ExampleModeProvider, ExampleToggle } from "@/components/ExampleMode";
+import { HelpButton, HelpProvider } from "@/components/Help";
 import { formatDateLabel, todayKST } from "@/lib/date";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -13,7 +13,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="mx-auto min-h-dvh max-w-md pb-24 md:max-w-none md:pb-10 md:pl-56">
-      <ExampleModeProvider>
+      <HelpProvider>
       <header className="glass sticky top-0 z-20 flex h-14 items-center gap-2 rounded-b-[22px] px-4 text-brand md:hidden">
         <span className="h-5 w-1 rounded-full bg-gold" aria-hidden />
         <span className="text-[17px] font-bold tracking-tight">{academy.name}</span>
@@ -25,7 +25,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             테스트 모드
           </span>
         )}
-
+        <span className="ml-auto" />
+        <HelpButton />
       </header>
       <SideNav academyName={academy.name} loginId={academy.loginId} />
       {/* PC: 본문은 사이드바 바로 옆부터, 최대 폭만 제한 (가운데 정렬하면 사이드바와 사이가 비어 보임) */}
@@ -46,13 +47,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </span>
           )}
           <span className="ml-auto" />
-          <ExampleToggle />
+          <HelpButton />
         </header>
         <PlanBanner state={planState(academy)} quota={quotaState(academy)} />
         <ToastProvider>{children}</ToastProvider>
       </div>
       <BottomNav />
-      </ExampleModeProvider>
+      </HelpProvider>
     </div>
   );
 }
