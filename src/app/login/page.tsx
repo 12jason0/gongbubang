@@ -16,6 +16,7 @@ export default function LoginPage() {
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    if (window.matchMedia("(min-width: 48rem)").matches) fd.set("pc", "1");
     startTransition(async () => {
       setError(await login(null, fd));
     });

@@ -29,7 +29,8 @@ export async function login(_prev: string | null, formData: FormData): Promise<s
     return "아이디 또는 비밀번호가 맞지 않아요.";
   }
   await createSession(academy.id);
-  redirect("/");
+  // PC(화면 넓음)는 대시보드, 휴대폰은 출석부가 첫 화면
+  redirect(formData.get("pc") === "1" ? "/dashboard" : "/");
 }
 
 export async function logout() {

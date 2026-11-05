@@ -1,8 +1,9 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, ClipboardCheck, Megaphone, Settings, Users } from "lucide-react";
+import { CalendarDays, ClipboardCheck, LayoutDashboard, Megaphone, Settings, Users } from "lucide-react";
 
 const TABS = [
   { href: "/", label: "출석부", Icon: ClipboardCheck },
@@ -11,6 +12,9 @@ const TABS = [
   { href: "/students", label: "학생·반", Icon: Users },
   { href: "/settings", label: "설정", Icon: Settings },
 ];
+
+/** PC 메뉴: 맨 위에 대시보드 (휴대폰 탭은 그대로) */
+const SIDE_TABS = [{ href: "/dashboard", label: "대시보드", Icon: LayoutDashboard }, ...TABS];
 
 const isActive = (pathname: string, href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
@@ -39,41 +43,38 @@ export function BottomNav() {
   );
 }
 
-/** PC·태블릿(md 이상): 왼쪽 사이드바 */
-export function SideNav({ academyName, testMode }: { academyName: string; testMode: boolean }) {
+/** PC·태블릿(md 이상): 왼쪽에 떠 있는 유리 사이드바 */
+export function SideNav({ academyName }: { academyName: string }) {
   const pathname = usePathname();
   return (
-    <aside className="fixed inset-y-0 left-0 z-20 hidden w-56 flex-col bg-brand text-white md:flex">
-      <div className="flex items-center gap-2 px-5 pt-6 pb-5">
-        <span className="h-5 w-1 shrink-0 rounded-full bg-gold" aria-hidden />
-        <span className="truncate text-[17px] font-bold tracking-tight">{academyName}</span>
+    <aside className="glass fixed top-3 bottom-3 left-3 z-20 hidden w-52 flex-col rounded-[28px] p-3 md:flex">
+      <div className="flex items-center gap-2.5 px-2 pt-2 pb-4">
+        <Image src="/icons/icon-192.png" alt="" width={34} height={34} className="shrink-0 rounded-xl" />
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold tracking-wide text-gold">공부방노트</p>
+          <p className="truncate text-[15px] font-bold tracking-tight text-brand">{academyName}</p>
+        </div>
       </div>
-      <nav className="flex flex-col gap-0.5 px-3">
-        {TABS.map(({ href, label, Icon }) => {
+      <nav className="flex flex-col gap-1">
+        {SIDE_TABS.map(({ href, label, Icon }) => {
           const active = isActive(pathname, href);
           return (
             <Link
               key={href}
               href={href}
-              className={`relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] ${
-                active ? "bg-white/10 font-semibold text-white" : "text-white/60 hover:bg-white/5 hover:text-white"
+              aria-current={active ? "page" : undefined}
+              className={`flex items-center gap-3 rounded-full px-3.5 py-2.5 text-[15px] transition-colors ${
+                active
+                  ? "bg-brand font-semibold text-white shadow-[0_8px_18px_-10px_rgb(12_86_59/0.7)]"
+                  : "text-slate-600 hover:bg-white/70 hover:text-brand"
               }`}
             >
-              {active && <span className="absolute top-2.5 bottom-2.5 left-0 w-0.5 rounded-full bg-gold" aria-hidden />}
               <Icon size={19} strokeWidth={active ? 2.2 : 1.8} className={active ? "text-gold" : ""} />
               {label}
             </Link>
           );
         })}
       </nav>
-      {testMode && (
-        <p
-          title="솔라피 키가 없어 문자는 실제로 나가지 않고 기록만 남아요"
-          className="mx-3 mt-auto mb-5 rounded-xl bg-amber-400/15 px-3 py-2 text-[12px] font-semibold text-amber-200"
-        >
-          테스트 모드 · 문자는 기록만 남아요
-        </p>
-      )}
     </aside>
   );
 }
