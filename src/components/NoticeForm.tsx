@@ -1,8 +1,9 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { Send } from "lucide-react";
+import { Link2, Send } from "lucide-react";
 import { sendNotice, type NoticeResult } from "@/app/actions";
+import { NOTICE_MAX_CHARS } from "@/lib/templates";
 import { formatDateLabel, shiftDate, todayKST } from "@/lib/date";
 import { useToast } from "./Toast";
 
@@ -19,16 +20,33 @@ function bytes(text: string) {
   return n;
 }
 
+type Student = { id: string; name: string; grade: string; phone: string; classIds: string[] };
+
+/** 학부모 번호별로 묶기 (형제는 한 명으로) */
+function groupByPhone(list: Student[]) {
+  const m = new Map<string, Student[]>();
+  for (const s of list) m.set(s.phone, [...(m.get(s.phone) ?? []), s]);
+  return [...m.values()];
+}
+
 export function NoticeForm({
   academyName,
-  targets,
+  students,
+  classes,
+  linkMode,
+  remaining,
 }: {
   academyName: string;
-  targets: { id: string; name: string; count: number }[];
+  students: Student[];
+  classes: { id: string; name: string }[];
+  linkMode: boolean; // APP_URL 이 있으면 "새 공지 + 링크", 없으면 문자에 공지 전체
+  remaining: number; // 이번 달 남은 카톡 통수
 }) {
   const [res, setRes] = useState<NoticeResult>(null);
   const [pending, startTransition] = useTransition();
+  // target: "all" | 반 id | "pick"(직접 고르기)
   const [target, setTarget] = useState("all");
+  const [picked, setPicked] = useState<Set<string>>(new Set());
   const [content, setContent] = useState("");
   const [confirming, setConfirming] = useState(false);
   const textRef = useRef<HTMLTextAreaElement>(null);
@@ -52,27 +70,56 @@ export function NoticeForm({
 
   function send() {
     const fd = new FormData();
-    fd.set("target", target);
+    if (target === "all") fd.set("mode", "all");
+    else if (target === "pick") {
+      fd.set("mode", "pick");
+      for (const id of picked) fd.append("studentIds", id);
+    } else {
+      fd.set("mode", "class");
+      fd.set("classId", target);
+    }
     fd.set("content", content);
     startTransition(async () => {
       const r = await sendNotice(null, fd);
       setRes(r);
       setConfirming(false);
-      if (r?.ok) setContent("");
+      if (r?.ok) {
+        setContent("");
+        setPicked(new Set());
+      }
     });
   }
+
+  const pickOf = (t: string) =>
+    t === "all" ? students : t === "pick" ? students.filter((s) => picked.has(s.id)) : students.filter((s) => s.classIds.includes(t));
+  const groups = groupByPhone(pickOf(target));
+  const recipients = groups.length;
+  const targetLabel =
+    target === "all" ? "전체" : target === "pick" ? `고른 학생 ${picked.size}명의` : (classes.find((c) => c.id === target)?.name ?? "");
+  const chips = [
+    { id: "all", name: "전체", count: groupByPhone(students).length as number | null },
+    ...classes.map((c) => ({ id: c.id, name: c.name, count: groupByPhone(pickOf(c.id)).length as number | null })),
+    { id: "pick", name: "직접 고르기", count: target === "pick" ? recipients : null },
+  ];
+  const toggle = (id: string) =>
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const full = `[${academyName}] ${content.trim()}`;
   const b = bytes(full);
   const isLong = b > 90;
-  const selected = targets.find((t) => t.id === target) ?? targets[0];
-  const recipients = selected.count;
+  const tooLong = linkMode ? content.trim().length > NOTICE_MAX_CHARS : b > 2000;
+  const sampleNames = (groups[0] ?? [{ name: "김민수" }]).map((s) => s.name).join("·");
 
   return (
     <div className="rounded-2xl bg-white p-4 ring-1 ring-black/5">
       <p className="text-[13px] font-semibold text-slate-500">받는 분</p>
       <div className="mt-2 flex flex-wrap gap-1.5">
-        {targets.map((t) => (
+        {chips.map((t) => (
           <button
             type="button"
             key={t.id}
@@ -81,10 +128,53 @@ export function NoticeForm({
               t.id === target ? "bg-brand text-white" : "bg-slate-100 text-slate-500"
             }`}
           >
-            {t.name} <span className={t.id === target ? "text-gold" : "text-slate-400"}>{t.count}명</span>
+            {t.name} {t.count !== null && <span className={t.id === target ? "text-gold" : "text-slate-400"}>{t.count}명</span>}
           </button>
         ))}
       </div>
+
+      {target === "pick" && (
+        <div className="mt-2 rounded-xl bg-slate-50 ring-1 ring-black/5">
+          <div className="flex items-center justify-between px-3 pt-2 pb-1 text-[12px] text-slate-500">
+            <span>
+              {picked.size}명 고름{recipients !== picked.size && ` · 형제는 한 번만 → 학부모님 ${recipients}명`}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPicked(picked.size === students.length ? new Set() : new Set(students.map((s) => s.id)))}
+              className="rounded-lg px-2 py-1 font-semibold text-brand"
+            >
+              {picked.size === students.length ? "모두 해제" : "모두 고르기"}
+            </button>
+          </div>
+          {students.length === 0 ? (
+            <p className="px-3 pb-3 text-[13px] text-slate-400">학생이 없어요</p>
+          ) : (
+            <ul className="max-h-64 overflow-y-auto px-1 pb-1">
+              {students.map((s) => (
+                <li key={s.id}>
+                  <label className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-2 active:bg-black/5">
+                    <input
+                      type="checkbox"
+                      checked={picked.has(s.id)}
+                      onChange={() => toggle(s.id)}
+                      className="size-[18px] accent-[#0c563b]"
+                    />
+                    <span className="text-[14px] font-medium">{s.name}</span>
+                    <span className="text-[12px] text-slate-400">{s.grade}</span>
+                    <span className="ml-auto truncate text-[12px] text-slate-400">
+                      {s.classIds
+                        .map((id) => classes.find((c) => c.id === id)?.name)
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       <p className="mt-4 text-[13px] font-semibold text-slate-500">내용</p>
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -108,23 +198,42 @@ export function NoticeForm({
         placeholder={"11월 15일(토)은 휴원입니다.\n보강 일정은 따로 안내드리겠습니다."}
         className="mt-2 w-full resize-none rounded-xl border-0 bg-slate-50 px-3 py-2.5 text-[15px] leading-relaxed ring-1 ring-black/5 outline-none focus:bg-white focus:ring-2 focus:ring-gold"
       />
-      <p className="text-right text-[11px] text-slate-400">
-        <span className={isLong ? "text-[#8a6d35]" : ""}>{isLong ? "장문" : "단문"}</span> · {b}/{isLong ? 2000 : 90}바이트
-      </p>
+      {linkMode ? (
+        <p className={`text-right text-[11px] ${tooLong ? "text-rose-500" : "text-slate-400"}`}>
+          {content.trim().length.toLocaleString("ko-KR")}/{NOTICE_MAX_CHARS.toLocaleString("ko-KR")}자
+        </p>
+      ) : (
+        <p className="text-right text-[11px] text-slate-400">
+          <span className={isLong ? "text-[#8a6d35]" : ""}>{isLong ? "장문" : "단문"}</span> · {b}/{isLong ? 2000 : 90}바이트
+        </p>
+      )}
 
       {content.trim() && (
         <div className="mt-2">
           <p className="mb-1.5 text-[11px] text-slate-400">학부모님 휴대폰에는 이렇게 보여요</p>
           <div className="max-w-[85%] rounded-2xl rounded-tl-md bg-slate-100 px-3.5 py-2.5 text-[14px] leading-relaxed whitespace-pre-wrap">
-            {full}
+            {linkMode ? (
+              <>
+                [{academyName}] {sampleNames} 학부모님, 새 공지가 있어요. 아래 링크에서 확인해 주세요
+                <span className="mt-1 flex items-center gap-1 text-[13px] text-sky-700 underline">
+                  <Link2 size={13} /> 공지 보기 링크
+                </span>
+              </>
+            ) : (
+              full
+            )}
           </div>
+          {linkMode && <p className="mt-1.5 text-[11px] text-slate-400">링크를 누르면 위에 쓴 공지 전체가 보여요 (로그인 없이)</p>}
         </div>
       )}
 
       {confirming ? (
         <div className="mt-4 rounded-xl bg-gold-soft p-3">
           <p className="text-center text-sm">
-            <b>{selected.name}</b> 학부모님 <b>{recipients}명</b>께 보낼까요?
+            <b>{targetLabel}</b> 학부모님 <b>{recipients}명</b>께 보낼까요?
+            <span className={`mt-0.5 block text-[12px] ${recipients > remaining ? "font-semibold text-rose-600" : "text-slate-500"}`}>
+              카톡 {recipients}통 · 이번 달 남은 {remaining}통{recipients > remaining && " — 모자라서 안 나가요"}
+            </span>
           </p>
           <div className="mt-2.5 flex gap-2">
             <button type="button" onClick={() => setConfirming(false)} className="flex-1 rounded-xl bg-white py-3 text-sm font-medium">
@@ -143,7 +252,7 @@ export function NoticeForm({
       ) : (
         <button
           type="button"
-          disabled={!content.trim() || recipients === 0 || b > 2000}
+          disabled={!content.trim() || recipients === 0 || tooLong}
           onClick={() => setConfirming(true)}
           className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-3.5 text-[15px] font-semibold text-white disabled:opacity-30"
         >

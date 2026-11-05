@@ -2,7 +2,9 @@ import { and, desc, eq } from "drizzle-orm";
 import { Inbox } from "lucide-react";
 import { db, notices, students, classes, classStudents } from "@/db";
 import { requireAcademy } from "@/lib/session";
-import { byTimeName } from "@/lib/templates";
+import { byGradeName, byTimeName } from "@/lib/templates";
+import { appUrl } from "@/lib/alimtalk";
+import { quotaState } from "@/lib/plan";
 import { NoticeForm } from "@/components/NoticeForm";
 import { PageTitle } from "@/components/PageTitle";
 
@@ -11,7 +13,7 @@ export default async function NoticePage() {
 
   const [studentRows, classRows, memberRows, history] = await Promise.all([
     db
-      .select({ id: students.id, phone: students.parentPhone })
+      .select({ id: students.id, name: students.name, grade: students.grade, phone: students.parentPhone })
       .from(students)
       .where(and(eq(students.academyId, academy.id), eq(students.active, true))),
     db
@@ -26,18 +28,11 @@ export default async function NoticePage() {
     db.select().from(notices).where(eq(notices.academyId, academy.id)).orderBy(desc(notices.sentAt)).limit(20),
   ]);
 
-  // 반별 실제로 받는 학부모 수 (형제는 한 번만, 그만둔 학생 제외)
-  const phoneOf = new Map(studentRows.map((s) => [s.id, s.phone]));
-  const targets = [
-    { id: "all", name: "전체", count: new Set(studentRows.map((s) => s.phone)).size },
-    ...classRows.sort(byTimeName).map((c) => ({
-      id: c.id,
-      name: c.name,
-      count: new Set(
-        memberRows.filter((m) => m.classId === c.id && phoneOf.has(m.studentId)).map((m) => phoneOf.get(m.studentId)),
-      ).size,
-    })),
-  ];
+  classRows.sort(byTimeName);
+  const roster = studentRows.sort(byGradeName).map((st) => ({
+    ...st,
+    classIds: memberRows.filter((m) => m.studentId === st.id).map((m) => m.classId),
+  }));
 
   const fmt = new Intl.DateTimeFormat("ko-KR", {
     timeZone: "Asia/Seoul",
@@ -50,12 +45,18 @@ export default async function NoticePage() {
 
   return (
     <main className="px-3 pt-4">
-      <PageTitle title="단체 공지" sub="휴원·시험 일정처럼 여러 학부모님께 한 번에" />
+      <PageTitle title="단체 공지" sub="학부모님마다 카톡으로 '새 공지' 링크가 가요" />
 
       {/* PC: 왼쪽 쓰기, 오른쪽 보낸 공지 */}
       <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-5">
       <div className="lg:sticky lg:top-4">
-        <NoticeForm academyName={academy.name} targets={targets} />
+        <NoticeForm
+          academyName={academy.name}
+          students={roster}
+          classes={classRows.map((c) => ({ id: c.id, name: c.name }))}
+          linkMode={!!appUrl()}
+          remaining={quotaState(academy).remaining}
+        />
       </div>
 
       <section>

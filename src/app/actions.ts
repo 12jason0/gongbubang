@@ -8,9 +8,9 @@ import { db, academies, students, attendance, notes, notices, classes, classStud
 import { createSession, deleteSession, requireAcademy, requireActiveAcademy } from "@/lib/session";
 import { sendMessages, smsBytes } from "@/lib/sms";
 import { unresolvedFailures } from "@/lib/failed";
-import { attendanceText, feedbackText, monthLabel, noticeText, parseDays, paymentText } from "@/lib/templates";
+import { attendanceText, byGradeName, feedbackText, monthLabel, NOTICE_MAX_CHARS, noticeLinkText, noticeText, parseDays, paymentText } from "@/lib/templates";
 import { formatDateLabel, isValidDate, isValidMonth, spokenTimeKST, thisMonthKST, todayKST } from "@/lib/date";
-import { feedbackLink } from "@/lib/alimtalk";
+import { appUrl, feedbackLink, noticeLink } from "@/lib/alimtalk";
 import { isPaymentMethod, parseWon } from "@/lib/money";
 import { isValidMobile, normalizePhone } from "@/lib/phone";
 import { parseRoster, rosterKey, ROSTER_MAX_LINES } from "@/lib/roster";
@@ -408,61 +408,87 @@ export async function sendPaymentReminders(month: string, studentIds: string[]) 
 
 export type NoticeResult = { ok: boolean; message: string } | null;
 
+/**
+ * 단체 공지 — 받을 학생: 전체(mode=all) / 반(mode=class, classId) / 개별(mode=pick, studentIds).
+ * 학부모마다 따로 "[공부방] 김민수 학부모님, 새 공지가 있어요 + 링크(/n/…)" — 링크를 열면 공지 전체.
+ * 형제처럼 학부모 번호가 같으면 한 번만, 이름은 "김민수·김민지".
+ * APP_URL 이 없어서 링크를 못 만들면 예전처럼 문자에 공지 전체를 넣는다.
+ */
 export async function sendNotice(_prev: NoticeResult, formData: FormData): Promise<NoticeResult> {
   const academy = await requireActiveAcademy();
-  const target = String(formData.get("target") ?? "all"); // "all" 또는 반 id
+  const mode = String(formData.get("mode") ?? "all");
   const content = String(formData.get("content") ?? "").trim();
 
   if (!content) return { ok: false, message: "공지 내용을 입력해 주세요." };
-  const text = noticeText(academy.name, content);
-  if (smsBytes(text) > 2000) return { ok: false, message: "공지가 너무 길어요. 한글 약 1,000자까지 보낼 수 있어요." };
+  if (content.length > NOTICE_MAX_CHARS) return { ok: false, message: `공지는 ${NOTICE_MAX_CHARS.toLocaleString("ko-KR")}자까지 쓸 수 있어요.` };
+  const linkMode = !!appUrl();
+  if (!linkMode && smsBytes(noticeText(academy.name, content)) > 2000) {
+    return { ok: false, message: "공지가 너무 길어요. 한글 약 1,000자까지 보낼 수 있어요." };
+  }
 
+  // 받을 학생 — 화면 값을 믿지 않고 이 공부방의 다니는 학생만 다시 고른다
+  const mine = and(eq(students.academyId, academy.id), eq(students.active, true));
+  const cols = { id: students.id, name: students.name, grade: students.grade, phone: students.parentPhone };
   let targetName = "전체";
-  let rows: { phone: string }[];
-  if (target === "all") {
-    rows = await db
-      .select({ phone: students.parentPhone })
-      .from(students)
-      .where(and(eq(students.academyId, academy.id), eq(students.active, true)));
-  } else {
+  let rows: { id: string; name: string; grade: string; phone: string }[];
+  if (mode === "class") {
     const [cls] = await db
       .select()
       .from(classes)
-      .where(and(eq(classes.id, target), eq(classes.academyId, academy.id)));
+      .where(and(eq(classes.id, String(formData.get("classId") ?? "")), eq(classes.academyId, academy.id)));
     if (!cls) return { ok: false, message: "받는 반을 다시 선택해 주세요." };
     targetName = cls.name;
     rows = await db
-      .select({ phone: students.parentPhone })
+      .select(cols)
       .from(classStudents)
       .innerJoin(students, eq(students.id, classStudents.studentId))
-      .where(and(eq(classStudents.classId, cls.id), eq(students.active, true)));
+      .where(and(eq(classStudents.classId, cls.id), mine));
+  } else if (mode === "pick") {
+    const ids = formData.getAll("studentIds").map(String).slice(0, 500);
+    if (ids.length === 0) return { ok: false, message: "받을 학생을 골라 주세요." };
+    rows = await db.select(cols).from(students).where(and(mine, inArray(students.id, ids)));
+    targetName = `개별 ${rows.length}명`;
+  } else {
+    rows = await db.select(cols).from(students).where(mine);
   }
 
-  // 형제가 같이 다니면 같은 번호로 두 번 가지 않게
-  const phones = [...new Set(rows.map((r) => r.phone))];
-  if (phones.length === 0) return { ok: false, message: "보낼 학부모 번호가 없어요." };
+  // 학부모 번호별로 묶기 (형제는 한 통, 이름은 학년·이름 순으로 "김민수·김민지")
+  const byPhone = new Map<string, typeof rows>();
+  for (const r of rows.sort(byGradeName)) byPhone.set(r.phone, [...(byPhone.get(r.phone) ?? []), r]);
+  if (byPhone.size === 0) return { ok: false, message: "보낼 학부모 번호가 없어요." };
 
+  // 링크에 공지 id 가 들어가므로 먼저 저장
+  const [notice] = await db
+    .insert(notices)
+    .values({ academyId: academy.id, target: targetName, content, recipientCount: byPhone.size })
+    .returning({ id: notices.id });
+  const link = noticeLink(notice.id);
+
+  const groups = [...byPhone.entries()];
   const results = await sendMessages(
     academy,
     "NOTICE",
-    phones.map((to) => ({ to, text })),
+    groups.map(([to, kids]) => {
+      const names = kids.map((k) => k.name).join("·");
+      return {
+        to,
+        text: linkMode ? noticeLinkText(academy.name, names, link) : noticeText(academy.name, content),
+        alimtalk: { key: "NOTICE" as const, vars: { 학원: academy.name, 이름: names, 링크: link } },
+        studentId: kids[0].id,
+      };
+    }),
   );
   const failed = results.filter((r) => !r.ok).length;
-
-  await db.insert(notices).values({
-    academyId: academy.id,
-    target: targetName,
-    content,
-    recipientCount: phones.length,
-    failedCount: failed,
-  });
+  if (failed) await db.update(notices).set({ failedCount: failed }).where(eq(notices.id, notice.id));
 
   revalidatePath("/notice");
+  revalidatePath("/dashboard");
+  const n = groups.length;
   const test = results.some((r) => r.test);
   if (failed) {
-    return { ok: false, message: `${phones.length - failed}명 발송, ${failed}명 실패 (${results.find((r) => !r.ok)?.error ?? ""})` };
+    return { ok: false, message: `${n - failed}명 발송, ${failed}명 실패 (${results.find((r) => !r.ok)?.error ?? ""})` };
   }
-  return { ok: true, message: `${phones.length}명에게 보냈어요.${test ? " (테스트 모드: 실제 문자는 안 나감)" : ""}` };
+  return { ok: true, message: `학부모님 ${n}명께 보냈어요.${test ? " (테스트 모드: 실제 카톡·문자는 안 나감)" : ""}` };
 }
 
 // ───────────────────────── 학생 관리 ─────────────────────────

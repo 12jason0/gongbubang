@@ -2,6 +2,7 @@
 //
 // 알림톡은 카카오가 미리 심사한 문구(템플릿)로만 보낼 수 있다. 그래서 매번 내용이 다른 수업 피드백은
 // 본문을 넣지 않고 "피드백이 도착했어요 + 링크"만 보내고, 학부모님이 링크를 열면 메모 전체가 보이게 한다.
+// 단체 공지도 같은 방식: "새 공지가 있어요 + 링크" → 링크(/n/…)를 열면 공지 전체.
 //
 // 아래 body 를 솔라피 콘솔 → 카카오 알림톡 → 템플릿 등록에 "글자 하나 안 바꾸고" 그대로 넣는다.
 // 승인되면 나오는 템플릿 ID 를 env 이름 그대로 .env 에 넣으면 그 종류만 알림톡으로 바뀐다.
@@ -9,7 +10,7 @@
 
 import crypto from "node:crypto";
 
-export type AlimtalkKey = "ATTENDANCE" | "FEEDBACK" | "PAYMENT";
+export type AlimtalkKey = "ATTENDANCE" | "FEEDBACK" | "PAYMENT" | "NOTICE";
 
 export const ALIMTALK_TEMPLATES: Record<AlimtalkKey, { title: string; env: string; body: string }> = {
   ATTENDANCE: {
@@ -34,6 +35,15 @@ export const ALIMTALK_TEMPLATES: Record<AlimtalkKey, { title: string; env: strin
       "#{이름} 학생의 #{월} 교습비 납부 안내드립니다.\n" +
       "이미 납부하셨다면 이 안내는 넘기셔도 됩니다.",
   },
+  NOTICE: {
+    title: "새 공지 안내",
+    env: "SOLAPI_TEMPLATE_NOTICE",
+    body:
+      "[#{학원}] 새 공지 안내\n\n" +
+      "#{이름} 학부모님, 새 공지가 있어요.\n" +
+      "아래 링크에서 확인해 주세요.\n\n" +
+      "#{링크}",
+  },
 };
 
 export type AlimtalkVars = Record<string, string>; // { 학원: "현샘영수", 이름: "김하늘", ... }
@@ -43,7 +53,7 @@ export function alimtalkConfig(key: AlimtalkKey): { pfId: string; templateId: st
   const pfId = process.env.SOLAPI_KAKAO_PF_ID?.trim();
   const templateId = process.env[ALIMTALK_TEMPLATES[key].env]?.trim();
   if (!pfId || !templateId) return null;
-  if (key === "FEEDBACK" && !appUrl()) return null; // 링크를 못 만들면 문자로 본문을 보냄
+  if ((key === "FEEDBACK" || key === "NOTICE") && !appUrl()) return null; // 링크를 못 만들면 문자로 본문을 보냄
   return { pfId, templateId };
 }
 
@@ -57,20 +67,32 @@ export function solapiVariables(vars: AlimtalkVars) {
   return Object.fromEntries(Object.entries(vars).map(([k, v]) => [`#{${k}}`, v]));
 }
 
-// ───── 피드백 링크 ─────
-// /f/<메모 id>.<서명 16자> — 서명이 맞아야 열림 (id 를 바꿔 남의 메모를 볼 수 없게)
+// ───── 학부모님이 여는 링크 ─────
+// /f/<메모 id>.<서명 16자> (수업 피드백), /n/<공지 id>.<서명 16자> (단체 공지)
+// 서명이 맞아야 열림 (id 를 바꿔 남의 메모·공지를 볼 수 없게). 서명에 종류를 섞어서 서로 바꿔 쓸 수 없음
 
-function appUrl() {
+export function appUrl() {
   return process.env.APP_URL?.trim().replace(/\/+$/, "") || "";
 }
 
-function sign(noteId: string) {
+type LinkKind = "feedback" | "notice";
+
+function sign(kind: LinkKind, id: string) {
   const secret = process.env.SESSION_SECRET ?? "";
-  return crypto.createHmac("sha256", secret).update(`feedback:${noteId}`).digest("base64url").slice(0, 16);
+  return crypto.createHmac("sha256", secret).update(`${kind}:${id}`).digest("base64url").slice(0, 16);
+}
+
+function readCode(kind: LinkKind, code: string): string | null {
+  const dot = code.lastIndexOf(".");
+  if (dot <= 0) return null;
+  const id = code.slice(0, dot);
+  const given = Buffer.from(code.slice(dot + 1));
+  const want = Buffer.from(sign(kind, id));
+  return given.length === want.length && crypto.timingSafeEqual(given, want) ? id : null;
 }
 
 export function feedbackCode(noteId: string) {
-  return `${noteId}.${sign(noteId)}`;
+  return `${noteId}.${sign("feedback", noteId)}`;
 }
 
 export function feedbackLink(noteId: string) {
@@ -79,10 +101,14 @@ export function feedbackLink(noteId: string) {
 
 /** 링크 코드 → 메모 id (서명이 틀리면 null) */
 export function readFeedbackCode(code: string): string | null {
-  const dot = code.lastIndexOf(".");
-  if (dot <= 0) return null;
-  const noteId = code.slice(0, dot);
-  const given = Buffer.from(code.slice(dot + 1));
-  const want = Buffer.from(sign(noteId));
-  return given.length === want.length && crypto.timingSafeEqual(given, want) ? noteId : null;
+  return readCode("feedback", code);
+}
+
+export function noticeLink(noticeId: string) {
+  return `${appUrl()}/n/${noticeId}.${sign("notice", noticeId)}`;
+}
+
+/** 링크 코드 → 공지 id (서명이 틀리면 null) */
+export function readNoticeCode(code: string): string | null {
+  return readCode("notice", code);
 }

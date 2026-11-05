@@ -42,6 +42,14 @@ export function noticeText(academyName: string, content: string) {
   return `[${academyName}] ${content.trim()}`;
 }
 
+/** 공지 글자 수 한도 (링크형은 문자에 본문이 안 들어가서 글자 수로 셈) */
+export const NOTICE_MAX_CHARS = 1000;
+
+/** 링크형 공지 (문자판). 알림톡판은 lib/alimtalk.ts NOTICE */
+export function noticeLinkText(academyName: string, names: string, link: string) {
+  return `[${academyName}] ${names} 학부모님, 새 공지가 있어요. 아래 링크에서 확인해 주세요\n${link}`;
+}
+
 // ── 요일 ── 0=일 1=월 … 6=토
 export const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 export const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0]; // 화면에는 월요일부터
