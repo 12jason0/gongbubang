@@ -14,7 +14,7 @@ import { feedbackLink } from "@/lib/alimtalk";
 import { isPaymentMethod, parseWon } from "@/lib/money";
 import { isValidMobile, normalizePhone } from "@/lib/phone";
 import { parseRoster, rosterKey, ROSTER_MAX_LINES } from "@/lib/roster";
-import { TRIAL_DAYS } from "@/lib/pricing";
+import { TRIAL_DAYS, isPaidTier } from "@/lib/pricing";
 import { billingReady, createOrderRow, orderName, priceFor, type OrderKind } from "@/lib/billing";
 
 // ───────────────────────── 로그인 ─────────────────────────
@@ -42,7 +42,7 @@ export async function logout() {
 
 /**
  * 가입하면 바로 로그인되고 무료 체험(TRIAL_DAYS일)이 시작된다.
- * 카톡·문자는 체험 중에도 충전금에서 차감 (충전금 0원으로 시작).
+ * 체험 중 카톡은 10통까지 (lib/pricing.ts PLANS.TRIAL).
  * 문자 대체발송·문자 공지에 쓰는 발신번호는 공용 번호(DEFAULT_SENDER_PHONE) — 원장님 번호는 연락용으로만 보관.
  */
 export async function signup(_prev: string | null, formData: FormData): Promise<string | null> {
@@ -733,25 +733,24 @@ export async function saveSettings(_prev: FormResult, formData: FormData): Promi
   return { ok: true, message: "저장했어요. 다음 문자부터 바뀐 문구로 나가요." };
 }
 
-// ───────────────────────── 결제 (이용권·충전금) ─────────────────────────
+// ───────────────────────── 결제 (요금제) ─────────────────────────
 
 /**
  * 결제창을 열기 전에 주문을 만든다. 금액은 서버가 정하고, 화면은 받은 값 그대로 결제창에 넘긴다.
  * 이용 기간이 끝나도 결제는 돼야 하므로 requireAcademy.
  */
-export async function createOrder(kind: OrderKind, requested: number) {
+export async function createOrder(kind: OrderKind) {
   const academy = await requireAcademy();
   if (!billingReady()) return { ok: false as const, error: "결제 준비 중이에요. 관리자에게 문의해 주세요." };
-  if (kind !== "SUBSCRIPTION" && kind !== "CREDIT") return { ok: false as const, error: "잘못된 요청이에요." };
-  const amount = priceFor(kind, requested);
-  if (!amount) return { ok: false as const, error: "충전 금액을 다시 골라 주세요." };
+  if (!isPaidTier(kind)) return { ok: false as const, error: "요금제를 다시 골라 주세요." };
+  const amount = priceFor(kind);
 
   const orderId = await createOrderRow(academy.id, kind, amount);
   return {
     ok: true as const,
     orderId,
     amount,
-    orderName: orderName(kind, amount),
+    orderName: orderName(kind),
     clientKey: process.env.TOSS_CLIENT_KEY!,
     customerKey: academy.id,
   };

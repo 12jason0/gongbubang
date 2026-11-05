@@ -23,8 +23,12 @@ export const academies = pgTable("academies", {
   // 이용 기간·결제
   ownerPhone: text("owner_phone").notNull().default(""), // 원장님 연락처 (가입 때 입력, 두나가 연락용)
   serviceUntil: timestamp("service_until", { withTimezone: true }), // 이 시각까지 사용 가능. null = 기한 없음(관리자·데모 계정)
-  plan: text("plan").notNull().default("TRIAL"), // TRIAL(무료 체험) / PAID(이용권 결제한 적 있음)
-  creditWon: integer("credit_won").notNull().default(0), // 카톡·문자 충전금 잔액(원). 발송할 때마다 차감
+  plan: text("plan").notNull().default("TRIAL"), // 요금제 TRIAL(무료 체험) / BASIC(기본) / PLUS(넉넉). 예전 PAID = BASIC (lib/pricing.ts)
+  // 카톡 통수 — periodStart(마지막 결제일, 없으면 가입일)부터 한 달씩 끊어서 센다 (lib/plan.ts quotaState)
+  periodStart: timestamp("period_start", { withTimezone: true }),
+  msgPeriod: text("msg_period").notNull().default(""), // msgUsed 를 세고 있는 기간의 시작 (ISO). 기간이 바뀌면 0부터
+  msgUsed: integer("msg_used").notNull().default(0), // 이번 기간에 보낸 통수 (실패·접수 거절은 돌려놓음)
+  creditWon: integer("credit_won").notNull().default(0), // (안 씀) 예전 충전금 잔액 — 요금제로 바뀌며 기록만 남김
   createdAt: createdAt(),
 });
 
@@ -162,7 +166,7 @@ export const messageLogs = pgTable(
   (t) => [index("message_logs_academy_idx").on(t.academyId, t.createdAt)],
 );
 
-// 충전금 내역 — 충전(+) / 발송 차감(-) / 실패 환불(+) / 관리자 조정
+// (안 씀) 예전 충전금 내역 — 요금제로 바뀌며 기록만 남김. 충전(+) / 발송 차감(-) / 실패 환불(+) / 관리자 조정
 export const creditLedger = pgTable(
   "credit_ledger",
   {
@@ -183,7 +187,7 @@ export const orders = pgTable(
   {
     id: id(),
     academyId: text("academy_id").notNull().references(() => academies.id, { onDelete: "cascade" }),
-    kind: text("kind").notNull(), // SUBSCRIPTION(1개월 이용권) / CREDIT(충전금)
+    kind: text("kind").notNull(), // BASIC / PLUS (1개월 요금제). 예전 주문: SUBSCRIPTION(=BASIC) / CREDIT(충전금)
     amount: integer("amount").notNull(), // 결제 금액(원). 승인할 때 토스가 돌려준 금액과 같아야 함
     status: text("status").notNull().default("READY"), // READY → CONFIRMING → DONE / FAILED
     paymentKey: text("payment_key"),

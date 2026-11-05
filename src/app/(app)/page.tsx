@@ -137,7 +137,7 @@ export default async function AttendancePage({
 
   return (
     <main className="px-3 pt-3">
-      {/* 충전금 부족은 맨 위 PlanBanner 가 알려줌 (솔라피 잔액은 두나가 관리) */}
+      {/* 카톡 통수 부족은 맨 위 PlanBanner 가 알려줌 (솔라피 잔액은 두나가 관리) */}
       <SmsStatus testMode={isTestMode()} balance={null} low={false} failed={failed} />
 
       {isToday && rows.length > 0 && (

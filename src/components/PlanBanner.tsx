@@ -1,15 +1,15 @@
 import Link from "next/link";
-import { CalendarClock, TriangleAlert, Wallet } from "lucide-react";
-import type { PlanState } from "@/lib/plan";
-import { formatWon } from "@/lib/money";
+import { CalendarClock, MessageCircleOff, TriangleAlert } from "lucide-react";
+import type { PlanState, QuotaState } from "@/lib/plan";
+import { PLANS } from "@/lib/pricing";
 
 /**
  * 모든 화면 맨 위 한 줄 — 필요할 때만 보인다
  * - 이용 기간 끝남 → 빨강, 결제로
  * - 무료 체험·이용권 3일 이하 남음 → 금색
- * - 충전금 부족 → 주황
+ * - 이번 기간 카톡을 다 씀 → 빨강 + [9,900원으로 올리기] / 얼마 안 남음 → 주황
  */
-export function PlanBanner({ state, credit, lowCredit }: { state: PlanState; credit: number; lowCredit: boolean }) {
+export function PlanBanner({ state, quota }: { state: PlanState; quota: QuotaState }) {
   const items: React.ReactNode[] = [];
 
   if (state.kind === "EXPIRED") {
@@ -34,15 +34,30 @@ export function PlanBanner({ state, credit, lowCredit }: { state: PlanState; cre
     );
   }
 
-  if (lowCredit) {
+  const upgrade = quota.tier !== "PLUS" && (
+    <span className="shrink-0 rounded-lg bg-white px-2.5 py-1 text-[12px] font-semibold text-rose-600">
+      {PLANS.PLUS.price.toLocaleString("ko-KR")}원으로 올리기
+    </span>
+  );
+  if (state.kind !== "EXPIRED" && quota.remaining === 0) {
     items.push(
-      <Link key="credit" href="/billing" className="flex items-center gap-2 rounded-xl bg-amber-50 px-3.5 py-2.5 text-[14px] text-amber-900 ring-1 ring-amber-300">
-        <Wallet size={17} className="shrink-0 text-amber-600" />
+      <Link key="quota" href="/billing#PLUS" className="flex items-center gap-2 rounded-xl bg-rose-500 px-3.5 py-2.5 text-[14px] text-white">
+        <MessageCircleOff size={17} className="shrink-0" />
         <span className="flex-1">
-          <b>카톡 충전금이 {credit <= 0 ? "없어요" : `${formatWon(credit)} 남았어요`}</b>
-          {credit <= 0 && " · 학부모님께 카톡이 안 가요"}
+          <b>이번 달 카톡을 다 썼어요</b> · 출석은 기록되고 학부모님께 카톡은 안 가요
+          {quota.tier === "PLUS" && " (다음 이용 기간에 다시 채워져요)"}
         </span>
-        <span className="shrink-0 rounded-lg bg-amber-500 px-2.5 py-1 text-[12px] font-semibold text-white">충전하기</span>
+        {upgrade}
+      </Link>,
+    );
+  } else if (state.kind !== "EXPIRED" && quota.remaining <= Math.max(1, Math.ceil(quota.total * 0.1))) {
+    items.push(
+      <Link key="quota" href="/billing#PLUS" className="flex items-center gap-2 rounded-xl bg-amber-50 px-3.5 py-2.5 text-[14px] text-amber-900 ring-1 ring-amber-300">
+        <MessageCircleOff size={17} className="shrink-0 text-amber-600" />
+        <span className="flex-1">
+          이번 달 카톡이 <b>{quota.remaining}통</b> 남았어요
+        </span>
+        <span className="shrink-0 rounded-lg bg-amber-500 px-2.5 py-1 text-[12px] font-semibold text-white">요금제 보기</span>
       </Link>,
     );
   }

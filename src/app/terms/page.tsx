@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { FileText } from "lucide-react";
-import { MESSAGE_PRICE, SUBSCRIPTION_PRICE, TRIAL_DAYS } from "@/lib/pricing";
+import { PLANS, TRIAL_DAYS } from "@/lib/pricing";
 
 export const metadata: Metadata = { title: "이용약관·환불 규정" };
 export const dynamic = "force-dynamic"; // 사업자 정보·요금 env 를 배포 후에도 바로 반영
@@ -37,15 +37,15 @@ export default function TermsPage() {
       <Section title="2. 요금">
         <ul className="list-disc space-y-1 pl-5">
           <li>
-            가입 후 <b>{TRIAL_DAYS}일 무료 체험</b> — 모든 기능을 쓸 수 있습니다.
+            가입 후 <b>{TRIAL_DAYS}일 무료 체험</b> — 모든 기능을 쓸 수 있고, 학부모님께 카톡·문자를 {PLANS.TRIAL.quota}통까지 보낼 수 있습니다.
           </li>
           <li>
-            무료 체험 뒤에는 <b>1개월 이용권 {won(SUBSCRIPTION_PRICE)}</b>을 결제해서 씁니다. 자동으로 결제되지 않으며, 원할 때 다시 결제합니다.
+            무료 체험 뒤에는 1개월 요금제를 결제해서 씁니다: <b>기본 {won(PLANS.BASIC.price)} (카톡·문자 {PLANS.BASIC.quota}통)</b> ·{" "}
+            <b>넉넉 {won(PLANS.PLUS.price)} (카톡·문자 {PLANS.PLUS.quota}통)</b>. 자동으로 결제되지 않으며, 원할 때 다시 결제합니다.
           </li>
           <li>
-            학부모님께 보내는 메시지는 이용권과 <b>별도</b>로, 미리 충전한 충전금에서 건당 빠집니다 (무료 체험 중에도 같습니다).
-            카카오 알림톡 {won(MESSAGE_PRICE.ALIMTALK)} · 문자 단문 {won(MESSAGE_PRICE.SMS)} · 문자 장문 {won(MESSAGE_PRICE.LMS)}.
-            보내지 못한 메시지는 다시 충전금으로 돌려드립니다.
+            통수는 결제한 날부터 한 달 단위로 새로 셉니다. 카카오 알림톡·문자 모두 1건이 1통이며, 보내지 못한 메시지는 세지 않습니다.
+            남은 통수는 다음 달로 넘어가지 않고, 통수를 다 쓰면 그 기간에는 학부모님께 자동 발송이 되지 않습니다(출석 기록은 계속 됩니다).
           </li>
           <li>이용 기간이 끝나면 기존 기록 보기와 영수증 원부 인쇄는 계속 되고, 출석 체크·발송 등은 이용권 결제 뒤에 다시 됩니다.</li>
         </ul>
@@ -53,8 +53,8 @@ export default function TermsPage() {
 
       <Section title="3. 환불">
         <ul className="list-disc space-y-1 pl-5">
-          <li>이용권: 결제한 날부터 7일 이내에 요청하시면 전액 환불합니다. 그 뒤에는 남은 기간을 환불하지 않습니다.</li>
-          <li>충전금: 쓰지 않은 잔액은 요청하시면 환불합니다. 결제수단에 따라 결제 취소 또는 계좌로 돌려드립니다.</li>
+          <li>요금제(이용권): 결제한 날부터 7일 이내에 요청하시면 전액 환불합니다. 그 뒤에는 남은 기간을 환불하지 않습니다.</li>
+          <li>요금제가 바뀌기 전에 충전한 충전금이 남아 있다면 요청하시면 환불합니다. 결제수단에 따라 결제 취소 또는 계좌로 돌려드립니다.</li>
           <li>환불 요청은 아래 연락처로 해 주세요.</li>
         </ul>
       </Section>

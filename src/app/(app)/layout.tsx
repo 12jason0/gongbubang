@@ -1,7 +1,6 @@
 import { requireAcademy } from "@/lib/session";
-import { isTestMode, shouldCharge } from "@/lib/sms";
-import { planState } from "@/lib/plan";
-import { LOW_CREDIT_WON } from "@/lib/pricing";
+import { isTestMode } from "@/lib/sms";
+import { planState, quotaState } from "@/lib/plan";
 import { PlanBanner } from "@/components/PlanBanner";
 import { BottomNav, SideNav } from "@/components/BottomNav";
 import { ToastProvider } from "@/components/Toast";
@@ -49,11 +48,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <span className="ml-auto" />
           <ExampleToggle />
         </header>
-        <PlanBanner
-          state={planState(academy)}
-          credit={academy.creditWon}
-          lowCredit={shouldCharge() && academy.creditWon < LOW_CREDIT_WON}
-        />
+        <PlanBanner state={planState(academy)} quota={quotaState(academy)} />
         <ToastProvider>{children}</ToastProvider>
       </div>
       <BottomNav />

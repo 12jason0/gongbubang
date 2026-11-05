@@ -3,7 +3,7 @@ import { db, attendance, classes, classStudents, messageLogs, notices, payments,
 import { requireAcademy } from "@/lib/session";
 import { shiftDate, thisMonthKST, timeKST, todayKST } from "@/lib/date";
 import { byTimeName, parseDays, weekdayOf } from "@/lib/templates";
-import { MESSAGE_PRICE } from "@/lib/pricing";
+import { formatUntil, quotaState } from "@/lib/plan";
 import type { DashboardData } from "@/lib/dashboard-example";
 import { Dashboard } from "@/components/Dashboard";
 
@@ -110,7 +110,10 @@ export default async function DashboardPage() {
       amount: unpaidList.reduce((n, s) => n + (s.amount ?? 0), 0),
       unknown: unpaidList.filter((s) => s.amount === null).length,
     },
-    credit: { won: academy.creditWon, alimtalk: Math.floor(academy.creditWon / MESSAGE_PRICE.ALIMTALK) },
+    quota: (() => {
+      const q = quotaState(academy);
+      return { remaining: q.remaining, total: q.total, label: q.label, resetOn: formatUntil(q.end) };
+    })(),
     noticesThisWeek,
     daily: Array.from({ length: 30 }, (_, i) => {
       const date = shiftDate(from30, i);

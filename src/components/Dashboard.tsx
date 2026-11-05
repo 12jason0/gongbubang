@@ -152,11 +152,16 @@ export function Dashboard({ data: real, today }: { data: DashboardData; today: s
           />
           <Kpi
             Icon={MessageCircle}
-            label="카톡 충전금"
+            label="이번 달 카톡"
             href="/billing"
             still={still}
-            value={formatWon(d.credit.won)}
-            detail={`알림톡 약 ${d.credit.alimtalk.toLocaleString("ko-KR")}통 보낼 수 있어요`}
+            value={
+              <span className={d.quota.remaining === 0 ? "text-rose-600" : undefined}>
+                {d.quota.remaining}
+                <span className="text-[18px] font-semibold text-slate-400"> / {d.quota.total}통</span>
+              </span>
+            }
+            detail={d.quota.remaining === 0 ? "다 썼어요 · 요금제를 올리면 바로 보낼 수 있어요" : `${d.quota.label} 요금제 · ${d.quota.resetOn}에 다시 채워져요`}
           />
           <Kpi
             Icon={Megaphone}

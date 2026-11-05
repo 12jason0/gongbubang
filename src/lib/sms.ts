@@ -1,7 +1,8 @@
 import crypto from "node:crypto";
-import { and, eq, gte, isNull, sql } from "drizzle-orm";
-import { db, messageLogs, academies, creditLedger } from "@/db";
-import { MESSAGE_PRICE } from "./pricing";
+import { and, eq, isNull, sql } from "drizzle-orm";
+import { db, messageLogs, academies } from "@/db";
+import { quotaState } from "./plan";
+import { PLANS } from "./pricing";
 import { alimtalkConfig, renderAlimtalk, solapiVariables, type AlimtalkKey, type AlimtalkVars } from "./alimtalk";
 
 /**
@@ -63,48 +64,37 @@ function prepare(m: Outgoing): Prepared {
   return { channel: "SMS", to: m.to, text: m.text };
 }
 
-// ───── 충전금 ─────
+// ───── 카톡 통수 (요금제) ─────
+// 알림톡·문자 모두 1건 = 1통. 보내기 직전에 한 번에 확보하고, 실패·접수 거절된 만큼 돌려놓는다.
 
-const KIND_LABEL: Record<MessageKind, string> = { ATTENDANCE: "등원", FEEDBACK: "피드백", NOTICE: "공지", PAYMENT: "원비 안내" };
-
-/** 한 통에 차감할 금액(원) */
-export function priceOf(m: { channel: Channel; text: string }) {
-  if (m.channel === "ALIMTALK") return MESSAGE_PRICE.ALIMTALK;
-  return isLongMessage(m.text) ? MESSAGE_PRICE.LMS : MESSAGE_PRICE.SMS;
+/** 이번 기간 통수에서 n통 확보. 모자라면 아무것도 안 빼고 ok:false */
+export async function reserveQuota(academyId: string, n: number) {
+  const [a] = await db
+    .select({ plan: academies.plan, periodStart: academies.periodStart, createdAt: academies.createdAt, msgPeriod: academies.msgPeriod, msgUsed: academies.msgUsed })
+    .from(academies)
+    .where(eq(academies.id, academyId));
+  if (!a) return { ok: false, key: "", remaining: 0, tier: "TRIAL" as const };
+  const q = quotaState(a);
+  // 기간이 바뀌었으면 0부터 (같은 줄을 동시에 고쳐도 조건부 UPDATE 한 번이라 넘치지 않음)
+  const used = sql`(case when ${academies.msgPeriod} = ${q.key} then ${academies.msgUsed} else 0 end)`;
+  const [row] = await db
+    .update(academies)
+    .set({ msgUsed: sql`${used} + ${n}`, msgPeriod: q.key })
+    .where(and(eq(academies.id, academyId), sql`${used} + ${n} <= ${q.total}`))
+    .returning({ id: academies.id });
+  return { ok: !!row, key: q.key, remaining: row ? q.remaining - n : q.remaining, tier: q.tier };
 }
 
-/** 테스트 모드(솔라피 키 없음)에서는 실제로 안 나가니 차감도 안 함. 로컬 시험용으로 CHARGE_IN_TEST_MODE=true 면 차감 */
-export function shouldCharge() {
-  return !isTestMode() || process.env.CHARGE_IN_TEST_MODE === "true";
+/** 실패한 만큼 돌려놓기 (그사이 기간이 바뀌었으면 그대로 둠) */
+export async function releaseQuota(academyId: string, key: string, n: number) {
+  if (n <= 0) return;
+  await db
+    .update(academies)
+    .set({ msgUsed: sql`greatest(${academies.msgUsed} - ${n}, 0)` })
+    .where(and(eq(academies.id, academyId), eq(academies.msgPeriod, key)));
 }
 
-/** 잔액이 충분할 때만 한 번에 빼고 내역을 남긴다. 모자라면 false (아무것도 안 뺌) */
-export async function takeCredit(academyId: string, won: number, memo: string): Promise<boolean> {
-  if (won <= 0) return true;
-  return db.transaction(async (tx) => {
-    const [row] = await tx
-      .update(academies)
-      .set({ creditWon: sql`${academies.creditWon} - ${won}` })
-      .where(and(eq(academies.id, academyId), gte(academies.creditWon, won)))
-      .returning({ balance: academies.creditWon });
-    if (!row) return false;
-    await tx.insert(creditLedger).values({ academyId, amount: -won, balanceAfter: row.balance, kind: "USE", memo });
-    return true;
-  });
-}
-
-/** 충전금 넣기 (충전·환불·관리자 조정) */
-export async function addCredit(academyId: string, won: number, kind: "CHARGE" | "REFUND" | "ADMIN", memo: string) {
-  if (won === 0) return;
-  await db.transaction(async (tx) => {
-    const [row] = await tx
-      .update(academies)
-      .set({ creditWon: sql`${academies.creditWon} + ${won}` })
-      .where(eq(academies.id, academyId))
-      .returning({ balance: academies.creditWon });
-    if (row) await tx.insert(creditLedger).values({ academyId, amount: won, balanceAfter: row.balance, kind, memo });
-  });
-}
+export const QUOTA_USED_UP = "이번 달 카톡을 다 썼어요";
 
 /** 이 종류가 지금 알림톡으로 나가는지 (화면 표시용) */
 export function usesAlimtalk(key: AlimtalkKey) {
@@ -123,23 +113,20 @@ export async function sendMessages(
   if (messages.length === 0) return [];
 
   const prepared = messages.map(prepare);
-  const prices = prepared.map(priceOf);
-  const charge = shouldCharge();
-  const total = prices.reduce((a, b) => a + b, 0);
   let results: SendResult[];
 
-  if (charge && !(await takeCredit(academy.id, total, `${KIND_LABEL[kind]} ${messages.length}건`))) {
-    // 충전금이 모자라면 한 통도 안 보냄 (실패로 남아서 충전 후 "다시 보내기" 가능)
-    const error = `충전금이 부족해요 (필요 ${total.toLocaleString("ko-KR")}원) — 설정 › 이용권·충전에서 충전해 주세요`;
+  const quota = await reserveQuota(academy.id, messages.length);
+  if (!quota.ok) {
+    // 통수가 모자라면 한 통도 안 보냄 (실패로 남아서 요금제를 올린 뒤 "다시 보내기" 가능)
+    const up = quota.tier === "PLUS" ? "다음 이용 기간에 다시 채워져요" : `${PLANS.PLUS.price.toLocaleString("ko-KR")}원 요금제로 올리면 바로 보낼 수 있어요`;
+    const error = `${QUOTA_USED_UP} (남은 ${quota.remaining}통, 필요 ${messages.length}통) — ${up}`;
     results = messages.map(() => ({ ok: false, test: false, error }));
   } else if (isTestMode()) {
     results = messages.map(() => ({ ok: true, test: true }));
   } else {
     results = await callSolapi(academy.senderPhone, prepared);
-    // 접수 단계에서 실패한 건은 돌려줌
-    const refund = prices.filter((_, i) => !results[i].ok).reduce((a, b) => a + b, 0);
-    const failedN = results.filter((r) => !r.ok).length;
-    if (charge && refund > 0) await addCredit(academy.id, refund, "REFUND", `${KIND_LABEL[kind]} 실패 ${failedN}건`);
+    // 접수 단계에서 실패한 건은 통수에서 돌려놓음
+    await releaseQuota(academy.id, quota.key, results.filter((r) => !r.ok).length);
   }
 
   await db.insert(messageLogs).values(

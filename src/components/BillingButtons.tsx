@@ -9,13 +9,11 @@ import type { OrderKind } from "@/lib/billing";
 /** 결제 버튼 — 서버에서 주문(금액)을 만든 뒤 토스 결제창(카드)을 연다 */
 export function PayButton({
   kind,
-  amount,
   label,
   primary,
   disabled,
 }: {
   kind: OrderKind;
-  amount: number;
   label: string;
   primary?: boolean;
   disabled?: boolean;
@@ -26,7 +24,7 @@ export function PayButton({
   function pay() {
     setError(null);
     start(async () => {
-      const o = await createOrder(kind, amount);
+      const o = await createOrder(kind);
       if (!o.ok) {
         setError(o.error);
         return;

@@ -38,7 +38,10 @@ export async function requireAcademy() {
       feedbackClosing: academies.feedbackClosing,
       serviceUntil: academies.serviceUntil,
       plan: academies.plan,
-      creditWon: academies.creditWon,
+      periodStart: academies.periodStart,
+      msgPeriod: academies.msgPeriod,
+      msgUsed: academies.msgUsed,
+      createdAt: academies.createdAt,
     })
     .from(academies)
     .where(eq(academies.id, academyId));

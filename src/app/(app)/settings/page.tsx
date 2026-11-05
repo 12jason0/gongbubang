@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { ChevronRight, CreditCard, LogOut } from "lucide-react";
-import { planState, formatUntil } from "@/lib/plan";
-import { formatWon } from "@/lib/money";
+import { planState, quotaState, formatUntil } from "@/lib/plan";
 import { requireAcademy } from "@/lib/session";
 import { isTestMode, usesAlimtalk } from "@/lib/sms";
 import { ALIMTALK_TEMPLATES } from "@/lib/alimtalk";
@@ -29,13 +28,14 @@ export default async function SettingsPage() {
           <CreditCard size={19} />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-[15px] font-semibold">이용권·충전</span>
+          <span className="block text-[15px] font-semibold">이용권</span>
           <span className="block truncate text-[13px] text-slate-500">
             {(() => {
               const st = planState(academy);
               const period =
                 st.kind === "UNLIMITED" ? "기한 없음" : st.kind === "EXPIRED" ? "이용 기간 끝남" : `${formatUntil(st.until)}까지`;
-              return `${period} · 충전금 ${formatWon(academy.creditWon)}`;
+              const q = quotaState(academy);
+              return `${q.label} · ${period} · 카톡 ${q.remaining}/${q.total}통 남음`;
             })()}
           </span>
         </span>

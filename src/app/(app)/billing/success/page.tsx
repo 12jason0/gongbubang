@@ -2,7 +2,7 @@ import Link from "next/link";
 import { CheckCircle2, TriangleAlert } from "lucide-react";
 import { requireAcademy } from "@/lib/session";
 import { confirmOrder } from "@/lib/billing";
-import { formatWon } from "@/lib/money";
+import { PLANS } from "@/lib/pricing";
 
 export const metadata = { title: "결제 확인" };
 
@@ -28,10 +28,10 @@ export default async function BillingSuccessPage({
           <>
             <CheckCircle2 size={40} className="mx-auto text-emerald-500" />
             <p className="mt-3 text-[18px] font-bold">
-              {result.kind === "SUBSCRIPTION" ? "이용권 결제가 끝났어요" : `${formatWon(result.amount)} 충전했어요`}
+              {PLANS[result.kind].label} 요금제 결제가 끝났어요
             </p>
             <p className="mt-1 text-[14px] text-slate-500">
-              {result.kind === "SUBSCRIPTION" ? "이용 기간이 한 달 늘었어요." : "학부모님께 카톡을 보낼 때마다 여기서 빠져요."}
+              이용 기간이 한 달 늘고, 오늘부터 카톡 {PLANS[result.kind].quota}통을 새로 세요.
             </p>
           </>
         ) : (
@@ -42,7 +42,7 @@ export default async function BillingSuccessPage({
           </>
         )}
         <Link href="/billing" className="mt-5 inline-block rounded-xl bg-brand px-5 py-3 text-[15px] font-semibold text-white">
-          이용권·충전으로
+          이용권으로
         </Link>
       </div>
     </main>
