@@ -1,12 +1,13 @@
 "use client";
 
 import { useMemo, useState, useTransition, type FormEvent } from "react";
-import { ClipboardList, Pencil, Plus, Send, UserMinus, UserPlus, X } from "lucide-react";
+import { ClipboardList, FileSpreadsheet, Pencil, Plus, Send, UserMinus, UserPlus, X } from "lucide-react";
 import { addStudent, addStudentsBulk, sendConsentRequests, setStudentActive, updateStudent, type StudentFormResult } from "@/app/actions";
 import { formatPhone } from "@/lib/phone";
 import { feeLabel } from "@/lib/money";
 import { parseRoster, rosterKey, ROSTER_MAX_LINES } from "@/lib/roster";
 import { Confirm } from "./Confirm";
+import { ExcelImport } from "./ExcelImport";
 import { PageTitle } from "./PageTitle";
 import { useToast } from "./Toast";
 
@@ -152,21 +153,25 @@ function useStudentForm(
 
 // 추가 패널: 한 명씩 / 명단 붙여넣기. onClose 없으면 닫기 버튼 없음 (PC 오른쪽에 늘 떠 있는 폼)
 function AddPanel({ onClose, classes, students }: { onClose?: () => void; classes: C[]; students: S[] }) {
-  const [bulk, setBulk] = useState(false);
+  const [mode, setMode] = useState<"one" | "paste" | "excel">("one");
   const tab = (on: boolean) =>
-    `flex-1 rounded-lg py-1.5 text-center text-[13px] font-semibold ${on ? "bg-white text-brand shadow-sm" : "text-slate-500"}`;
+    `flex-1 rounded-lg py-1.5 text-center text-[12.5px] font-semibold whitespace-nowrap ${on ? "bg-white text-brand shadow-sm" : "text-slate-500"}`;
 
   return (
     <div className="card mb-3 rounded-2xl p-4 outline-2 outline-gold/60">
       <div className="mb-3 flex items-center gap-2">
         <div className="flex flex-1 rounded-xl bg-black/5 p-1">
-          <button type="button" onClick={() => setBulk(false)} className={tab(!bulk)}>
+          <button type="button" onClick={() => setMode("one")} className={tab(mode === "one")}>
             <Plus size={14} className="mr-0.5 inline align-[-2px]" />
             한 명씩
           </button>
-          <button type="button" onClick={() => setBulk(true)} className={tab(bulk)}>
+          <button type="button" onClick={() => setMode("paste")} className={tab(mode === "paste")}>
             <ClipboardList size={14} className="mr-0.5 inline align-[-2px]" />
             명단 붙여넣기
+          </button>
+          <button type="button" onClick={() => setMode("excel")} className={tab(mode === "excel")}>
+            <FileSpreadsheet size={14} className="mr-0.5 inline align-[-2px]" />
+            엑셀 올리기
           </button>
         </div>
         {onClose && (
@@ -175,7 +180,13 @@ function AddPanel({ onClose, classes, students }: { onClose?: () => void; classe
           </button>
         )}
       </div>
-      {bulk ? <BulkForm classes={classes} students={students} /> : <AddForm classes={classes} />}
+      {mode === "paste" ? (
+        <BulkForm classes={classes} students={students} />
+      ) : mode === "excel" ? (
+        <ExcelImport classes={classes} students={students} Consent={ConsentCheck} />
+      ) : (
+        <AddForm classes={classes} />
+      )}
     </div>
   );
 }

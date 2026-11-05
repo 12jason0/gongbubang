@@ -13,7 +13,7 @@ import { formatDateLabel, isValidDate, isValidMonth, spokenTimeKST, thisMonthKST
 import { ALIMTALK_TEMPLATES, appUrl, consentLink, feedbackLink, noticeLink, readConsentCode, renderAlimtalk } from "@/lib/alimtalk";
 import { dueDayLabel, formatWon, isPaymentMethod, parseDueDay, parseFee, parseWon } from "@/lib/money";
 import { isValidMobile, normalizePhone } from "@/lib/phone";
-import { parseRoster, rosterKey, ROSTER_MAX_LINES } from "@/lib/roster";
+import { checkImportRow, parseRoster, rosterKey, ROSTER_MAX_LINES, type ImportInput } from "@/lib/roster";
 import { TRIAL_DAYS, isPaidTier } from "@/lib/pricing";
 import { endTrialIfOverlap, parentPhoneHash, trialPhoneHash, trialUsedByPhone } from "@/lib/account";
 import { PHONE_VERIFY, phoneCodeOk } from "@/lib/phone-verify";
@@ -785,6 +785,97 @@ export async function addStudentsBulk(_prev: FormResult, formData: FormData): Pr
   return {
     ok: true,
     message: `${fresh.length}명을 추가했어요.${skipped.length ? ` 건너뜀: ${skipped.join(", ")}` : ""}`,
+  };
+}
+
+/**
+ * 엑셀 올리기 — 파일은 브라우저에서 읽고, 원장님이 고른 칸의 글만 줄마다 받는다 (파일은 서버에 저장하지 않음).
+ * - 줄 검사는 화면 미리보기와 같은 checkImportRow 를 다시 돌린다 (화면 값을 믿지 않음)
+ * - 이미 등록된 학생(이름+번호)·파일 안 중복·잘못된 줄은 건너뜀
+ * - 반 이름: 있는 반이면 배정, 없는 반은 원장님이 "새 반으로 만들기"를 고른 이름만 만들고 배정
+ * - 동의는 명단 붙여넣기와 같음 (체크 안 하면 대기)
+ */
+export async function addStudentsImport(_prev: FormResult, formData: FormData): Promise<FormResult> {
+  const academy = await requireActiveAcademy();
+  const paper = formData.get("consent") === "on";
+  let inputs: ImportInput[];
+  let create: string[];
+  try {
+    inputs = JSON.parse(String(formData.get("rows") ?? "[]"));
+    create = JSON.parse(String(formData.get("createClasses") ?? "[]"));
+  } catch {
+    return { ok: false, message: "다시 올려 주세요." };
+  }
+  if (!Array.isArray(inputs) || !Array.isArray(create)) return { ok: false, message: "다시 올려 주세요." };
+  if (inputs.length > ROSTER_MAX_LINES) return { ok: false, message: `한 번에 ${ROSTER_MAX_LINES}명까지 올릴 수 있어요.` };
+
+  const str = (v: unknown) => (typeof v === "string" ? v.slice(0, 200) : "");
+  const checked = inputs.map((r, i) =>
+    checkImportRow(
+      { name: str(r?.name), grade: str(r?.grade), phone: str(r?.phone), birth: str(r?.birth), classes: str(r?.classes), fee: str(r?.fee), due: str(r?.due) },
+      i + 1,
+    ),
+  );
+  const existing = await db
+    .select({ name: students.name, parentPhone: students.parentPhone })
+    .from(students)
+    .where(eq(students.academyId, academy.id));
+  const have = new Set(existing.map((x) => rosterKey(x.name, x.parentPhone)));
+  const fresh: Extract<ReturnType<typeof checkImportRow>, { ok: true }>[] = [];
+  for (const r of checked) {
+    if (!r.ok || have.has(rosterKey(r.name, r.parentPhone))) continue;
+    have.add(rosterKey(r.name, r.parentPhone)); // 파일 안 중복도 한 번만
+    fresh.push(r);
+  }
+  if (fresh.length === 0) return { ok: false, message: "새로 추가할 학생이 없어요. 빨간 줄과 이미 있는 학생을 확인해 주세요." };
+
+  const classRows = await db
+    .select({ id: classes.id, name: classes.name })
+    .from(classes)
+    .where(and(eq(classes.academyId, academy.id), eq(classes.active, true)));
+  const byName = new Map(classRows.map((c) => [c.name.trim(), c.id]));
+  const wanted = new Set(fresh.flatMap((r) => r.classNames));
+  const toCreate = [...new Set(create.map(str).map((n) => n.trim()))].filter((n) => n && n.length <= 30 && wanted.has(n) && !byName.has(n));
+
+  const consent = consentFields(paper);
+  let made = 0;
+  await db.transaction(async (tx) => {
+    if (toCreate.length) {
+      const createdClasses = await tx
+        .insert(classes)
+        .values(toCreate.map((name) => ({ academyId: academy.id, name })))
+        .returning({ id: classes.id, name: classes.name });
+      for (const c of createdClasses) byName.set(c.name, c.id);
+      made = createdClasses.length;
+    }
+    const created = await tx
+      .insert(students)
+      .values(
+        fresh.map((r) => ({
+          academyId: academy.id,
+          name: r.name,
+          grade: r.grade,
+          parentPhone: r.parentPhone,
+          birthDate: r.birthDate,
+          monthlyFee: r.monthlyFee,
+          dueDay: r.dueDay,
+          ...consent,
+        })),
+      )
+      .returning({ id: students.id });
+    const links = fresh.flatMap((r, i) =>
+      r.classNames.filter((n) => byName.has(n)).map((n) => ({ classId: byName.get(n)!, studentId: created[i].id })),
+    );
+    if (links.length) await tx.insert(classStudents).values(links).onConflictDoNothing();
+  });
+  revalidatePath("/students");
+  revalidatePath("/");
+  if (await endTrialIfOverlap(academy)) redirect("/billing");
+
+  const skipped = checked.length - fresh.length;
+  return {
+    ok: true,
+    message: `${fresh.length}명을 추가했어요.${made ? ` 새 반 ${made}개를 만들었어요.` : ""}${skipped ? ` 건너뜀 ${skipped}줄` : ""}`,
   };
 }
 

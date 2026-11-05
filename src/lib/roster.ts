@@ -38,7 +38,7 @@ export function normalizeGrade(raw: string): string {
   return m ? `${m[1] ?? ""}${m[2]}${m[4]}` : raw.trim();
 }
 
-function parseBirth(raw: string): string | null {
+export function parseBirth(raw: string): string | null {
   const d = raw.replace(/\D/g, "");
   const parts = raw.match(/\d+/g) ?? [];
   const [y, mo, da] = parts.length >= 3 ? parts : [d.slice(0, 4), d.slice(4, 6), d.slice(6, 8)];
@@ -120,4 +120,37 @@ export function parseRoster(input: string): RosterRow[] {
 /** 같은 학생 판단: 이름 + 학부모 번호 */
 export function rosterKey(name: string, parentPhone: string) {
   return `${name.replace(/\s+/g, "")}|${parentPhone}`;
+}
+
+// ── 엑셀 올리기 ── 칸을 고른 뒤 한 줄씩 검사 (화면 미리보기와 서버 저장이 같은 함수)
+
+/** 엑셀 한 줄에서 고른 칸의 글 (원장님이 칸을 골라 줌) */
+export type ImportInput = { name: string; grade: string; phone: string; birth: string; classes: string; fee: string; due: string };
+export type ImportRow = (RosterOk & { classNames: string[] }) | RosterErr;
+
+/** 엑셀에서 숫자로 저장된 번호(1012345678)는 앞 0 이 빠져 있음 → 붙여 줌 */
+export function phoneDigits(raw: string) {
+  const d = raw.replace(/\D/g, "");
+  return d.length === 10 && d.startsWith("1") ? `0${d}` : d;
+}
+
+export function checkImportRow(r: ImportInput, line: number): ImportRow {
+  const text = [r.name, r.grade, r.phone].filter(Boolean).join(" ");
+  const name = r.name.trim();
+  if (!name) return { line, ok: false, text, error: "학생 이름이 없어요" };
+  if (name.length > 20) return { line, ok: false, text, error: "이름이 너무 길어요" };
+  const parentPhone = phoneDigits(r.phone);
+  if (!parentPhone) return { line, ok: false, text, error: "학부모 번호가 없어요" };
+  if (!isValidMobile(parentPhone)) return { line, ok: false, text, error: "학부모 휴대폰 번호를 확인해 주세요" };
+  const grade = normalizeGrade(r.grade);
+  if (!grade) return { line, ok: false, text, error: "학년이 없어요 (예: 초5)" };
+  if (grade.length > 10) return { line, ok: false, text, error: "학년을 확인해 주세요 (예: 초5)" };
+  const birthDate = r.birth.trim() ? parseBirth(r.birth) : null;
+  if (r.birth.trim() && !birthDate) return { line, ok: false, text, error: "생년월일을 확인해 주세요" };
+  const monthlyFee = parseFee(r.fee);
+  if (Number.isNaN(monthlyFee)) return { line, ok: false, text, error: "교습비를 확인해 주세요" };
+  const dueDay = parseDueDay(r.due);
+  if (Number.isNaN(dueDay)) return { line, ok: false, text, error: "납부일을 확인해 주세요 (1~31일·말일)" };
+  const classNames = [...new Set(r.classes.split(/[,，/·]+/).map((c) => c.trim()).filter(Boolean))].slice(0, 10);
+  return { line, ok: true, name, grade, parentPhone, birthDate, monthlyFee, dueDay, classNames };
 }
