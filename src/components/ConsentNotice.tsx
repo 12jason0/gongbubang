@@ -17,8 +17,8 @@ export function ConsentNotice({ academyId, academyName }: { academyId: string; a
 
   const link = `${origin}/privacy?a=${academyId}`;
   const text =
-    `[${academyName}] 안녕하세요. 출결·수업 안내 문자를 보내드리기 위해 학생 이름·학년·생년월일과 ` +
-    `학부모님 휴대폰 번호를 받아 보관합니다. (문자 발송은 솔라피에 맡깁니다)\n` +
+    `[${academyName}] 안녕하세요. 출결·수업·공지 안내를 카카오톡(알림톡)·문자로 보내드리기 위해 학생 이름·학년·생년월일과 ` +
+    `학부모님 휴대폰 번호를 받아 보관합니다. (발송은 솔라피에 맡깁니다)\n` +
     `자세한 내용: ${link}\n` +
     `동의하시면 "동의"라고 답장 부탁드립니다.`;
 
@@ -41,7 +41,7 @@ export function ConsentNotice({ academyId, academyName }: { academyId: string; a
         ref={ref}
         readOnly
         value={text}
-        rows={6}
+        rows={8}
         className="mt-3 w-full resize-none rounded-xl border-0 px-3 py-2.5 text-[14px] leading-relaxed outline-none field"
       />
       <div className="mt-2 flex gap-2">

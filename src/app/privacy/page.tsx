@@ -48,14 +48,14 @@ export default async function PrivacyPage({ searchParams }: { searchParams: Prom
             <b>학부모님</b>: 휴대폰 번호
           </li>
           <li>
-            <b>다니면서 생기는 기록</b>: 출석·결석, 수업 메모, 교습비 납부 기록, 보낸 문자 기록
+            <b>다니면서 생기는 기록</b>: 출석·결석, 수업 메모, 교습비 납부 기록, 보낸 카카오톡·문자 기록
           </li>
         </ul>
       </Section>
 
       <Section title="2. 쓰는 곳">
         <ul className="list-disc space-y-1 pl-5">
-          <li>등원 안내·수업 피드백·공지 문자 보내기</li>
+          <li>출결·수업·공지 안내를 카카오톡(알림톡)·문자로 보내기</li>
           <li>교습비 영수증 원부 등 개인과외교습자가 법에 따라 갖춰야 하는 장부 작성</li>
         </ul>
         <p className="mt-2">이 밖의 목적(광고 등)으로 쓰거나 다른 곳에 팔지 않습니다.</p>
@@ -86,7 +86,9 @@ export default async function PrivacyPage({ searchParams }: { searchParams: Prom
           <tbody>
             <tr>
               <td className="border border-slate-200 px-2 py-1.5">(주)솔라피 (SOLAPI)</td>
-              <td className="border border-slate-200 px-2 py-1.5">문자 발송 (학부모님 휴대폰 번호·문자 내용)</td>
+              <td className="border border-slate-200 px-2 py-1.5">
+                카카오톡(알림톡)·문자 발송 (학부모님 휴대폰 번호·보내는 내용). 알림톡은 솔라피를 거쳐 카카오톡으로 전달됩니다
+              </td>
             </tr>
             <tr>
               <td className="border border-slate-200 px-2 py-1.5">Neon, Vercel</td>
@@ -102,7 +104,7 @@ export default async function PrivacyPage({ searchParams }: { searchParams: Prom
 
       <Section title="5. 학부모님의 권리">
         <p>
-          언제든 정보를 보여 달라고 하거나, 고치거나 지워 달라고 하실 수 있고, 문자를 그만 받겠다고 하실 수 있습니다. 아래 연락처로
+          언제든 정보를 보여 달라고 하거나, 고치거나 지워 달라고 하실 수 있고, 카카오톡·문자를 그만 받겠다고 하실 수 있습니다. 아래 연락처로
           말씀해 주시면 바로 처리합니다.
         </p>
       </Section>

@@ -21,8 +21,12 @@ export default async function SettingsPage() {
   const anyKakao = (["ATTENDANCE", "FEEDBACK", "PAYMENT"] as const).some(usesAlimtalk);
 
   return (
-    <main className="px-3 pt-4 md:max-w-2xl">
+    <main className="px-3 pt-4 md:max-w-5xl">
       <PageTitle title="설정" sub="학원 이름과 학부모님께 가는 문자 문구" />
+
+      {/* PC: 왼쪽 문구 설정, 오른쪽 동의 문구·보내는 번호·로그아웃 (휴대폰은 위에서 아래로 같은 순서) */}
+      <div className="md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,380px)] md:items-start md:gap-4">
+      <div>
 
       {/* 마이페이지 (휴대폰은 여기가 들어가는 곳) */}
       <Link href="/me" className="card mb-3 flex items-center gap-3 rounded-2xl p-4">
@@ -70,10 +74,10 @@ export default async function SettingsPage() {
         }}
         kakao={kakao}
       />
-
-      <div className="mt-3">
-        <ConsentNotice academyId={academy.id} academyName={academy.name} />
       </div>
+
+      <div className="max-md:mt-3 md:sticky md:top-20">
+        <ConsentNotice academyId={academy.id} academyName={academy.name} />
 
       <section className="card mt-3 rounded-2xl p-4 text-sm">
         <div className="flex items-center justify-between">
@@ -100,6 +104,8 @@ export default async function SettingsPage() {
           <LogOut size={16} /> 로그아웃
         </button>
       </form>
+      </div>
+      </div>
     </main>
   );
 }
