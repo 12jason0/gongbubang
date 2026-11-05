@@ -155,6 +155,7 @@ npm run admin -- plan hyunsaem PLUS        # 요금제 바꾸기 (BASIC / PLUS /
 npm run admin -- extend hyunsaem 1         # 이용 기간 1개월 늘리기 (남은 기간 끝에서, 끝났으면 오늘부터)
 npm run admin -- days hyunsaem 30          # 오늘부터 30일까지로 정하기
 npm run admin -- unlimited demo            # 데모 계정 기한 없음
+npm run admin -- notify hyunsaem off       # 등원 카톡 끄기 (on 으로 다시 켬, 설정 화면 스위치와 같음)
 ```
 
 `npm run seed` 로 만든 계정은 기한 없음(`service_until` 비어 있음). 원장님께 드리는 계정은 `days` 로 기간을 정한다.

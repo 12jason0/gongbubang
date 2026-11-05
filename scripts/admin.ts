@@ -5,6 +5,7 @@
 //   npm run admin -- extend <아이디> <개월>           이용 기간 늘리기 (남은 기간 끝에서 N개월. 끝났으면 오늘부터)
 //   npm run admin -- days <아이디> <일수>            오늘부터 N일까지 쓸 수 있게 (예: 1달 무료 → days hyunsaem 30)
 //   npm run admin -- unlimited <아이디>              기한 없음 (두나 데모 계정)
+//   npm run admin -- notify <아이디> <on|off>         출석 체크하면 등원 카톡 보내기 켜기/끄기 (설정 화면 스위치와 같음)
 
 import { desc, eq } from "drizzle-orm";
 import { db, academies } from "../src/db";
@@ -27,7 +28,7 @@ async function main() {
     const rows = await db.select().from(academies).orderBy(desc(academies.createdAt));
     for (const a of rows) {
       const q = quotaState(a);
-      console.log(`${a.loginId.padEnd(14)} ${a.name.padEnd(10)} ${q.label.padEnd(5)} ~${day(a.serviceUntil)}  카톡 ${q.remaining}/${q.total}통  ${a.ownerPhone}`);
+      console.log(`${a.loginId.padEnd(14)} ${a.name.padEnd(10)} ${q.label.padEnd(5)} ~${day(a.serviceUntil)}  카톡 ${q.remaining}/${q.total}통  등원카톡 ${a.attendanceNotify ? "켬" : "끔"}  ${a.ownerPhone}`);
     }
   } else if (cmd === "plan") {
     const a = await find(loginId);
@@ -51,12 +52,17 @@ async function main() {
     const until = new Date(Date.now() + n * 86_400_000);
     await db.update(academies).set({ serviceUntil: until }).where(eq(academies.id, a.id));
     console.log(`${a.name}: ${day(until)} 까지 사용`);
+  } else if (cmd === "notify") {
+    const a = await find(loginId);
+    if (arg !== "on" && arg !== "off") throw new Error("on 또는 off 로 넣어 주세요");
+    await db.update(academies).set({ attendanceNotify: arg === "on" }).where(eq(academies.id, a.id));
+    console.log(`${a.name}: 등원 카톡 ${arg === "on" ? "켬" : "끔 (출석은 기록만)"}`);
   } else if (cmd === "unlimited") {
     const a = await find(loginId);
     await db.update(academies).set({ serviceUntil: null }).where(eq(academies.id, a.id));
     console.log(`${a.name}: 기한 없음`);
   } else {
-    console.log("사용법: npm run admin -- list | plan <아이디> <BASIC|PLUS|TRIAL> | extend <아이디> <개월> | days <아이디> <일수> | unlimited <아이디>");
+    console.log("사용법: npm run admin -- list | plan <아이디> <BASIC|PLUS|TRIAL> | extend <아이디> <개월> | days <아이디> <일수> | unlimited <아이디> | notify <아이디> <on|off>");
   }
   process.exit(0);
 }
