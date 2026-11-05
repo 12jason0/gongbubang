@@ -42,7 +42,8 @@ export async function requireAcademy() {
     })
     .from(academies)
     .where(eq(academies.id, academyId));
-  if (!academy) redirect("/login");
+  // 쿠키는 맞는데 공부방이 없음(지워진 계정 등) → proxy 가 쿠키를 지우게 표시해서 보냄 (무한 이동 방지)
+  if (!academy) redirect("/login?stale=1");
   return academy;
 }
 
