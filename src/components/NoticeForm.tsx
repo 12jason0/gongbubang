@@ -1,9 +1,11 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { Link2, Send } from "lucide-react";
 import { sendNotice, type NoticeResult } from "@/app/actions";
 import { NOTICE_MAX_CHARS } from "@/lib/templates";
+import { PLANS } from "@/lib/pricing";
 import { formatDateLabel, shiftDate, todayKST } from "@/lib/date";
 import { useToast } from "./Toast";
 
@@ -29,18 +31,22 @@ function groupByPhone(list: Student[]) {
   return [...m.values()];
 }
 
+const PLUS_PRICE = `${PLANS.PLUS.price.toLocaleString("ko-KR")}원`;
+
 export function NoticeForm({
   academyName,
   students,
   classes,
   linkMode,
   remaining,
+  canUpgrade,
 }: {
   academyName: string;
   students: Student[];
   classes: { id: string; name: string }[];
   linkMode: boolean; // APP_URL 이 있으면 "새 공지 + 링크", 없으면 문자에 공지 전체
   remaining: number; // 이번 달 남은 카톡 통수
+  canUpgrade: boolean; // 넉넉(9,900원)보다 아래 요금제면 true
 }) {
   const [res, setRes] = useState<NoticeResult>(null);
   const [pending, startTransition] = useTransition();
@@ -113,6 +119,8 @@ export function NoticeForm({
   const b = bytes(full);
   const isLong = b > 90;
   const tooLong = linkMode ? content.trim().length > NOTICE_MAX_CHARS : b > 2000;
+  // 통수가 모자라면 보내기 전에 막는다 (서버도 한 번 더 막음)
+  const short = recipients > remaining;
   const sampleNames = (groups[0] ?? [{ name: "김민수" }]).map((s) => s.name).join("·");
 
   return (
@@ -227,6 +235,22 @@ export function NoticeForm({
         </div>
       )}
 
+      {short && recipients > 0 && (
+        <div className="mt-4 rounded-xl bg-rose-50 p-3 text-[14px] leading-relaxed text-rose-800 ring-1 ring-rose-200">
+          <p>
+            남은 카톡 <b>{remaining}통</b>이라 <b>{recipients}명</b>에게 보낼 수 없어요.{" "}
+            {canUpgrade
+              ? `${PLUS_PRICE} 요금제로 올리거나 받는 사람을 줄여 주세요.`
+              : "받는 사람을 줄이거나 다음 이용 기간까지 기다려 주세요."}
+          </p>
+          {canUpgrade && (
+            <Link href="/billing#PLUS" className="mt-2 inline-block rounded-lg bg-rose-500 px-3 py-1.5 text-[13px] font-semibold text-white">
+              {PLUS_PRICE}으로 올리기
+            </Link>
+          )}
+        </div>
+      )}
+
       {confirming ? (
         <div className="mt-4 rounded-xl bg-gold-soft p-3">
           <p className="text-center text-sm">
@@ -242,7 +266,7 @@ export function NoticeForm({
             <button
               type="button"
               onClick={send}
-              disabled={pending}
+              disabled={pending || short}
               className="flex-1 rounded-xl bg-brand py-3 text-sm font-semibold text-white disabled:opacity-60"
             >
               {pending ? "보내는 중…" : "보내기"}
@@ -252,7 +276,7 @@ export function NoticeForm({
       ) : (
         <button
           type="button"
-          disabled={!content.trim() || recipients === 0 || tooLong}
+          disabled={!content.trim() || recipients === 0 || tooLong || short}
           onClick={() => setConfirming(true)}
           className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-3.5 text-[15px] font-semibold text-white disabled:opacity-30"
         >

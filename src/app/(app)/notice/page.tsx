@@ -56,6 +56,7 @@ export default async function NoticePage() {
           classes={classRows.map((c) => ({ id: c.id, name: c.name }))}
           linkMode={!!appUrl()}
           remaining={quotaState(academy).remaining}
+          canUpgrade={quotaState(academy).tier !== "PLUS"}
         />
       </div>
 
