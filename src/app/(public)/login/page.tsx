@@ -3,7 +3,7 @@
 import { useState, useTransition, type FormEvent } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { login } from "../actions";
+import { login } from "@/app/actions";
 
 const input =
   "w-full rounded-xl border-0 px-4 py-3.5 text-base outline-none focus:ring-2 focus:ring-gold field";

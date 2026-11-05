@@ -4,7 +4,7 @@ import { useState, useTransition, type FormEvent } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Gift } from "lucide-react";
-import { signup } from "../actions";
+import { signup } from "@/app/actions";
 import { PLANS } from "@/lib/pricing";
 
 const input =
