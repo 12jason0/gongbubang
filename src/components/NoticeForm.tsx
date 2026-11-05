@@ -35,6 +35,7 @@ const PLUS_PRICE = `${PLANS.PLUS.price.toLocaleString("ko-KR")}원`;
 
 export function NoticeForm({
   academyName,
+  draft,
   students,
   waiting,
   classes,
@@ -44,6 +45,7 @@ export function NoticeForm({
   canUpgrade,
 }: {
   academyName: string;
+  draft?: string; // 달력 메모에서 [공지 쓰기]로 왔을 때 미리 넣을 내용
   students: Student[];
   waiting: number; // 학부모 동의 대기·거부 학생 수 (공지를 안 받음)
   classes: { id: string; name: string }[];
@@ -57,7 +59,7 @@ export function NoticeForm({
   // target: "all" | 반 id | "pick"(직접 고르기)
   const [target, setTarget] = useState("all");
   const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [content, setContent] = useState("");
+  const [content, setContent] = useState(draft ?? "");
   const [confirming, setConfirming] = useState(false);
   const textRef = useRef<HTMLTextAreaElement>(null);
   const toast = useToast();

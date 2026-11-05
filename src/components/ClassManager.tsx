@@ -11,7 +11,7 @@ const ROW_BTN =
   "flex h-11 min-w-11 shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg px-1.5 text-[11px] text-slate-500 active:bg-black/5 disabled:opacity-50 md:h-9 md:flex-row md:gap-1 md:px-2 md:text-[13px]";
 const CLOSE_BTN = "flex h-9 items-center gap-1 rounded-lg px-2 text-[13px] text-slate-500 active:bg-black/5";
 
-type C = { id: string; name: string; days: string; time: string; count: number };
+type C = { id: string; name: string; days: string; time: string; endTime: string; count: number };
 
 const input =
   "w-full rounded-xl border-0 px-3 py-3 text-[15px] outline-none focus:ring-2 focus:ring-gold field";
@@ -20,10 +20,13 @@ function ClassFields({ c }: { c?: C }) {
   const days = new Set(c ? parseDays(c.days) : []);
   return (
     <>
-      <div className="grid grid-cols-[1fr_auto] gap-2">
-        <input name="name" defaultValue={c?.name} placeholder="반 이름 (예: 초등 영어 A)" className={input} />
-        <input name="time" type="time" defaultValue={c?.time} aria-label="시작 시각" className={`${input} w-[120px]`} />
+      <input name="name" defaultValue={c?.name} placeholder="반 이름 (예: 초등 영어 A)" className={input} />
+      <div className="mt-2 flex items-center gap-2">
+        <input name="time" type="time" defaultValue={c?.time} aria-label="시작 시각" className={input} />
+        <span className="text-slate-400">~</span>
+        <input name="end" type="time" defaultValue={c?.endTime} aria-label="끝 시각 (선택)" className={input} />
       </div>
+      <p className="mt-1 px-1 text-[11.5px] text-slate-400">시각을 넣으면 달력에 매주 보여요 (끝 시각은 선택)</p>
       <p className="mt-3 mb-1.5 text-[12px] font-semibold text-slate-500">수업 요일</p>
       <div className="grid grid-cols-7 gap-1">
         {WEEK_ORDER.map((d) => (
@@ -101,6 +104,7 @@ function ClassItem({ c }: { c: C }) {
             {c.time && (
               <span className="flex items-center gap-0.5">
                 <Clock size={12} /> {c.time}
+                {c.endTime && `~${c.endTime}`}
               </span>
             )}
             <span className="text-slate-400">· 학생 {c.count}명</span>
@@ -165,7 +169,7 @@ export function ClassManager({ classes }: { classes: C[] }) {
       <div>
       <PageTitle
         title="반"
-        sub="요일을 정해 두면 그날 출석부에 그 반 학생만 보여요"
+        sub="요일을 정해 두면 그날 출석부에 그 반 학생만, 시각까지 넣으면 달력에 매주 보여요"
         right={
           !adding && (
             <button

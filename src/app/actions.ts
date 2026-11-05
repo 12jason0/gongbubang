@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { and, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
-import { db, academies, students, attendance, notes, notices, classes, classStudents, payments, messageLogs, deletedParentHashes } from "@/db";
+import { db, academies, students, attendance, notes, notices, classes, classStudents, payments, messageLogs, deletedParentHashes, calendarChanges, calendarMemos } from "@/db";
 import { createSession, deleteSession, requireAcademy, requireActiveAcademy } from "@/lib/session";
 import { sendMessages, smsBytes } from "@/lib/sms";
 import { unresolvedFailures } from "@/lib/failed";
@@ -926,13 +926,18 @@ export async function deletePayment(paymentId: string) {
 
 // ───────────────────────── 반 관리 ─────────────────────────
 
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+
 function readClassForm(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim().slice(0, 30);
   const days = parseDays(formData.getAll("days").map(String).join(","));
   const time = String(formData.get("time") ?? "").trim();
+  const endTime = String(formData.get("end") ?? "").trim();
   if (!name) return { error: "반 이름을 입력해 주세요. (예: 초등 영어 A)" } as const;
-  if (time && !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return { error: "시작 시각을 확인해 주세요." } as const;
-  return { data: { name, days: [...new Set(days)].sort().join(","), time } } as const;
+  if (time && !HHMM.test(time)) return { error: "시작 시각을 확인해 주세요." } as const;
+  if (endTime && (!HHMM.test(endTime) || !time)) return { error: "끝 시각은 시작 시각과 같이 넣어 주세요." } as const;
+  if (endTime && endTime <= time) return { error: "끝 시각이 시작 시각보다 뒤여야 해요." } as const;
+  return { data: { name, days: [...new Set(days)].sort().join(","), time, endTime } } as const;
 }
 
 export async function addClass(_prev: FormResult, formData: FormData): Promise<FormResult> {
@@ -942,6 +947,7 @@ export async function addClass(_prev: FormResult, formData: FormData): Promise<F
   await db.insert(classes).values({ academyId: academy.id, ...parsed.data });
   revalidatePath("/students");
   revalidatePath("/");
+  revalidatePath("/calendar");
   return { ok: true, message: `${parsed.data.name} 반을 만들었어요.` };
 }
 
@@ -958,6 +964,7 @@ export async function updateClass(_prev: FormResult, formData: FormData): Promis
   if (updated.length === 0) return { ok: false, message: "반을 찾을 수 없어요." };
   revalidatePath("/students");
   revalidatePath("/");
+  revalidatePath("/calendar");
   return { ok: true, message: "저장했어요." };
 }
 
@@ -967,6 +974,90 @@ export async function deleteClass(classId: string) {
   await db.delete(classes).where(and(eq(classes.id, classId), eq(classes.academyId, academy.id)));
   revalidatePath("/students");
   revalidatePath("/");
+  revalidatePath("/calendar");
+}
+
+// ───────────────────────── 달력 ─────────────────────────
+// 매주 수업은 반의 요일·시각 (시간표 설정 창은 반 만들기·고치기를 그대로 씀)
+// 모든 쿼리에 academyId 를 같이 걸어서 다른 원장님 것은 고치거나 지울 수 없다
+
+function readTimes(formData: FormData) {
+  const name = String(formData.get("name") ?? "").trim().slice(0, 30);
+  const start = String(formData.get("time") ?? "");
+  const end = String(formData.get("end") ?? "");
+  if (!name) return { error: "수업 이름을 입력해 주세요. (예: 초등반)" } as const;
+  if (!HHMM.test(start) || !HHMM.test(end)) return { error: "시작·끝 시간을 넣어 주세요." } as const;
+  if (start >= end) return { error: "끝 시간이 시작 시간보다 뒤여야 해요." } as const;
+  return { data: { name, start, end } } as const;
+}
+
+/** 보강 — 그날만 수업 추가 */
+export async function addCalendarExtra(_prev: FormResult, formData: FormData): Promise<FormResult> {
+  const academy = await requireActiveAcademy();
+  const date = String(formData.get("date") ?? "");
+  if (!isValidDate(date)) return { ok: false, message: "날짜를 다시 골라 주세요." };
+  const parsed = readTimes(formData);
+  if ("error" in parsed) return { ok: false, message: parsed.error! };
+  await db.insert(calendarChanges).values({ academyId: academy.id, date, kind: "EXTRA", ...parsed.data });
+  revalidatePath("/calendar");
+  return { ok: true, message: "보강을 넣었어요." };
+}
+
+/** 휴강(그날만 반의 매주 수업 빼기) / 휴강 취소 */
+export async function setCalendarCancel(classId: string, date: string, cancel: boolean) {
+  const academy = await requireActiveAcademy();
+  if (!isValidDate(date)) return;
+  if (cancel) {
+    const [own] = await db
+      .select({ id: classes.id })
+      .from(classes)
+      .where(and(eq(classes.id, classId), eq(classes.academyId, academy.id)));
+    if (!own) return;
+    await db.insert(calendarChanges).values({ academyId: academy.id, date, kind: "CANCEL", classId }).onConflictDoNothing();
+  } else {
+    await db
+      .delete(calendarChanges)
+      .where(and(eq(calendarChanges.academyId, academy.id), eq(calendarChanges.classId, classId), eq(calendarChanges.date, date)));
+  }
+  revalidatePath("/calendar");
+}
+
+/** 보강 지우기 */
+export async function deleteCalendarExtra(id: string) {
+  const academy = await requireActiveAcademy();
+  await db.delete(calendarChanges).where(and(eq(calendarChanges.id, id), eq(calendarChanges.academyId, academy.id)));
+  revalidatePath("/calendar");
+}
+
+const MEMO_MAX = 500;
+
+export async function addCalendarMemo(date: string, content: string): Promise<FormResult> {
+  const academy = await requireActiveAcademy();
+  const text = content.trim();
+  if (!isValidDate(date) || !text) return { ok: false, message: "메모를 입력해 주세요." };
+  if (text.length > MEMO_MAX) return { ok: false, message: `메모는 ${MEMO_MAX}자까지 쓸 수 있어요.` };
+  await db.insert(calendarMemos).values({ academyId: academy.id, date, content: text });
+  revalidatePath("/calendar");
+  return { ok: true, message: "" };
+}
+
+export async function updateCalendarMemo(id: string, content: string): Promise<FormResult> {
+  const academy = await requireActiveAcademy();
+  const text = content.trim();
+  if (!text) return { ok: false, message: "메모를 입력해 주세요." };
+  if (text.length > MEMO_MAX) return { ok: false, message: `메모는 ${MEMO_MAX}자까지 쓸 수 있어요.` };
+  await db
+    .update(calendarMemos)
+    .set({ content: text, updatedAt: new Date() })
+    .where(and(eq(calendarMemos.id, id), eq(calendarMemos.academyId, academy.id)));
+  revalidatePath("/calendar");
+  return { ok: true, message: "" };
+}
+
+export async function deleteCalendarMemo(id: string) {
+  const academy = await requireActiveAcademy();
+  await db.delete(calendarMemos).where(and(eq(calendarMemos.id, id), eq(calendarMemos.academyId, academy.id)));
+  revalidatePath("/calendar");
 }
 
 // ───────────────────────── 설정 ─────────────────────────

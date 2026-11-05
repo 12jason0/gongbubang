@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { Inbox } from "lucide-react";
-import { db, notices, students, classes, classStudents } from "@/db";
+import { db, notices, students, classes, classStudents, calendarMemos } from "@/db";
 import { currentAcademyId, requireAcademy } from "@/lib/session";
 import { byGradeName, byTimeName } from "@/lib/templates";
 import { ALIMTALK_TEMPLATES, appUrl } from "@/lib/alimtalk";
@@ -9,10 +9,11 @@ import { quotaState } from "@/lib/plan";
 import { NoticeForm } from "@/components/NoticeForm";
 import { PageTitle } from "@/components/PageTitle";
 
-export default async function NoticePage() {
+export default async function NoticePage({ searchParams }: { searchParams: Promise<{ memo?: string }> }) {
   const academyId = await currentAcademyId(); // 쿠키만 확인 — 아래 쿼리를 공부방 조회와 동시에
+  const memoId = (await searchParams).memo;
 
-  const [academy, studentRows, classRows, memberRows, history] = await Promise.all([
+  const [academy, studentRows, classRows, memberRows, history, memo] = await Promise.all([
     requireAcademy(),
     db
       .select({ id: students.id, name: students.name, grade: students.grade, phone: students.parentPhone, consent: students.consent })
@@ -28,6 +29,14 @@ export default async function NoticePage() {
       .innerJoin(classes, eq(classes.id, classStudents.classId))
       .where(eq(classes.academyId, academyId)),
     db.select().from(notices).where(eq(notices.academyId, academyId)).orderBy(desc(notices.sentAt)).limit(20),
+    // 달력 메모 [공지 쓰기] → 메모 내용을 공지 칸에 미리 (내 공부방 메모만)
+    memoId
+      ? db
+          .select({ content: calendarMemos.content })
+          .from(calendarMemos)
+          .where(and(eq(calendarMemos.id, memoId), eq(calendarMemos.academyId, academyId)))
+          .then((r) => r[0])
+      : undefined,
   ]);
 
   classRows.sort(byTimeName);
@@ -62,6 +71,7 @@ export default async function NoticePage() {
       <div className="lg:sticky lg:top-4">
         <NoticeForm
           academyName={academy.name}
+          draft={memo?.content}
           students={roster}
           waiting={waiting}
           classes={classRows.map((c) => ({ id: c.id, name: c.name }))}

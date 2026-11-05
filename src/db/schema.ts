@@ -73,7 +73,8 @@ export const classes = pgTable(
     academyId: text("academy_id").notNull().references(() => academies.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     days: text("days").notNull().default(""), // 수업 요일. 0=일 1=월 … 6=토, 쉼표로. 예: "1,3,5"
-    time: text("time").notNull().default(""), // 시작 시각 "16:30" (표시·정렬용, 비워도 됨)
+    time: text("time").notNull().default(""), // 시작 시각 "16:30" (표시·정렬용, 비워도 됨). 있으면 달력에 매주 표시
+    endTime: text("end_time").notNull().default(""), // 끝 시각 "18:00" (선택, 달력 표시용)
     active: boolean("active").notNull().default(true),
     createdAt: createdAt(),
   },
@@ -224,6 +225,38 @@ export const deletedParentHashes = pgTable(
     hash: text("hash").notNull(),
   },
   (t) => [uniqueIndex("deleted_parent_hashes_uq").on(t.academyId, t.hash), index("deleted_parent_hashes_hash_idx").on(t.hash)],
+);
+
+// ── 달력 ── 매주 수업은 반(classes)의 요일·시각을 그대로 쓰고, 여기엔 그날만 바뀌는 것과 메모만 둔다
+// 그날만 바뀌는 수업: EXTRA(보강 — 이름·시간) / CANCEL(휴강 — 반의 매주 수업을 그날만 뺌)
+export const calendarChanges = pgTable(
+  "calendar_changes",
+  {
+    id: id(),
+    academyId: text("academy_id").notNull().references(() => academies.id, { onDelete: "cascade" }),
+    date: text("date").notNull(), // "2026-11-05"
+    kind: text("kind").notNull(),
+    classId: text("class_id").references(() => classes.id, { onDelete: "cascade" }), // CANCEL 만
+    name: text("name").notNull().default(""), // EXTRA 만
+    start: text("start").notNull().default(""),
+    end: text("end").notNull().default(""),
+    createdAt: createdAt(),
+  },
+  (t) => [index("calendar_changes_academy_date_idx").on(t.academyId, t.date), uniqueIndex("calendar_changes_cancel_uq").on(t.classId, t.date)],
+);
+
+// 날짜별 메모 (댓글처럼 쌓임). 예: "공지 보내는 날"
+export const calendarMemos = pgTable(
+  "calendar_memos",
+  {
+    id: id(),
+    academyId: text("academy_id").notNull().references(() => academies.id, { onDelete: "cascade" }),
+    date: text("date").notNull(),
+    content: text("content").notNull(),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }), // 고친 적 있으면
+  },
+  (t) => [index("calendar_memos_academy_date_idx").on(t.academyId, t.date)],
 );
 
 export type Student = typeof students.$inferSelect;

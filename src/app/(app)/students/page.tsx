@@ -28,7 +28,7 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
       .from(students)
       .where(eq(students.academyId, academyId)),
     db
-      .select({ id: classes.id, name: classes.name, days: classes.days, time: classes.time })
+      .select({ id: classes.id, name: classes.name, days: classes.days, time: classes.time, endTime: classes.endTime })
       .from(classes)
       .where(eq(classes.academyId, academyId)),
     db

@@ -3,12 +3,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, ChevronRight, ClipboardCheck, LayoutDashboard, Megaphone, Settings, UserRound, Users } from "lucide-react";
+import { Calendar, CalendarDays, ChevronRight, ClipboardCheck, LayoutDashboard, Megaphone, Settings, UserRound, Users } from "lucide-react";
 
 const TABS = [
   { href: "/", label: "출석부", Icon: ClipboardCheck },
   { href: "/notice", label: "공지", Icon: Megaphone },
   { href: "/stats", label: "월별", Icon: CalendarDays },
+  { href: "/calendar", label: "달력", Icon: Calendar },
   { href: "/students", label: "학생·반", Icon: Users },
   { href: "/settings", label: "설정", Icon: Settings },
 ];
