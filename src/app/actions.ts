@@ -10,7 +10,7 @@ import { sendMessages, smsBytes } from "@/lib/sms";
 import { unresolvedFailures } from "@/lib/failed";
 import { byGradeName, fitKakao, monthLabel, NOTICE_MAX_CHARS, noticeLinkText, noticeText, parseDays } from "@/lib/templates";
 import { formatDateLabel, isValidDate, isValidMonth, spokenTimeKST, thisMonthKST, timeKST, todayKST } from "@/lib/date";
-import { ALIMTALK_TEMPLATES, appUrl, consentLink, feedbackLink, noticeLink, readConsentCode, readConsultCode, renderAlimtalk } from "@/lib/alimtalk";
+import { ALIMTALK_TEMPLATES, appUrl, consentCode, consentLink, feedbackLink, noticeLink, readConsentCode, readConsultCode, renderAlimtalk } from "@/lib/alimtalk";
 import { dueDayLabel, formatWon, isPaymentMethod, parseDueDay, parseFee, parseWon } from "@/lib/money";
 import { isValidMobile, normalizePhone } from "@/lib/phone";
 import { checkImportRow, parseRoster, rosterKey, ROSTER_MAX_LINES, type ImportInput } from "@/lib/roster";
@@ -631,8 +631,9 @@ async function sendConsentTo(academy: { id: string; name: string; senderPhone: s
     academy,
     "CONSENT",
     groups.map(([to, kids]) => {
-      const vars = { 학원: academy.name, 이름: kids.map((k) => k.name).join("·"), 링크: consentLink(kids[0].id) };
-      return { to, text: renderAlimtalk("CONSENT", vars), alimtalk: { key: "CONSENT" as const, vars }, studentId: kids[0].id, free: !asked.has(to) };
+      const vars = { 학원: academy.name, 이름: kids.map((k) => k.name).join("·"), 코드: consentCode(kids[0].id) };
+      const text = `${renderAlimtalk("CONSENT", vars)}\n${consentLink(kids[0].id)}`; // 문자엔 버튼이 없어서 링크를 본문에
+      return { to, text, alimtalk: { key: "CONSENT" as const, vars }, studentId: kids[0].id, free: !asked.has(to) };
     }),
   );
   const okPhones = phones.filter((_, i) => results[i].ok);

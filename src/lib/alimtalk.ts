@@ -49,8 +49,9 @@ export const ALIMTALK_TEMPLATES: Record<AlimtalkKey, { title: string; env: strin
     env: "SOLAPI_TEMPLATE_CONSENT",
     body:
       "[#{학원}] #{이름} 학부모님, 안녕하세요. 출결·공지 안내를 카카오톡으로 보내드리려고 합니다. " +
-      "아래 링크에서 내용을 확인하고 동의해 주세요.\n" +
-      "#{링크}",
+      "아래 버튼을 눌러 내용을 확인하고 동의해 주세요.",
+    // 버튼(웹링크) "동의하러 가기": https://gongbubang-tau.vercel.app/c/#{코드} (모바일·PC 같게) — 솔라피 템플릿에 등록,
+    // #{코드} 는 variables 로 같이 보냄. 문자로 갈 때는 actions.ts sendConsentTo 가 본문 뒤에 링크를 붙임
   },
 };
 
@@ -123,7 +124,12 @@ export function readNoticeCode(code: string): string | null {
 
 /** 학부모 동의 링크 — 학생 id 로 만들지만, 열면 같은 학부모 번호의 형제 모두에게 적용된다 */
 export function consentLink(studentId: string) {
-  return `${appUrl()}/c/${studentId}.${sign("consent", studentId)}`;
+  return `${appUrl()}/c/${consentCode(studentId)}`;
+}
+
+/** 동의 링크의 코드 부분 (알림톡 버튼 #{코드}) */
+export function consentCode(studentId: string) {
+  return `${studentId}.${sign("consent", studentId)}`;
 }
 
 /** 링크 코드 → 학생 id (서명이 틀리면 null) */
