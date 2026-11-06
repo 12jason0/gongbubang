@@ -22,7 +22,7 @@ export default async function NoticePage({ searchParams }: { searchParams: Promi
       .from(students)
       .where(and(eq(students.academyId, academyId), eq(students.active, true))),
     db
-      .select()
+      .select({ id: classes.id, name: classes.name, time: classes.time })
       .from(classes)
       .where(and(eq(classes.academyId, academyId), eq(classes.active, true))),
     db
@@ -30,7 +30,10 @@ export default async function NoticePage({ searchParams }: { searchParams: Promi
       .from(classStudents)
       .innerJoin(classes, eq(classes.id, classStudents.classId))
       .where(eq(classes.academyId, academyId)),
-    db.select().from(notices).where(eq(notices.academyId, academyId)).orderBy(desc(notices.sentAt)).limit(20),
+    db
+      .select({ id: notices.id, target: notices.target, sentAt: notices.sentAt, recipientCount: notices.recipientCount, failedCount: notices.failedCount, content: notices.content })
+      .from(notices)
+      .where(eq(notices.academyId, academyId)).orderBy(desc(notices.sentAt)).limit(20),
     // 달력 메모 [공지 쓰기] → 메모 내용을 공지 칸에 미리 (내 공부방 메모만)
     memoId
       ? db

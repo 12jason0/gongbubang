@@ -3,6 +3,7 @@ import { ChevronLeft } from "lucide-react";
 import { requireAcademy } from "@/lib/session";
 import { PageTitle } from "@/components/PageTitle";
 import { DeleteAccount, LogoutButton } from "@/components/MeForms";
+import { isKakaoAccount, shownLoginId } from "@/lib/kakao";
 
 export const metadata = { title: "계정 관리" };
 
@@ -14,10 +15,10 @@ export default async function AccountPage() {
       <Link href="/me" className="mb-1 flex w-fit items-center gap-0.5 text-[13px] text-slate-500">
         <ChevronLeft size={16} /> 마이페이지
       </Link>
-      <PageTitle title="계정 관리" sub={`${academy.name} · ${academy.loginId}`} />
+      <PageTitle title="계정 관리" sub={`${academy.name} · ${shownLoginId(academy.loginId)}`} />
       <section className="card divide-y divide-black/5 rounded-2xl">
         <LogoutButton />
-        <DeleteAccount />
+        <DeleteAccount kakaoOnly={isKakaoAccount(academy.loginId)} />
       </section>
     </main>
   );

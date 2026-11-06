@@ -19,7 +19,9 @@ import { classColorKey, isColorKey, nextColor } from "@/lib/class-colors";
 import { ACTIVE_STATUS, checkHours, freeSlotsOn, parseHours } from "@/lib/consult";
 import { isActive } from "@/lib/plan";
 import { fromMin, toMin } from "@/lib/class-colors";
-import { endTrialIfOverlap, parentPhoneHash, trialPhoneHash, trialUsedByPhone } from "@/lib/account";
+import { endTrialIfOverlap, parentPhoneHash, trialKakaoHash, trialPhoneHash, trialUsedByKakao, trialUsedByPhone } from "@/lib/account";
+import { KAKAO_LOGIN_PREFIX, KAKAO_PENDING_COOKIE, isKakaoAccount, readPendingKakao } from "@/lib/kakao";
+import { cookies } from "next/headers";
 import { PHONE_VERIFY, phoneCodeOk } from "@/lib/phone-verify";
 import { billingReady, createOrderRow, orderName, priceFor, type OrderKind } from "@/lib/billing";
 
@@ -94,6 +96,59 @@ export async function signup(_prev: string | null, formData: FormData): Promise<
 
   await createSession(created.id);
   redirect(usedTrial ? "/billing?trial=used" : "/students?guide=1"); // guide=1: 처음 쓰는 법 안내가 저절로 뜸 (components/Help.tsx)
+}
+
+/**
+ * 카카오로 처음 시작: 카카오 로그인 뒤(/api/auth/kakao/callback) 공부방 이름만 받고 바로 가입 + 무료 체험.
+ * 같은 카카오 계정은 체험 한 번만 — 탈퇴했다가 다시 가입해도 (trialKakaoHash 는 탈퇴해도 남음)
+ */
+export async function kakaoSignup(_prev: string | null, formData: FormData): Promise<string | null> {
+  const kakaoId = await readPendingKakao((await cookies()).get(KAKAO_PENDING_COOKIE)?.value);
+  if (!kakaoId) return "카카오 로그인 시간이 지났어요. 로그인 화면에서 [카카오로 시작하기]를 다시 눌러 주세요.";
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name || name.length > 20) return "공부방 이름을 1~20자로 입력해 주세요.";
+  if (formData.get("agree") !== "on") return "이용약관과 개인정보 처리방침에 동의해 주세요.";
+
+  // 두 번 누른 경우 등: 이미 이 카카오로 만든 공부방이 있으면 그 계정으로 로그인
+  const [existing] = await db
+    .select({ id: academies.id })
+    .from(academies)
+    .where(and(eq(academies.kakaoId, kakaoId), isNull(academies.deletedAt)));
+  let academyId = existing?.id;
+  let usedTrial = false;
+  if (!academyId) {
+    usedTrial = await trialUsedByKakao(kakaoId);
+    const [created] = await db
+      .insert(academies)
+      .values({
+        name,
+        loginId: `${KAKAO_LOGIN_PREFIX}${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`, // 화면에는 "카카오 로그인"으로 보임
+        passwordHash: await bcrypt.hash(crypto.randomUUID(), 10), // 아무도 모르는 비밀번호 → 아이디 로그인 불가, 카카오로만
+        senderPhone: (process.env.DEFAULT_SENDER_PHONE ?? "").replace(/\D/g, ""),
+        plan: "TRIAL",
+        serviceUntil: usedTrial ? new Date() : new Date(Date.now() + TRIAL_DAYS * 86_400_000),
+        attendanceNotify: false,
+        kakaoId,
+        trialKakaoHash: trialKakaoHash(kakaoId),
+      })
+      .onConflictDoNothing({ target: academies.kakaoId })
+      .returning({ id: academies.id });
+    if (!created) return "이미 이 카카오로 만든 공부방이 있어요. 로그인 화면에서 [카카오로 시작하기]를 눌러 주세요.";
+    academyId = created.id;
+  }
+
+  (await cookies()).delete(KAKAO_PENDING_COOKIE);
+  await createSession(academyId);
+  redirect(usedTrial ? "/billing?trial=used" : existing ? "/" : "/students?guide=1");
+}
+
+/** 마이페이지: 카카오 연결 끊기 (아이디·비밀번호로 로그인할 수 있는 계정만 — 카카오로만 가입한 계정은 끊으면 못 들어옴) */
+export async function unlinkKakao(): Promise<FormResult> {
+  const academy = await requireAcademy();
+  if (isKakaoAccount(academy.loginId)) return { ok: false, message: "카카오로 가입한 계정은 연결을 끊을 수 없어요." };
+  await db.update(academies).set({ kakaoId: null }).where(eq(academies.id, academy.id));
+  revalidatePath("/me");
+  return { ok: true, message: "카카오 연결을 끊었어요." };
 }
 
 // ───────────────────────── 출석 ─────────────────────────
@@ -1195,7 +1250,8 @@ export async function changePassword(_prev: FormResult, formData: FormData): Pro
 export async function deleteAccount(_prev: FormResult, formData: FormData): Promise<FormResult> {
   const academy = await requireAcademy();
   if (formData.get("confirm") !== "on") return { ok: false, message: "안내를 읽고 체크해 주세요." };
-  if (!(await passwordMatches(academy.id, String(formData.get("password") ?? "")))) {
+  // 카카오로 가입한 계정은 비밀번호가 없음 → 로그인한 상태 + 안내 체크로 확인
+  if (!isKakaoAccount(academy.loginId) && !(await passwordMatches(academy.id, String(formData.get("password") ?? "")))) {
     return { ok: false, message: "비밀번호가 맞지 않아요." };
   }
   const id = academy.id;
@@ -1232,6 +1288,9 @@ export async function deleteAccount(_prev: FormResult, formData: FormData): Prom
         msgPeriod: "",
         // 가입 때 넣은 값(체험을 쓴 번호)을 지키고, 예전 계정이라 없으면 지금 연락처로
         trialPhoneHash: academy.trialPhoneHash || (academy.ownerPhone ? trialPhoneHash(academy.ownerPhone) : ""),
+        // 카카오 연결은 풀어서 같은 카카오로 다시 가입할 수 있게 하되, 체험을 쓴 기록(trialKakaoHash)은 남긴다
+        kakaoId: null,
+        trialKakaoHash: academy.trialKakaoHash || (academy.kakaoId ? trialKakaoHash(academy.kakaoId) : ""),
         deletedAt: new Date(),
       })
       .where(eq(academies.id, id));

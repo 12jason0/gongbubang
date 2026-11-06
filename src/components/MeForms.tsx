@@ -81,7 +81,8 @@ export function LogoutButton() {
 }
 
 /** 탈퇴 — 한 번 더 묻기 → 경고 → 체크 → 비밀번호 확인 */
-export function DeleteAccount() {
+/** kakaoOnly: 카카오로 가입한 계정은 비밀번호가 없어서 비밀번호 칸 없이 체크만 */
+export function DeleteAccount({ kakaoOnly = false }: { kakaoOnly?: boolean }) {
   const [r, action, pending] = useActionState(deleteAccount, null);
   const [ask, setAsk] = useState(false);
   const [open, setOpen] = useState(false);
@@ -123,19 +124,21 @@ export function DeleteAccount() {
           를 먼저 인쇄하거나 PDF로 저장해 두세요.
         </li>
         <li>결제 기록은 전자상거래법에 따라 5년 보관하되, 공부방 이름·아이디·연락처와의 연결은 끊어요.</li>
-        <li>같은 연락처로 다시 가입해도 무료 체험은 다시 드리지 않아요.</li>
+        <li>같은 연락처·같은 카카오로 다시 가입해도 무료 체험은 다시 드리지 않아요.</li>
       </ul>
       <label className="mt-3 flex items-start gap-2">
         <input type="checkbox" name="confirm" className="mt-1 size-[18px] accent-rose-600" />
         <span>위 내용을 읽었고, 영수증 원부를 따로 보관했어요</span>
       </label>
-      <input
-        name="password"
-        type="password"
-        autoComplete="current-password"
-        placeholder="비밀번호 확인"
-        className={`${input} mt-3`}
-      />
+      {!kakaoOnly && (
+        <input
+          name="password"
+          type="password"
+          autoComplete="current-password"
+          placeholder="비밀번호 확인"
+          className={`${input} mt-3`}
+        />
+      )}
       <div className="mt-3 flex gap-2">
         <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-xl bg-white py-3 font-medium text-slate-700">
           그만두기

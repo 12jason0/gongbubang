@@ -4,8 +4,11 @@ import { SESSION_COOKIE, verifyToken } from "@/lib/token";
 // 로그인 안 했으면 로그인 화면으로 보낸다 (실제 권한 확인은 각 화면·액션에서 다시 함)
 export async function proxy(request: NextRequest) {
   const academyId = await verifyToken(request.cookies.get(SESSION_COOKIE)?.value);
-  const isLogin = request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/signup";
   const path = request.nextUrl.pathname;
+  // /signup/kakao: 카카오 로그인 뒤 공부방 이름만 넣는 가입 화면
+  const isLogin = path === "/login" || path === "/signup" || path === "/signup/kakao";
+  // 카카오 로그인 시작·돌아오는 곳 — 로그인 전에도 열려야 함 (연결 모드는 경로 안에서 로그인 쿠키 확인)
+  if (path.startsWith("/api/auth/kakao/")) return NextResponse.next();
   // 학부모님도 보는 화면: 개인정보 처리방침, 카톡 링크로 여는 수업 피드백(/f/)·공지(/n/)·동의(/c/)·상담 신청(/r/), Vercel Cron(/api/cron/ — 경로 안에서 CRON_SECRET 확인)
   const isPublic =
     path === "/about" || path === "/privacy" || path === "/terms" || path.startsWith("/f/") || path.startsWith("/n/") || path.startsWith("/c/") || path.startsWith("/r/") || path.startsWith("/api/cron/");

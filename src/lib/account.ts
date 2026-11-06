@@ -15,6 +15,20 @@ const hmac = (kind: string, phone: string) =>
 
 /** 원장님 휴대폰 번호 → 해시. 가입할 때 넣고, 탈퇴해서 번호를 지워도 이 값은 남긴다 */
 export const trialPhoneHash = (phone: string) => hmac("trial-phone", phone);
+/** 카카오 회원번호 → 해시. 카카오로 가입·연결할 때 넣고, 탈퇴해도 남긴다 */
+export const trialKakaoHash = (kakaoId: string) =>
+  crypto.createHmac("sha256", process.env.SESSION_SECRET ?? "").update(`trial-kakao:${kakaoId}`).digest("base64url");
+
+/** 이 카카오 계정으로 무료 체험을 이미 쓴 계정이 있나 (살아 있는 계정 + 탈퇴 계정) */
+export async function trialUsedByKakao(kakaoId: string) {
+  const [hit] = await db
+    .select({ id: academies.id })
+    .from(academies)
+    .where(or(eq(academies.trialKakaoHash, trialKakaoHash(kakaoId)), eq(academies.kakaoId, kakaoId)))
+    .limit(1);
+  return !!hit;
+}
+
 /** 학부모 번호 → 해시 (탈퇴한 공부방 비교용) */
 export const parentPhoneHash = (phone: string) => hmac("parent-phone", phone);
 

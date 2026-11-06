@@ -39,6 +39,10 @@ export const academies = pgTable("academies", {
   // 학부모 번호가 다른 공부방과 5개 이상 겹쳐 체험을 끝낸 계정: "" / BLOCKED(막힘) / CLEARED(관리자가 풀어줌 → 다시 검사 안 함)
   trialBlock: text("trial_block").notNull().default(""),
   trialBlockNote: text("trial_block_note").notNull().default(""), // 어느 계정과 몇 개 겹쳤는지 (관리자 확인용)
+  // 카카오 로그인 — 연결된 카카오 회원번호 (없으면 null). 카카오로 가입한 계정은 loginId 가 "kakao-…" (lib/kakao.ts)
+  kakaoId: text("kakao_id").unique(),
+  // 체험을 쓴 카카오 계정 (HMAC). trialPhoneHash 처럼 탈퇴해도 남겨서, 같은 카카오로 다시 가입해도 체험을 또 주지 않는다
+  trialKakaoHash: text("trial_kakao_hash").notNull().default(""),
   creditWon: integer("credit_won").notNull().default(0), // (안 씀) 예전 충전금 잔액 — 요금제로 바뀌며 기록만 남김
   // 상담 예약 — 받는 시간: [{"days":[1,3],"start":"14:00","end":"16:00"}] (JSON, lib/consult.ts). "" = 아직 안 정함 → 신청 링크는 "받지 않아요"
   consultHours: text("consult_hours").notNull().default(""),

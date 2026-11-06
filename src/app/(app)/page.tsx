@@ -32,12 +32,13 @@ export default async function AttendancePage({
 
   const [, studentRows, classRows, memberRows, attRows, noteRows, failed, consultNew] = await Promise.all([
     requireAcademy(), // 공부방이 없거나 지워졌으면 여기서 로그인 화면으로
+    // 화면에 쓰는 칸만 (전화번호·생년월일 등은 출석부에서 안 씀)
     db
-      .select()
+      .select({ id: students.id, name: students.name, grade: students.grade, consent: students.consent })
       .from(students)
       .where(and(eq(students.academyId, academyId), eq(students.active, true))),
     db
-      .select()
+      .select({ id: classes.id, name: classes.name, days: classes.days, time: classes.time })
       .from(classes)
       .where(and(eq(classes.academyId, academyId), eq(classes.active, true))),
     db
@@ -45,8 +46,14 @@ export default async function AttendancePage({
       .from(classStudents)
       .innerJoin(classes, eq(classes.id, classStudents.classId))
       .where(eq(classes.academyId, academyId)),
-    db.select().from(attendance).where(and(eq(attendance.academyId, academyId), eq(attendance.date, date))),
-    db.select().from(notes).where(and(eq(notes.academyId, academyId), eq(notes.date, date))),
+    db
+      .select({ studentId: attendance.studentId, status: attendance.status, notifiedAt: attendance.notifiedAt })
+      .from(attendance)
+      .where(and(eq(attendance.academyId, academyId), eq(attendance.date, date))),
+    db
+      .select({ studentId: notes.studentId, content: notes.content, sentAt: notes.sentAt })
+      .from(notes)
+      .where(and(eq(notes.academyId, academyId), eq(notes.date, date))),
     countFailedMessages(academyId),
     countNewConsults(academyId),
   ]);

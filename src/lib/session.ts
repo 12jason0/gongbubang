@@ -55,6 +55,8 @@ export const requireAcademy = cache(async () => {
       msgUsed: academies.msgUsed,
       trialPhoneHash: academies.trialPhoneHash,
       trialBlock: academies.trialBlock,
+      kakaoId: academies.kakaoId,
+      trialKakaoHash: academies.trialKakaoHash,
       createdAt: academies.createdAt,
     })
     .from(academies)

@@ -19,11 +19,27 @@ function Rows({ n }: { n: number }) {
   );
 }
 
-export function PageSkeleton({ kind = "list" }: { kind?: "list" | "dashboard" | "form" | "stats" }) {
+export function PageSkeleton({ kind = "list" }: { kind?: "list" | "dashboard" | "form" | "stats" | "calendar" }) {
   return (
     <main className="px-3 pt-3" aria-busy="true" aria-label="불러오는 중">
       <span className="sr-only">불러오는 중…</span>
-      {kind === "dashboard" ? (
+      {kind === "calendar" ? (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between py-1">
+            <Bar className="h-9 w-16" />
+            <Bar className="h-6 w-32" />
+            <Bar className="h-9 w-16" />
+          </div>
+          <div className="card grid grid-cols-7 gap-px overflow-hidden rounded-2xl p-2">
+            {Array.from({ length: 35 }, (_, i) => (
+              <div key={i} className="h-16 p-1 md:h-24">
+                <Bar className="h-3 w-4" />
+                {i % 3 === 0 && <Bar className="mt-1.5 h-2.5 w-full" />}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : kind === "dashboard" ? (
         <div className="space-y-4">
           <Bar className="h-7 w-32" />
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ChevronRight, CreditCard, UserRound } from "lucide-react";
 import { planState, quotaState, formatUntil } from "@/lib/plan";
 import { requireAcademy } from "@/lib/session";
+import { shownLoginId } from "@/lib/kakao";
 import { ALIMTALK_TEMPLATES, consultLink } from "@/lib/alimtalk";
 import { parseHours } from "@/lib/consult";
 import { SettingsForm } from "@/components/SettingsForm";
@@ -29,7 +30,7 @@ export default async function SettingsPage() {
         <span className="min-w-0 flex-1">
           <span className="block text-[15px] font-semibold">마이페이지</span>
           <span className="block truncate text-[13px] text-slate-500">
-            {academy.loginId} · 연락처·비밀번호·결제 내역·계정 관리
+            {shownLoginId(academy.loginId)} · 연락처·비밀번호·결제 내역·계정 관리
           </span>
         </span>
         <ChevronRight size={18} className="shrink-0 text-slate-400" />

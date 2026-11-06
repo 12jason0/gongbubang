@@ -10,6 +10,8 @@ import { formatPhone } from "@/lib/phone";
 import { PLANS } from "@/lib/pricing";
 import { PageTitle } from "@/components/PageTitle";
 import { OwnerPhoneForm, PasswordForm } from "@/components/MeForms";
+import { KakaoLinkRow } from "@/components/KakaoLogin";
+import { isKakaoAccount, kakaoEnabled } from "@/lib/kakao";
 
 export const metadata = { title: "마이페이지" };
 
@@ -27,8 +29,9 @@ const STATUS: Record<string, { label: string; tone: string }> = {
 };
 
 /** 원장님 마이페이지 — 계정·요금제·결제 내역. 로그아웃·탈퇴는 한 단계 안쪽(/me/account) */
-export default async function MePage() {
+export default async function MePage({ searchParams }: { searchParams: Promise<{ kakao?: string }> }) {
   const academyId = await currentAcademyId();
+  const kakaoStatus = (await searchParams).kakao; // 카카오 연결하고 돌아왔을 때 결과 (api/auth/kakao/callback)
   const [academy, history] = await Promise.all([
     requireAcademy(),
     // 결제창만 열고 닫은 주문(READY)은 빼고
@@ -39,6 +42,7 @@ export default async function MePage() {
       .orderBy(desc(orders.createdAt))
       .limit(24),
   ]);
+  const kakaoOnly = isKakaoAccount(academy.loginId);
   const state = planState(academy);
   const quota = quotaState(academy);
   const period =
@@ -59,7 +63,7 @@ export default async function MePage() {
             <div className="min-w-0">
               <p className="truncate text-[17px] font-bold">{academy.name}</p>
               <p className="text-[13px] text-slate-500">
-                아이디 <b className="text-[#1c2230]">{academy.loginId}</b>
+                {kakaoOnly ? "카카오로 로그인하는 계정" : <>아이디 <b className="text-[#1c2230]">{academy.loginId}</b></>}
               </p>
             </div>
             <Link href="/settings" className="ml-auto shrink-0 text-[12.5px] font-semibold text-brand underline">
@@ -67,7 +71,9 @@ export default async function MePage() {
             </Link>
           </div>
           <OwnerPhoneForm phone={academy.ownerPhone ? formatPhone(academy.ownerPhone) : ""} />
-          <PasswordForm />
+          {/* 카카오로 가입한 계정은 비밀번호가 없어서 바꾸기 칸을 숨김 */}
+          {!kakaoOnly && <PasswordForm />}
+          {(kakaoEnabled() || academy.kakaoId) && <KakaoLinkRow linked={!!academy.kakaoId} kakaoOnly={kakaoOnly} status={kakaoStatus} />}
         </section>
 
         {/* 이용 중인 요금제 */}
