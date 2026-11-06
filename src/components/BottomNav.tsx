@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { Calendar, CalendarDays, ChevronRight, ClipboardCheck, LayoutDashboard, Megaphone, Settings, UserRound, Users } from "lucide-react";
 
 const TABS = [
@@ -17,25 +17,12 @@ const TABS = [
 /** PC 메뉴: 맨 위에 대시보드 (휴대폰 탭은 그대로) */
 const SIDE_TABS = [{ href: "/dashboard", label: "대시보드", Icon: LayoutDashboard }, ...TABS];
 
-/**
- * 메뉴 미리 불러오기: 화면에 보이는 메뉴는 Link 가 뼈대(loading.tsx)까지 미리 받아 두고,
- * 손가락이 닿거나(touchstart) 마우스를 올리면 그 화면 데이터까지 받기 시작 → 손을 떼는 사이에 이미 받아 오는 중
- */
-function useIntentPrefetch() {
-  const router = useRouter();
-  return (href: string) => {
-    const go = () => router.prefetch(href);
-    return { onTouchStart: go, onMouseEnter: go, onFocus: go };
-  };
-}
-
 const isActive = (pathname: string, href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
 /** 휴대폰: 화면 아래 떠 있는 알약 모양 메뉴 (아래 12px + 아이폰 홈 바 영역, 양옆 12px). md 이상에서는 숨김 */
 /** dotHref: 그 탭 아이콘에 빨간 점 (새 상담 신청이 있으면 달력) */
 export function BottomNav({ dotHref }: { dotHref?: string | null }) {
   const pathname = usePathname();
-  const intent = useIntentPrefetch();
   return (
     <nav
       className="glass fixed inset-x-3 z-20 mx-auto flex max-w-[26rem] gap-0.5 rounded-full p-1.5 shadow-[0_12px_32px_-12px_rgb(12_40_30/0.35)] md:hidden"
@@ -47,7 +34,6 @@ export function BottomNav({ dotHref }: { dotHref?: string | null }) {
           <Link
             key={href}
             href={href}
-            {...intent(href)}
             aria-current={active ? "page" : undefined}
             className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-full py-1.5 text-[10.5px] whitespace-nowrap transition-colors ${
               active ? "bg-brand font-semibold text-white shadow-[0_6px_14px_-8px_rgb(12_86_59/0.8)]" : "text-slate-500 active:bg-black/5"
@@ -68,7 +54,6 @@ export function BottomNav({ dotHref }: { dotHref?: string | null }) {
 /** PC·태블릿(md 이상): 왼쪽에 떠 있는 유리 사이드바. 화면이 낮으면(노트북 확대 125% 등) 메뉴가 넘치지 않고 사이드바 안에서 스크롤 */
 export function SideNav({ academyName, loginId }: { academyName: string; loginId: string }) {
   const pathname = usePathname();
-  const intent = useIntentPrefetch();
   return (
     <aside className="glass fixed top-3 bottom-3 left-3 z-20 hidden w-52 flex-col overflow-y-auto rounded-[28px] p-3 md:flex">
       <div className="flex items-center gap-2.5 px-2 pt-2 pb-4">
@@ -85,7 +70,6 @@ export function SideNav({ academyName, loginId }: { academyName: string; loginId
             <Link
               key={href}
               href={href}
-              {...intent(href)}
               aria-current={active ? "page" : undefined}
               className={`flex items-center gap-3 rounded-full px-3.5 py-2.5 text-[15px] transition-colors ${
                 active
@@ -102,7 +86,6 @@ export function SideNav({ academyName, loginId }: { academyName: string; loginId
       {/* 맨 아래: 공부방 이름·아이디 → 마이페이지 */}
       <Link
         href="/me"
-        {...intent("/me")}
         aria-current={pathname.startsWith("/me") ? "page" : undefined}
         className={`mt-auto flex shrink-0 items-center gap-2.5 rounded-2xl px-2.5 py-2.5 transition-colors ${
           pathname.startsWith("/me") ? "bg-brand text-white" : "surface hover:bg-white/80"
