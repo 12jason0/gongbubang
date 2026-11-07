@@ -7,7 +7,7 @@ import { FAQ, homeJsonLd, JsonLd, SITE_TITLE } from "@/lib/seo";
 import { GUIDES } from "../guide/guides";
 
 // 로그인 안 한 사람은 "/" 에서 이 화면을 봄 (proxy rewrite) → 대표 주소는 "/"
-export const metadata: Metadata = { title: { absolute: SITE_TITLE }, alternates: { canonical: "/" }, openGraph: { url: "/" } };
+export const metadata: Metadata = { title: { absolute: SITE_TITLE }, alternates: { canonical: "/" } };
 
 const FEATURES = [
   { Icon: ClipboardCheck, title: "출석부", text: "오늘 수업 있는 학생만 모아 보고, 한 번 눌러 출석·결석. 등원하면 학부모님께 바로 알려요." },
