@@ -3,8 +3,11 @@ import Link from "next/link";
 import Image from "next/image";
 import { ClipboardCheck, LayoutDashboard, MessageCircle, ReceiptText } from "lucide-react";
 import { PLANS, TRIAL_DAYS } from "@/lib/pricing";
+import { FAQ, homeJsonLd, JsonLd, SITE_TITLE } from "@/lib/seo";
+import { GUIDES } from "../guide/guides";
 
-export const metadata: Metadata = { title: "공부방노트 — 공부방 원장님을 위한 출결·학부모 공지·원비 장부" };
+// 로그인 안 한 사람은 "/" 에서 이 화면을 봄 (proxy rewrite) → 대표 주소는 "/"
+export const metadata: Metadata = { title: { absolute: SITE_TITLE }, alternates: { canonical: "/" }, openGraph: { url: "/" } };
 
 const FEATURES = [
   { Icon: ClipboardCheck, title: "출석부", text: "오늘 수업 있는 학생만 모아 보고, 한 번 눌러 출석·결석. 등원하면 학부모님께 바로 알려요." },
@@ -24,6 +27,7 @@ export default function AboutPage() {
 
   return (
     <main className="mx-auto max-w-3xl px-5 pt-10 md:pt-16">
+      <JsonLd data={homeJsonLd()} />
       <section className="glass rounded-[28px] px-6 py-8 text-center md:px-10 md:py-12">
         <Image src="/icons/icon-192.png" alt="공부방노트" width={64} height={64} preload className="mx-auto rounded-2xl" />
         <h1 className="mt-4 text-[30px] font-bold tracking-tight text-brand md:text-[38px]">공부방노트</h1>
@@ -65,6 +69,31 @@ export default function AboutPage() {
           ))}
         </div>
         <p className="mt-2 px-1 text-[13px] text-slate-500">자동결제 없이, 필요할 때 1개월씩 결제해요.</p>
+      </section>
+
+      <section className="mt-8">
+        <h2 className="px-1 text-[18px] font-bold tracking-tight">자주 묻는 질문</h2>
+        <div className="mt-3 space-y-2">
+          {FAQ.map(({ q, a }) => (
+            <details key={q} className="card rounded-2xl px-5 py-4">
+              <summary className="cursor-pointer text-[15px] font-semibold">{q}</summary>
+              <p className="mt-2 text-[14px] leading-relaxed break-keep text-slate-600">{a}</p>
+            </details>
+          ))}
+        </div>
+      </section>
+
+      <section className="mt-8">
+        <h2 className="px-1 text-[18px] font-bold tracking-tight">원장님 안내</h2>
+        <ul className="mt-3 grid gap-2 md:grid-cols-3">
+          {GUIDES.map((g) => (
+            <li key={g.slug}>
+              <Link href={`/guide/${g.slug}`} className="card block h-full rounded-2xl px-5 py-4 text-[15px] font-semibold break-keep text-brand">
+                {g.title}
+              </Link>
+            </li>
+          ))}
+        </ul>
       </section>
     </main>
   );

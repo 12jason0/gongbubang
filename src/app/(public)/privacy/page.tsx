@@ -4,7 +4,7 @@ import { ShieldCheck } from "lucide-react";
 import { db, academies } from "@/db";
 import { formatPhone } from "@/lib/phone";
 
-export const metadata: Metadata = { title: "개인정보 처리방침" };
+export const metadata: Metadata = { title: "개인정보 처리방침", alternates: { canonical: "/privacy" } };
 
 const EFFECTIVE = "2026년 11월 6일";
 

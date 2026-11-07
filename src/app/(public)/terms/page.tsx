@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { FileText } from "lucide-react";
 import { PLANS, TRIAL_DAYS } from "@/lib/pricing";
 
-export const metadata: Metadata = { title: "이용약관·환불 규정" };
+export const metadata: Metadata = { title: "이용약관·환불 규정", alternates: { canonical: "/terms" } };
 export const dynamic = "force-dynamic"; // 사업자 정보·요금 env 를 배포 후에도 바로 반영
 
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;

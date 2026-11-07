@@ -1,11 +1,23 @@
 import type { Metadata, Viewport } from "next";
 import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
 import "./globals.css";
+import { KEYWORDS, SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/seo";
 
 export const metadata: Metadata = {
-  title: "공부방노트",
-  description: "출석, 학부모 공지, 원비 장부를 한 곳에서. 공부방 원장님용 노트",
-  appleWebApp: { capable: true, title: "공부방노트", statusBarStyle: "default" },
+  metadataBase: new URL(SITE_URL),
+  title: { default: SITE_TITLE, template: `%s | ${SITE_NAME}` },
+  description: SITE_DESCRIPTION,
+  keywords: KEYWORDS,
+  applicationName: SITE_NAME,
+  // 카톡·페이스북 공유 미리보기 (이미지는 opengraph-image.tsx)
+  openGraph: { type: "website", locale: "ko_KR", siteName: SITE_NAME, title: SITE_TITLE, description: SITE_DESCRIPTION },
+  twitter: { card: "summary_large_image" },
+  // 네이버 서치어드바이저·구글 서치콘솔 소유 확인 (구글 값은 GOOGLE_SITE_VERIFICATION 환경변수, 비우면 태그 안 나감)
+  verification: {
+    google: process.env.GOOGLE_SITE_VERIFICATION || undefined,
+    other: { "naver-site-verification": "a1bb104b488324671286ec8fdae8f0220643cbf7" },
+  },
+  appleWebApp: { capable: true, title: SITE_NAME, statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {

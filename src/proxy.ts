@@ -1,6 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, verifyToken } from "@/lib/token";
 
+// 검색엔진·AI 봇·카톡 미리보기가 로그인 없이 가져가는 파일
+const SEO_FILES = new Set(["/robots.txt", "/sitemap.xml", "/llms.txt"]);
+
 // 로그인 안 했으면 로그인 화면으로 보낸다 (실제 권한 확인은 각 화면·액션에서 다시 함)
 export async function proxy(request: NextRequest) {
   const academyId = await verifyToken(request.cookies.get(SESSION_COOKIE)?.value);
@@ -11,7 +14,7 @@ export async function proxy(request: NextRequest) {
   if (path.startsWith("/api/auth/kakao/")) return NextResponse.next();
   // 학부모님도 보는 화면: 개인정보 처리방침, 카톡 링크로 여는 수업 피드백(/f/)·공지(/n/)·동의(/c/)·상담 신청(/r/), Vercel Cron(/api/cron/ — 경로 안에서 CRON_SECRET 확인)
   const isPublic =
-    path === "/about" || path === "/privacy" || path === "/terms" || path.startsWith("/f/") || path.startsWith("/n/") || path.startsWith("/c/") || path.startsWith("/r/") || path.startsWith("/api/cron/");
+    path === "/about" || path === "/privacy" || path.startsWith("/guide/") || SEO_FILES.has(path) || path.startsWith("/opengraph-image") || path === "/terms" || path.startsWith("/f/") || path.startsWith("/n/") || path.startsWith("/c/") || path.startsWith("/r/") || path.startsWith("/api/cron/");
 
   if (isPublic) return NextResponse.next();
   // 쿠키는 맞는데 그 공부방이 DB 에 없을 때 (requireAcademy 가 보냄): 쿠키를 지우고 로그인 화면을 그대로 보여준다.
