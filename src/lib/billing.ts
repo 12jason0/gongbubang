@@ -1,10 +1,11 @@
-// 결제 — 토스페이먼츠 결제창(카드). 1개월 요금제(기본·넉넉).
+// 결제 — 토스페이먼츠 결제위젯 (카드 단건). 1개월 요금제(기본·넉넉).
 //
-// 흐름: ① createOrder 로 주문을 DB 에 먼저 저장(금액 고정) → ② 화면에서 결제창 → ③ 토스가 /billing/success 로 돌려보냄
+// 흐름: ① /billing/pay 에서 위젯을 그리고, [결제하기] 때 createOrder 로 주문을 DB 에 저장(금액 고정) → ② 위젯 결제창 → ③ 토스가 /billing/success 로 돌려보냄
 //       → ④ confirmOrder: 주문 금액과 같은지 확인 후 토스 "결제 승인" API 호출 → 성공해야만 요금제·이용 기간 반영
 // 같은 주문이 두 번 반영되지 않게, 승인 전에 상태를 READY → CONFIRMING 으로 먼저 바꿔서 확보한다.
 //
-// env: TOSS_CLIENT_KEY (test_ck_… / live_ck_…), TOSS_SECRET_KEY (test_sk_… / live_sk_…) — "API 개별 연동 키" (결제위젯 키 아님)
+// env: TOSS_CLIENT_KEY (test_gck_… / live_gck_…), TOSS_SECRET_KEY (test_gsk_… / live_gsk_…) — "결제위젯 연동 키"
+// 카드만 받으려면 토스 상점관리자 > 결제 UI 설정에서 결제수단을 카드만 켜 둔다 (코드로는 못 막음)
 
 import { and, eq } from "drizzle-orm";
 import { db, academies, orders } from "@/db";
@@ -68,7 +69,7 @@ export async function confirmOrder(academyId: string, paymentKey: string, orderI
       : { ok: false, error: order.failReason ?? "이미 처리된 주문이에요." };
   }
 
-  let body: { status?: string; totalAmount?: number; message?: string; code?: string } | null = null;
+  let body: { status?: string; totalAmount?: number; message?: string; code?: string; receipt?: { url?: string } } | null = null;
   let httpOk = false;
   try {
     const res = await fetch("https://api.tosspayments.com/v1/payments/confirm", {
@@ -97,8 +98,9 @@ export async function confirmOrder(academyId: string, paymentKey: string, orderI
 
   // 승인 완료 → 반영 (주문 DONE 과 요금제·이용 기간을 한 번에)
   // 결제일부터 통수를 새로 센다 (periodStart = 지금). 기간이 남아 있으면 그 끝에 한 달이 이어 붙는다.
+  const receiptUrl = body.receipt?.url ?? null;
   await db.transaction(async (tx) => {
-    await tx.update(orders).set({ status: "DONE", doneAt: new Date() }).where(eq(orders.id, orderId));
+    await tx.update(orders).set({ status: "DONE", doneAt: new Date(), receiptUrl }).where(eq(orders.id, orderId));
     const [a] = await tx.select({ until: academies.serviceUntil }).from(academies).where(eq(academies.id, academyId));
     await tx
       .update(academies)

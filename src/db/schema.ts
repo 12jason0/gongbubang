@@ -219,6 +219,7 @@ export const orders = pgTable(
     status: text("status").notNull().default("READY"), // READY → CONFIRMING → DONE / FAILED
     paymentKey: text("payment_key"),
     failReason: text("fail_reason"),
+    receiptUrl: text("receipt_url"), // 토스 매출전표(카드 영수증) 주소 — 승인 응답의 receipt.url
     createdAt: createdAt(),
     doneAt: timestamp("done_at", { withTimezone: true }),
   },

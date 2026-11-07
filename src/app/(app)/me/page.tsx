@@ -7,7 +7,9 @@ import { formatUntil, planState, quotaNote, quotaState } from "@/lib/plan";
 import { formatWon } from "@/lib/money";
 import { todayKST } from "@/lib/date";
 import { formatPhone } from "@/lib/phone";
-import { PLANS } from "@/lib/pricing";
+import { PAID_TIERS, PLANS } from "@/lib/pricing";
+import { billingReady } from "@/lib/billing";
+import { PayLink } from "@/components/BillingButtons";
 import { PageTitle } from "@/components/PageTitle";
 import { OwnerPhoneForm, PasswordForm } from "@/components/MeForms";
 import { KakaoLinkRow } from "@/components/KakaoLogin";
@@ -103,12 +105,19 @@ export default async function MePage({ searchParams }: { searchParams: Promise<{
               <p className="mt-1.5 text-[12px] text-slate-500">{quotaNote(quota, academy.serviceUntil)}</p>
             </div>
           )}
-          <Link
-            href="/billing"
-            className="mt-auto flex items-center justify-center gap-1 rounded-xl bg-brand py-3 text-[14px] font-semibold text-white max-lg:mt-4"
-          >
-            요금제 바꾸기 <ChevronRight size={16} className="text-gold" />
-          </Link>
+          {state.kind !== "UNLIMITED" && (
+            <div className="mt-auto pt-4">
+              <p className="mb-1.5 text-[12.5px] text-slate-500">1개월 이용권 결제 (남은 기간 뒤에 이어 붙어요)</p>
+              <div className="grid grid-cols-2 gap-2">
+                {PAID_TIERS.map((t) => (
+                  <PayLink key={t} kind={t} primary={t === "PLUS"} disabled={!billingReady()} />
+                ))}
+              </div>
+              <Link href="/billing" className="mt-2 flex items-center justify-center gap-0.5 text-[12.5px] font-semibold text-brand">
+                요금제 자세히 <ChevronRight size={14} />
+              </Link>
+            </div>
+          )}
         </section>
       </div>
 
@@ -129,6 +138,13 @@ export default async function MePage({ searchParams }: { searchParams: Promise<{
                   <span className="min-w-0 flex-1 truncate font-medium">{KIND[o.kind] ?? o.kind}</span>
                   <span className="shrink-0 font-semibold tabular-nums">{formatWon(o.amount)}</span>
                   <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11.5px] font-semibold ${st.tone}`}>{st.label}</span>
+                  {o.receiptUrl ? (
+                    <a href={o.receiptUrl} target="_blank" rel="noopener noreferrer" className="w-9 shrink-0 text-right text-[12.5px] font-semibold text-brand underline">
+                      영수증
+                    </a>
+                  ) : (
+                    <span className="w-9 shrink-0" />
+                  )}
                 </li>
               );
             })}

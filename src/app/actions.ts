@@ -1303,7 +1303,7 @@ export async function deleteAccount(_prev: FormResult, formData: FormData): Prom
 // ───────────────────────── 결제 (요금제) ─────────────────────────
 
 /**
- * 결제창을 열기 전에 주문을 만든다. 금액은 서버가 정하고, 화면은 받은 값 그대로 결제창에 넘긴다.
+ * 위젯에서 [결제하기]를 누르면 주문을 만든다. 금액은 서버가 정하고, 승인할 때 주문 금액과 맞춰 본다.
  * 이용 기간이 끝나도 결제는 돼야 하므로 requireAcademy.
  */
 export async function createOrder(kind: OrderKind) {
@@ -1318,8 +1318,6 @@ export async function createOrder(kind: OrderKind) {
     orderId,
     amount,
     orderName: orderName(kind),
-    clientKey: process.env.TOSS_CLIENT_KEY!,
-    customerKey: academy.id,
   };
 }
 

@@ -6,7 +6,7 @@ import { PAID_TIERS, PLANS } from "@/lib/pricing";
 import { billingReady } from "@/lib/billing";
 import { formatWon } from "@/lib/money";
 import { PageTitle } from "@/components/PageTitle";
-import { PayButton } from "@/components/BillingButtons";
+import { PayLink } from "@/components/BillingButtons";
 
 export const metadata = { title: "이용권" };
 
@@ -121,7 +121,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
               <p className="mt-1 text-[12.5px] text-slate-500">{BLURB[t]}</p>
               {state.kind !== "UNLIMITED" && (
                 <div className="mt-4">
-                  <PayButton kind={t} label={`${formatWon(p.price)} 결제`} primary={t === "PLUS"} disabled={!ready} />
+                  <PayLink kind={t} primary={t === "PLUS"} disabled={!ready} />
                 </div>
               )}
             </section>
