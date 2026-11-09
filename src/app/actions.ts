@@ -6,11 +6,11 @@ import { redirect } from "next/navigation";
 import { and, eq, gte, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { db, academies, students, attendance, notes, notices, classes, classStudents, payments, messageLogs, deletedParentHashes, calendarChanges, calendarMemos, consultations } from "@/db";
 import { createSession, deleteSession, requireAcademy, requireActiveAcademy } from "@/lib/session";
-import { sendMessages, smsBytes } from "@/lib/sms";
+import { sendMessages, smsBytes, smsUnits } from "@/lib/sms";
 import { unresolvedFailures } from "@/lib/failed";
-import { byGradeName, fitKakao, monthLabel, NOTICE_MAX_CHARS, noticeLinkText, noticeText, parseDays } from "@/lib/templates";
+import { byGradeName, fitKakao, KAKAO_MAX_CHARS, LMS_MAX_BYTES, monthLabel, noticeText, parseDays, SCHEDULE_DATE_MAX, SCHEDULE_TEXT_MAX } from "@/lib/templates";
 import { formatDateLabel, isValidDate, isValidMonth, spokenTimeKST, thisMonthKST, timeKST, todayKST } from "@/lib/date";
-import { ALIMTALK_TEMPLATES, appUrl, consentCode, consentLink, feedbackLink, noticeLink, readConsentCode, readConsultCode, renderAlimtalk } from "@/lib/alimtalk";
+import { ALIMTALK_TEMPLATES, appUrl, consentCode, consentLink, feedbackCode, feedbackLink, parentTitle, parseAlimtalk, readConsentCode, readConsultCode, renderAlimtalk, SCHEDULE_KINDS } from "@/lib/alimtalk";
 import { dueDayLabel, formatWon, isPaymentMethod, parseDueDay, parseFee, parseWon } from "@/lib/money";
 import { isValidMobile, normalizePhone } from "@/lib/phone";
 import { checkImportRow, parseRoster, rosterKey, ROSTER_MAX_LINES, type ImportInput } from "@/lib/roster";
@@ -178,18 +178,21 @@ function attendanceMessage(academy: Wording, s: StudentLite, time: string, date:
   };
 }
 
-/** 피드백: 메모가 카톡에 바로 보임 (1,000자 넘으면 앞부분 + 전체 보기 링크). 문자로 갈 때도 같은 글 */
+/**
+ * 피드백: 출석부 메모 전체가 #{피드백}에 줄바꿈 그대로 들어감. 한 통(1,000자)을 넘으면 메모를 줄이고 "…(전체 내용은 아래 버튼)".
+ * 알림톡 버튼 "피드백 전체 보기"가 /f/#{코드} 를 연다. 문자로 갈 때는 버튼이 없어서, 줄인 경우에만 끝에 링크를 붙인다
+ */
 function feedbackMessage(academy: Wording, s: StudentLite, note: { id: string; content: string; date: string }) {
-  const vars = fitKakao(
-    ALIMTALK_TEMPLATES.FEEDBACK.body,
-    { 학원: academy.name, 이름: s.name, 날짜: formatDateLabel(note.date), 메모: note.content },
-    "메모",
-    feedbackLink(note.id),
-  );
+  const body = ALIMTALK_TEMPLATES.FEEDBACK.body;
+  const base = { 학원: academy.name, 호칭: parentTitle(s.name), 이름: s.name, 날짜: formatDateLabel(note.date), 피드백: note.content };
+  const kakao = fitKakao(body, base, "피드백");
+  const link = appUrl() ? `
+${feedbackLink(note.id)}` : "";
+  const sms = fitKakao(body, base, "피드백", LMS_MAX_BYTES, (t) => smsBytes(t + link));
   return {
     to: s.parentPhone,
-    text: renderAlimtalk("FEEDBACK", vars),
-    alimtalk: { key: "FEEDBACK" as const, vars },
+    text: renderAlimtalk("FEEDBACK", sms.vars) + (sms.cut ? link : ""),
+    alimtalk: { key: "FEEDBACK" as const, vars: { ...kakao.vars, 코드: feedbackCode(note.id) } },
     studentId: s.id,
     refDate: note.date,
   };
@@ -364,7 +367,7 @@ export async function sendFeedbacks(date: string) {
  * - 실패 기록을 먼저 "해결됨"으로 찍어서 확보 (두 번 눌러도 한 번만)
  * - 등원: 오늘 출석이고 아직 문자 안 나간 줄만 notifiedAt 을 찍고 보냄 (실패하면 되돌림)
  * - 피드백: 아직 안 보낸 메모만 sentAt 을 찍고 지금 메모로 보냄 (실패하면 되돌림)
- * - 공지: 실패한 번호로 같은 내용 다시
+ * - 공지: 실패한 번호로 같은 내용 다시 (수업 일정은 알림톡, 기타 공지는 문자)
  */
 export async function resendFailedMessages() {
   const academy = await requireActiveAcademy();
@@ -446,7 +449,16 @@ export async function resendFailedMessages() {
       if (r.ok) sent++;
       else failed++;
     } else if (log.kind === "NOTICE") {
-      const [r] = await sendMessages(academy, "NOTICE", [{ to: log.to, text: log.text }]);
+      // 기타 공지는 문자로만 (문자 단가만큼 통수)
+      const [r] = await sendMessages(academy, "NOTICE", [{ to: log.to, text: log.text, units: smsUnits(log.text) }]);
+      if (r.ok) sent++;
+      else failed++;
+    } else if (log.kind === "SCHEDULE") {
+      // 수업 일정 안내: 기록된 글에서 값을 되살려 알림톡으로 (모양이 다르면 같은 글을 문자로)
+      const vars = parseAlimtalk("SCHEDULE", log.text);
+      const [r] = await sendMessages(academy, "SCHEDULE", [
+        { to: log.to, text: log.text, ...(vars ? { alimtalk: { key: "SCHEDULE" as const, vars } } : {}), studentId: log.studentId },
+      ]);
       if (r.ok) sent++;
       else failed++;
     } else if (log.kind === "CONSENT" && student?.active && student.consent === "PENDING" && appUrl()) {
@@ -515,21 +527,30 @@ export type NoticeResult = { ok: boolean; message: string } | null;
 
 /**
  * 단체 공지 — 받을 학생: 전체(mode=all) / 반(mode=class, classId) / 개별(mode=pick, studentIds).
- * 알림톡: 학부모마다 공지 내용이 카톡에 바로 (lib/alimtalk.ts NOTICE). 길면 앞부분 + 전체 보기 링크(/n/…).
- * 알림톡 템플릿이 없으면 문자로 "[공부방] 김민수 학부모님, 새 공지가 있어요 + 링크".
+ * 공지는 두 종류 (type):
+ * - schedule: 수업 일정 안내 → 알림톡 SCHEDULE (#{종류} 휴원·보강·수업 시간 변경, #{날짜}, #{내용}). 템플릿 ID 가 없으면 같은 글을 문자로
+ * - other: 기타 공지 → 자유롭게 쓴 글을 문자(장문)로. 통수는 문자 단가만큼 (pricing.ts SMS_UNITS)
  * 형제처럼 학부모 번호가 같으면 한 번만, 이름은 "김민수·김민지".
- * APP_URL 이 없어서 링크를 못 만들면 예전처럼 문자에 공지 전체를 넣는다.
  */
 export async function sendNotice(_prev: NoticeResult, formData: FormData): Promise<NoticeResult> {
   const academy = await requireActiveAcademy();
   const mode = String(formData.get("mode") ?? "all");
+  const type = formData.get("type") === "schedule" ? "schedule" : "other";
   const content = String(formData.get("content") ?? "").trim();
+  const scheduleKind = String(formData.get("scheduleKind") ?? "");
+  const scheduleDate = String(formData.get("scheduleDate") ?? "").trim();
 
-  if (!content) return { ok: false, message: "공지 내용을 입력해 주세요." };
-  if (content.length > NOTICE_MAX_CHARS) return { ok: false, message: `공지는 ${NOTICE_MAX_CHARS.toLocaleString("ko-KR")}자까지 쓸 수 있어요.` };
-  const linkMode = !!appUrl();
-  if (!linkMode && smsBytes(noticeText(academy.name, content)) > 2000) {
-    return { ok: false, message: "공지가 너무 길어요. 한글 약 1,000자까지 보낼 수 있어요." };
+  if (type === "schedule") {
+    if (!(SCHEDULE_KINDS as readonly string[]).includes(scheduleKind)) return { ok: false, message: "안내 종류를 골라 주세요." };
+    if (!scheduleDate) return { ok: false, message: "해당 날짜를 입력해 주세요." };
+    if (scheduleDate.length > SCHEDULE_DATE_MAX) return { ok: false, message: `날짜는 ${SCHEDULE_DATE_MAX}자까지 쓸 수 있어요.` };
+    if (!content) return { ok: false, message: "변경 내용을 입력해 주세요." };
+    if (content.length > SCHEDULE_TEXT_MAX) return { ok: false, message: `변경 내용은 ${SCHEDULE_TEXT_MAX}자까지 쓸 수 있어요.` };
+  } else {
+    if (!content) return { ok: false, message: "공지 내용을 입력해 주세요." };
+    if (smsBytes(noticeText(academy.name, content)) > LMS_MAX_BYTES) {
+      return { ok: false, message: "공지가 너무 길어요. 한글 약 1,000자까지 보낼 수 있어요." };
+    }
   }
 
   // 받을 학생 — 화면 값을 믿지 않고 이 공부방의 다니는 학생만 다시 고른다
@@ -564,31 +585,32 @@ export async function sendNotice(_prev: NoticeResult, formData: FormData): Promi
   for (const r of rows.sort(byGradeName)) byPhone.set(r.phone, [...(byPhone.get(r.phone) ?? []), r]);
   if (byPhone.size === 0) return { ok: false, message: "보낼 학부모님이 없어요. (학부모 동의를 받은 학생에게만 보내요)" };
 
-  // 링크에 공지 id 가 들어가므로 먼저 저장
+  const groups = [...byPhone.entries()];
+  const messages = groups.map(([to, kids]) => {
+    const names = kids.map((k) => k.name).join("·");
+    if (type === "schedule") {
+      const vars = { 학원: academy.name, 호칭: parentTitle(names), 이름: names, 종류: scheduleKind, 날짜: scheduleDate, 내용: content };
+      return { to, text: renderAlimtalk("SCHEDULE", vars), alimtalk: { key: "SCHEDULE" as const, vars }, studentId: kids[0].id };
+    }
+    const text = noticeText(academy.name, content);
+    return { to, text, units: smsUnits(text), studentId: kids[0].id };
+  });
+  if (messages.some((m) => m.text.length > KAKAO_MAX_CHARS && type === "schedule")) {
+    return { ok: false, message: "안내가 카톡 한 통(1,000자)을 넘어요. 변경 내용을 줄여 주세요." };
+  }
+
   const [notice] = await db
     .insert(notices)
-    .values({ academyId: academy.id, target: targetName, content, recipientCount: byPhone.size })
+    .values({
+      academyId: academy.id,
+      target: targetName,
+      content: type === "schedule" ? `[${scheduleKind}] ${scheduleDate}
+${content}` : content,
+      recipientCount: byPhone.size,
+    })
     .returning({ id: notices.id });
-  const link = noticeLink(notice.id);
 
-  const groups = [...byPhone.entries()];
-  const results = await sendMessages(
-    academy,
-    "NOTICE",
-    groups.map(([to, kids]) => {
-      const names = kids.map((k) => k.name).join("·");
-      return {
-        to,
-        // 알림톡 템플릿이 있으면 공지 내용이 카톡에 바로(길면 앞부분 + 전체 보기 링크), 없으면 예전처럼 문자(링크 방식)
-        text: linkMode ? noticeLinkText(academy.name, names, link) : noticeText(academy.name, content),
-        alimtalk: {
-          key: "NOTICE" as const,
-          vars: fitKakao(ALIMTALK_TEMPLATES.NOTICE.body, { 학원: academy.name, 이름: names, 공지내용: content }, "공지내용", link),
-        },
-        studentId: kids[0].id,
-      };
-    }),
-  );
+  const results = await sendMessages(academy, type === "schedule" ? "SCHEDULE" : "NOTICE", messages);
   const failed = results.filter((r) => !r.ok).length;
   if (failed) await db.update(notices).set({ failedCount: failed }).where(eq(notices.id, notice.id));
 

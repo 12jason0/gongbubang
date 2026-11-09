@@ -2,7 +2,8 @@ import crypto from "node:crypto";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { db, messageLogs, academies } from "@/db";
 import { quotaState } from "./plan";
-import { PLANS } from "./pricing";
+import { PLANS, SMS_UNITS } from "./pricing";
+import { textBytes } from "./templates";
 import { alimtalkConfig, renderAlimtalk, solapiVariables, type AlimtalkKey, type AlimtalkVars } from "./alimtalk";
 
 /**
@@ -14,7 +15,8 @@ import { alimtalkConfig, renderAlimtalk, solapiVariables, type AlimtalkKey, type
  *   알림톡이 실패하면(카톡 없음 등) 솔라피가 같은 내용을 발신번호로 문자 대체 발송한다.
  */
 
-export type MessageKind = "ATTENDANCE" | "FEEDBACK" | "NOTICE" | "PAYMENT" | "CONSENT";
+// NOTICE: 기타 공지(문자만), SCHEDULE: 수업 일정 안내(알림톡)
+export type MessageKind = "ATTENDANCE" | "FEEDBACK" | "NOTICE" | "SCHEDULE" | "PAYMENT" | "CONSENT";
 export type Channel = "SMS" | "ALIMTALK";
 
 export type SendResult = { ok: boolean; test: boolean; error?: string };
@@ -27,13 +29,16 @@ export function isTestMode() {
 
 /** 문자 바이트 수 (한글 2바이트, 영문·숫자 1바이트) — SMS/LMS 구분 표시용 */
 export function smsBytes(text: string): number {
-  let n = 0;
-  for (const ch of text) n += ch.charCodeAt(0) > 127 ? 2 : 1;
-  return n;
+  return textBytes(text);
 }
 
 export function isLongMessage(text: string) {
   return smsBytes(text) > 90;
+}
+
+/** 문자로만 보내는 글 한 통이 쓰는 통수 (기타 공지) */
+export function smsUnits(text: string) {
+  return isLongMessage(text) ? SMS_UNITS.long : SMS_UNITS.short;
 }
 
 function authHeader(apiKey: string, apiSecret: string) {
@@ -50,6 +55,7 @@ type Outgoing = {
   studentId?: string | null;
   refDate?: string | null;
   free?: boolean; // 통수에서 안 뺌 (학부모당 첫 동의 요청)
+  units?: number; // 이 한 통이 쓰는 통수 (기본 1, 문자로만 가는 기타 공지는 smsUnits)
 };
 
 /** 실제로 나갈 모양: 알림톡 설정이 있으면 알림톡, 없으면 문자 */
@@ -116,7 +122,8 @@ export async function sendMessages(
   const prepared = messages.map(prepare);
   let results: SendResult[];
 
-  const charged = messages.filter((m) => !m.free).length;
+  const unitsOf = (m: Outgoing) => (m.free ? 0 : (m.units ?? 1));
+  const charged = messages.reduce((n, m) => n + unitsOf(m), 0);
   const quota = charged ? await reserveQuota(academy.id, charged) : { ok: true, key: "", remaining: 0, tier: "TRIAL" as const };
   if (!quota.ok) {
     // 통수가 모자라면 한 통도 안 보냄 (실패로 남아서 요금제를 올린 뒤 "다시 보내기" 가능)
@@ -128,7 +135,7 @@ export async function sendMessages(
   } else {
     results = await callSolapi(academy.senderPhone, prepared);
     // 접수 단계에서 실패한 건은 통수에서 돌려놓음
-    if (charged) await releaseQuota(academy.id, quota.key, results.filter((r, i) => !r.ok && !messages[i].free).length);
+    if (charged) await releaseQuota(academy.id, quota.key, messages.reduce((n, m, i) => n + (results[i].ok ? 0 : unitsOf(m)), 0));
   }
 
   await db.insert(messageLogs).values(

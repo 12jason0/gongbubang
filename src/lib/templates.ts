@@ -1,5 +1,5 @@
 // 학부모에게 가는 문구 도우미 + 반·요일 도우미
-// 등원·피드백·원비·공지 문구는 카카오 알림톡 템플릿(lib/alimtalk.ts) 하나로 정하고, 문자로 갈 때도 같은 글을 쓴다.
+// 등원·피드백·원비·수업 일정 문구는 카카오 알림톡 템플릿(lib/alimtalk.ts) 하나로 정하고, 문자로 갈 때도 같은 글을 쓴다.
 
 // ── 카톡 한 통 길이 ── 알림톡은 1,000자까지. 문자(장문)도 한글 약 1,000자라 같은 기준
 
@@ -10,17 +10,44 @@ export function fillTemplate(body: string, vars: Record<string, string>) {
   return body.replace(/#\{([^}]+)\}/g, (_, k: string) => vars[k] ?? "");
 }
 
+/** 카톡 한 통을 넘겨 내용을 줄였을 때 끝에 붙는 말 (알림톡 버튼 "피드백 전체 보기"로 이어짐) */
+export const KAKAO_CUT_TAIL = "…(전체 내용은 아래 버튼)";
+
+/** 문자 바이트 수 (한글 2바이트, 영문·숫자 1바이트). 장문은 2,000바이트까지 */
+export function textBytes(text: string): number {
+  let n = 0;
+  for (const ch of text) n += ch.charCodeAt(0) > 127 ? 2 : 1;
+  return n;
+}
+
+/** 문자(장문) 한 통 한도 */
+export const LMS_MAX_BYTES = 2000;
+
 /**
- * 내용 변수(field) 때문에 KAKAO_MAX_CHARS 를 넘으면 앞부분만 남기고 "…\n\n전체 보기: 링크" 를 붙인다.
- * 넘지 않으면 vars 그대로.
+ * 내용 변수(field) 때문에 한 통 한도(기본: 카톡 1,000자)를 넘으면 내용을 줄이고 끝에 KAKAO_CUT_TAIL 을 붙인다.
+ * 넘지 않으면 vars 그대로 (내용은 앞뒤 빈칸만 정리, 줄바꿈은 그대로). cut: 줄였는지.
+ * 문자로 보낼 때는 max=LMS_MAX_BYTES, measure=textBytes 로 바이트 기준
  */
-export function fitKakao(body: string, vars: Record<string, string>, field: string, link: string) {
+export function fitKakao(
+  body: string,
+  vars: Record<string, string>,
+  field: string,
+  max = KAKAO_MAX_CHARS,
+  measure: (text: string) => number = (t) => t.length,
+) {
   const content = (vars[field] ?? "").trim();
   const full = { ...vars, [field]: content };
-  if (fillTemplate(body, full).length <= KAKAO_MAX_CHARS) return full;
-  const tail = `…\n\n전체 보기: ${link}`;
-  const room = KAKAO_MAX_CHARS - fillTemplate(body, { ...vars, [field]: "" }).length - tail.length;
-  return { ...vars, [field]: content.slice(0, Math.max(0, room)).trimEnd() + tail };
+  if (measure(fillTemplate(body, full)) <= max) return { vars: full, cut: false };
+  const chars = Array.from(content); // 이모지가 반으로 잘리지 않게
+  const cutTo = (n: number) => ({ ...vars, [field]: chars.slice(0, n).join("").trimEnd() + KAKAO_CUT_TAIL });
+  let lo = 0;
+  let hi = chars.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (measure(fillTemplate(body, cutTo(mid))) <= max) lo = mid;
+    else hi = mid - 1;
+  }
+  return { vars: cutTo(lo), cut: true };
 }
 
 /** "2026-10" → "10월분" */
@@ -32,13 +59,10 @@ export function noticeText(academyName: string, content: string) {
   return `[${academyName}] ${content.trim()}`;
 }
 
-/** 공지 글자 수 한도 (링크형은 문자에 본문이 안 들어가서 글자 수로 셈) */
-export const NOTICE_MAX_CHARS = 1000;
 
-/** 링크형 공지 (문자판). 알림톡판은 lib/alimtalk.ts NOTICE */
-export function noticeLinkText(academyName: string, names: string, link: string) {
-  return `[${academyName}] ${names} 학부모님, 새 공지가 있어요. 아래 링크에서 확인해 주세요\n${link}`;
-}
+/** 수업 일정 안내 입력칸 글자 수 한도 (알림톡 한 통 1,000자 안에 들게) */
+export const SCHEDULE_DATE_MAX = 40;
+export const SCHEDULE_TEXT_MAX = 500;
 
 // ── 요일 ── 0=일 1=월 … 6=토
 export const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];

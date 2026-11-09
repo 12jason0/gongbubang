@@ -3,7 +3,7 @@ import { Inbox } from "lucide-react";
 import { db, notices, students, classes, classStudents, calendarMemos } from "@/db";
 import { currentAcademyId, requireAcademy } from "@/lib/session";
 import { byGradeName, byTimeName } from "@/lib/templates";
-import { ALIMTALK_TEMPLATES, appUrl } from "@/lib/alimtalk";
+import { ALIMTALK_TEMPLATES } from "@/lib/alimtalk";
 import { usesAlimtalk } from "@/lib/sms";
 import { quotaState } from "@/lib/plan";
 import { NoticeForm } from "@/components/NoticeForm";
@@ -71,12 +71,12 @@ export default async function NoticePage({ searchParams }: { searchParams: Promi
     <main className="px-3 pt-4">
       <PageTitle
         title="단체 공지"
-        sub="학부모님 카톡으로 공지 내용이 바로 가요 · 할인·모집·이벤트 같은 광고는 보낼 수 없어요"
+        sub="휴원·보강·수업 시간 변경은 카톡으로, 그 밖의 공지는 문자로 가요 · 할인·모집·이벤트 같은 광고는 보낼 수 없어요"
         info={
           <InfoTip label="공지 보내기">
-            쓰신 내용 앞에 학원 이름과 학생 이름이 저절로 붙어서 학부모님 카톡으로 가요. 형제는 한 통으로 가요. 받는 분은 전체·반·직접 고르기 중에서 골라요.
+            수업 일정 안내는 종류·날짜·내용만 넣으면 학원 이름과 학생 이름이 저절로 붙어서 학부모님 카톡으로 가요. 기타 공지는 쓰신 그대로 문자로 가요(통수를 더 써요). 형제는 한 통으로 가요.
             <TipExample>
-              [{academy.name}] 공지사항 안내 · 김민수 학부모님, 안녕하세요. (쓰신 내용)
+              [{academy.name}] 수업 일정 안내 · 김민수 학생 학부모님, 안녕하세요. ■ 안내 종류 : 휴원
             </TipExample>
           </InfoTip>
         }
@@ -91,8 +91,8 @@ export default async function NoticePage({ searchParams }: { searchParams: Promi
           students={roster}
           waiting={waiting}
           classes={classRows.map((c) => ({ id: c.id, name: c.name }))}
-          linkMode={!!appUrl()}
-          kakaoBody={usesAlimtalk("NOTICE") ? ALIMTALK_TEMPLATES.NOTICE.body : undefined}
+          scheduleBody={ALIMTALK_TEMPLATES.SCHEDULE.body}
+          scheduleKakao={usesAlimtalk("SCHEDULE")}
           remaining={quotaState(academy).remaining}
           canUpgrade={quotaState(academy).tier !== "PLUS"}
         />

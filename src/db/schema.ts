@@ -181,7 +181,7 @@ export const messageLogs = pgTable(
     academyId: text("academy_id").notNull().references(() => academies.id, { onDelete: "cascade" }),
     studentId: text("student_id"),
     to: text("to").notNull(),
-    kind: text("kind").notNull(), // ATTENDANCE / FEEDBACK / NOTICE / PAYMENT(원비 안내)
+    kind: text("kind").notNull(), // ATTENDANCE / FEEDBACK / NOTICE(기타 공지, 문자) / SCHEDULE(수업 일정 안내) / PAYMENT(원비 안내) / CONSENT
     channel: text("channel").notNull().default("SMS"), // SMS(문자) / ALIMTALK(카카오 알림톡, 실패 시 솔라피가 문자 대체 발송)
     text: text("text").notNull(),
     status: text("status").notNull(), // SENT / FAILED / TEST (솔라피 키 없을 때)

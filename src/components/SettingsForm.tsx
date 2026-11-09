@@ -107,8 +107,8 @@ export function SettingsForm({ initial, bodies }: { initial: Settings; bodies: B
       <Preview
         title="수업 피드백"
         when="출석부에서 ‘피드백 보내기’를 누르면 가요"
-        text={fillTemplate(bodies.feedback, { 학원: name, 이름: SAMPLE.name, 날짜: SAMPLE.date, 메모: SAMPLE.memo })}
-        auto="그날 쓴 수업 메모가 그대로 들어가요. 카톡이 없는 학부모님께는 같은 글이 문자로 가요"
+        text={fillTemplate(bodies.feedback, { 학원: name, 호칭: `${SAMPLE.name} 학생 학부모님`, 이름: SAMPLE.name, 날짜: SAMPLE.date, 피드백: SAMPLE.memo })}
+        auto="그날 쓴 수업 메모가 그대로 들어가요. [피드백 전체 보기] 버튼도 같이 가요. 카톡이 없는 학부모님께는 같은 글이 문자로 가요"
       />
     </div>
   );
