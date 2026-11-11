@@ -1,12 +1,10 @@
 import Link from "next/link";
-import { CalendarCheck, Check, MessageCircle, TriangleAlert } from "lucide-react";
+import { CalendarCheck, Check, Landmark, MessageCircle, TriangleAlert } from "lucide-react";
 import { requireAcademy } from "@/lib/session";
 import { planState, quotaState, formatUntil } from "@/lib/plan";
 import { PAID_TIERS, PLANS } from "@/lib/pricing";
-import { billingReady } from "@/lib/billing";
 import { formatWon } from "@/lib/money";
 import { PageTitle } from "@/components/PageTitle";
-import { PayButton } from "@/components/BillingButtons";
 
 export const metadata = { title: "이용권" };
 
@@ -16,7 +14,8 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
   const academy = await requireAcademy();
   const state = planState(academy);
   const quota = quotaState(academy);
-  const ready = billingReady();
+  // 카드 결제(토스)는 payment 브랜치. 지금은 계좌이체 — 입금 확인 후 관리자 화면(/admin)에서 연장
+  const bankAccount = process.env.BANK_ACCOUNT ?? ""; // 예: "국민 123456-78-901234 (예금주 홍길동)"
   const sp = await searchParams;
   const fromBlocked = sp.expired === "1";
   const trialUsed = sp.trial === "used";
@@ -85,7 +84,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
             <div className="mt-1.5 h-2 rounded-full bg-brand-soft">
               <div
                 className={`h-full rounded-full ${quota.remaining === 0 ? "bg-rose-500" : "bg-brand"}`}
-                style={{ width: `${(quota.remaining / quota.total) * 100}%` }}
+                style={{ width: `${Math.min(1, quota.remaining / quota.total) * 100}%` }}
               />
             </div>
             <p className="mt-1.5 text-[12px] text-slate-400">
@@ -119,19 +118,28 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
                 <Check size={16} className="text-brand" /> 카톡·문자 <b>{p.quota}통</b>
               </p>
               <p className="mt-1 text-[12.5px] text-slate-500">{BLURB[t]}</p>
-              {state.kind !== "UNLIMITED" && (
-                <div className="mt-4">
-                  <PayButton kind={t} label={`${formatWon(p.price)} 결제`} primary={t === "PLUS"} disabled={!ready} />
-                </div>
-              )}
             </section>
           );
         })}
       </div>
+      {state.kind !== "UNLIMITED" && (
+        <section className="card mt-3 rounded-2xl p-4">
+          <h2 className="flex items-center gap-1.5 text-[15px] font-bold">
+            <Landmark size={17} className="text-brand" /> 계좌이체로 결제
+          </h2>
+          <p className="mt-2 rounded-xl bg-brand-soft px-3.5 py-3 text-[16px] font-bold tracking-tight text-brand select-all">
+            {bankAccount || "입금 계좌 준비 중이에요"}
+          </p>
+          <p className="mt-2 text-[14px] leading-relaxed">
+            위 요금제 금액({PAID_TIERS.map((t) => `${PLANS[t].label} ${formatWon(PLANS[t].price)}`).join(" / ")})을 보내 주세요.
+            <br />
+            <b>입금자명에 공부방 이름({academy.name})을 적어 주세요.</b> 입금 확인 후 하루 안에 켜 드려요.
+          </p>
+        </section>
+      )}
       <p className="mt-2 px-1 text-[12px] leading-relaxed text-slate-400">
-        자동으로 결제되지 않아요. 결제한 날부터 통수를 새로 세고, 이용 기간이 남아 있으면 그 뒤에 한 달이 이어 붙어요.
+        자동으로 결제되지 않아요. 켜 드린 날부터 통수를 새로 세고, 이용 기간이 남아 있으면 그 뒤에 한 달이 이어 붙어요.
       </p>
-      {!ready && <p className="mt-1 px-1 text-[12px] text-amber-700">카드 결제 준비 중이에요. 결제가 필요하면 관리자에게 연락 주세요.</p>}
 
       <p className="mt-4 text-center text-[12px] text-slate-400">
         <Link href="/terms" className="underline">

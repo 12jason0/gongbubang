@@ -97,7 +97,7 @@ export async function releaseQuota(academyId: string, key: string, n: number) {
   if (n <= 0) return;
   await db
     .update(academies)
-    .set({ msgUsed: sql`greatest(${academies.msgUsed} - ${n}, 0)` })
+    .set({ msgUsed: sql`${academies.msgUsed} - ${n}` }) // 음수 가능: 관리자 카톡 충전(app/(app)/admin)이 msgUsed 를 0 아래로 둔다
     .where(and(eq(academies.id, academyId), eq(academies.msgPeriod, key)));
 }
 

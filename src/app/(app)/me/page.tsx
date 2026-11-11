@@ -98,7 +98,7 @@ export default async function MePage({ searchParams }: { searchParams: Promise<{
                 </span>
               </p>
               <div className="mt-1.5 h-2 rounded-full bg-brand-soft">
-                <div className="h-full rounded-full bg-brand" style={{ width: `${(quota.remaining / quota.total) * 100}%` }} />
+                <div className="h-full rounded-full bg-brand" style={{ width: `${Math.min(1, quota.remaining / quota.total) * 100}%` }} />
               </div>
               <p className="mt-1.5 text-[12px] text-slate-500">{quotaNote(quota, academy.serviceUntil)}</p>
             </div>
