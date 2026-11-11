@@ -2,7 +2,7 @@ import Link from "next/link";
 import { CalendarCheck, Check, Landmark, MessageCircle, TriangleAlert } from "lucide-react";
 import { requireAcademy } from "@/lib/session";
 import { planState, quotaState, formatUntil } from "@/lib/plan";
-import { PAID_TIERS, PLANS } from "@/lib/pricing";
+import { PAID_TIERS, PLANS, SMS_UNITS } from "@/lib/pricing";
 import { formatWon } from "@/lib/money";
 import { PageTitle } from "@/components/PageTitle";
 
@@ -88,8 +88,8 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
               />
             </div>
             <p className="mt-1.5 text-[12px] text-slate-400">
-              {quota.refillOn ? `${formatUntil(quota.refillOn)}부터 다시 ${quota.total}통` : "이용 기간이 끝나면 요금제를 결제해서 이어 써요"} · 알림톡·문자
-              모두 1건 = 1통, 보내지 못한 건은 안 세요
+              {quota.refillOn ? `${formatUntil(quota.refillOn)}부터 다시 ${quota.total}통` : "이용 기간이 끝나면 요금제를 결제해서 이어 써요"} · 카톡(알림톡) 1건 = 1통, 문자는 짧으면{" "}
+              {SMS_UNITS.short}통·길면 {SMS_UNITS.long}통, 보내지 못한 건은 안 세요
             </p>
           </div>
         )}

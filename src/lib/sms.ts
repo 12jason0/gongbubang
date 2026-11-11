@@ -72,7 +72,7 @@ function prepare(m: Outgoing): Prepared {
 }
 
 // ───── 카톡 통수 (요금제) ─────
-// 알림톡·문자 모두 1건 = 1통. 보내기 직전에 한 번에 확보하고, 실패·접수 거절된 만큼 돌려놓는다.
+// 알림톡(과 알림톡 대신 나가는 문자)은 1건 = 1통, 문자로만 가는 기타 공지는 SMS_UNITS. 보내기 직전에 한 번에 확보하고, 실패·접수 거절된 만큼 돌려놓는다.
 
 /** 이번 기간 통수에서 n통 확보. 모자라면 아무것도 안 빼고 ok:false */
 export async function reserveQuota(academyId: string, n: number) {
