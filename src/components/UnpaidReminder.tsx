@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { BellRing, CheckCircle2, ChevronDown } from "lucide-react";
 import { sendPaymentReminders } from "@/app/actions";
 
-type U = { id: string; name: string; grade: string; remindedOn: string | null };
+type U = { id: string; name: string; grade: string; remindedOn: string | null; noFee: boolean }; // noFee: 교습비·납부일이 비어 있어 안내 못 보냄
 
 /**
  * 월별 화면 — 이 달 교습비를 아직 안 낸 학생 + 원비 안내 보내기.
@@ -12,7 +12,7 @@ type U = { id: string; name: string; grade: string; remindedOn: string | null };
  */
 export function UnpaidReminder({ month, label, list, via }: { month: string; label: string; list: U[]; via: string }) {
   const [open, setOpen] = useState(false);
-  const [picked, setPicked] = useState(() => new Set(list.filter((u) => !u.remindedOn).map((u) => u.id)));
+  const [picked, setPicked] = useState(() => new Set(list.filter((u) => !u.remindedOn && !u.noFee).map((u) => u.id)));
   const [confirming, setConfirming] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [busy, start] = useTransition();
@@ -32,7 +32,7 @@ export function UnpaidReminder({ month, label, list, via }: { month: string; lab
       if (res.failed) setMsg({ ok: false, text: `${res.sent}명 보냄, ${res.failed}명 실패 (${res.error ?? ""}) — 출석부 위 '다시 보내기'로 재발송돼요` });
       else if (res.error) setMsg({ ok: false, text: res.error });
       else {
-        setMsg({ ok: true, text: `${res.sent}명에게 원비 안내를 보냈어요${res.waiting ? ` · 동의 안 한 ${res.waiting}명은 빠졌어요` : ""}${res.test ? " (테스트 모드)" : ""}` });
+        setMsg({ ok: true, text: `${res.sent}명에게 원비 안내를 보냈어요${res.waiting ? ` · 동의 안 한 ${res.waiting}명은 빠졌어요` : ""}${res.noFee ? ` · 교습비가 비어 있는 ${res.noFee}명은 빠졌어요` : ""}${res.test ? " (테스트 모드)" : ""}` });
         setPicked(new Set());
       }
     });
@@ -62,18 +62,28 @@ export function UnpaidReminder({ month, label, list, via }: { month: string; lab
                   <input
                     type="checkbox"
                     checked={picked.has(u.id)}
+                    disabled={u.noFee}
                     onChange={() => toggle(u.id)}
                     className="h-5 w-5 shrink-0 accent-brand"
                   />
                   <span className="flex-1 text-[15px] font-semibold">
                     {u.name} <span className="text-xs font-medium text-slate-400">{u.grade}</span>
                   </span>
-                  {u.remindedOn && <span className="text-[12px] text-slate-400">{u.remindedOn} 안내함</span>}
+                  {u.noFee ? (
+                    <span className="text-[12px] font-medium text-amber-700">교습비를 먼저 입력해 주세요</span>
+                  ) : (
+                    u.remindedOn && <span className="text-[12px] text-slate-400">{u.remindedOn} 안내함</span>
+                  )}
                 </label>
               </li>
             ))}
           </ul>
 
+          {list.some((u) => u.noFee) && (
+            <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-[12.5px] leading-relaxed text-amber-800 ring-1 ring-amber-200">
+              교습비나 납부일이 비어 있는 학생은 안내를 보낼 수 없어요. 학생 화면에서 <b>교습비를 먼저 입력해 주세요.</b>
+            </p>
+          )}
           <p className="mt-2 rounded-xl bg-slate-50 px-3 py-2 text-[12px] leading-relaxed text-slate-500">
             {via}로 &ldquo;○○ 학생의 {label} 교습비 납부 안내&rdquo;와 등록한 교습비·납부일이 가요. 동의 안 한 학부모님은 빠져요.
             결제는 지금처럼 받으시고, 받으면 학생을 눌러 납부 기록을 남겨 주세요.

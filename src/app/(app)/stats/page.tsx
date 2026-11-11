@@ -191,7 +191,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
             month={month}
             label={monthLabel(month)}
             via={usesAlimtalk("PAYMENT") ? "카카오 알림톡" : "문자"}
-            list={unpaidRows.map((r) => ({ id: r.id, name: r.name, grade: r.grade, remindedOn: remindedOn.get(r.id) ?? null }))}
+            list={unpaidRows.map((r) => ({ id: r.id, name: r.name, grade: r.grade, remindedOn: remindedOn.get(r.id) ?? null, noFee: !r.monthlyFee || !r.dueDay }))}
           />
         </div>
       )}

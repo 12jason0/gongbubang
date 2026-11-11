@@ -5,6 +5,7 @@ import { formatUntil, quotaState } from "@/lib/plan";
 import { PAID_TIERS, PLANS, tierOf } from "@/lib/pricing";
 import { formatWon } from "@/lib/money";
 import { PageTitle } from "@/components/PageTitle";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { adminAddMessages, adminExtend } from "./actions";
 
 export const metadata = { title: "관리자", robots: { index: false } };
@@ -64,12 +65,16 @@ export default async function AdminPage() {
                     </option>
                   ))}
                 </select>
-                <button className="rounded-lg bg-brand px-3 py-1.5 font-semibold text-white">이용권 1달 연장</button>
+                <ConfirmButton message={`${a.name}: 이용권을 1달 연장할까요? (정말 할까요?)`} className="rounded-lg bg-brand px-3 py-1.5 font-semibold text-white">
+                  이용권 1달 연장
+                </ConfirmButton>
               </form>
               <form action={adminAddMessages} className="flex items-center gap-1.5">
                 <input type="hidden" name="academyId" value={a.id} />
                 <input name="count" type="number" min={1} max={10000} defaultValue={50} required aria-label="충전할 통수" className="w-20 rounded-lg border border-slate-200 px-2 py-1.5" />
-                <button className="rounded-lg bg-brand-soft px-3 py-1.5 font-semibold text-brand">카톡 충전</button>
+                <ConfirmButton message={`${a.name}: 카톡을 충전할까요? (정말 할까요?)`} className="rounded-lg bg-brand-soft px-3 py-1.5 font-semibold text-brand">
+                  카톡 충전
+                </ConfirmButton>
               </form>
             </section>
           );

@@ -7,7 +7,7 @@ import { InfoTip, TipExample } from "./InfoTip";
 
 
 // 미리보기에 넣는 예시 학생
-const SAMPLE = { name: "김하늘", time: "4시 5분", date: "10월 30일 (금)", memo: "분수 나눗셈 개념 잘 이해했어요. 숙제는 교재 24~25쪽입니다." };
+const SAMPLE = { name: "김하늘", time: "16시 5분", date: "10월 30일 (금)", memo: "분수 나눗셈 개념 잘 이해했어요. 숙제는 교재 24~25쪽입니다." };
 
 const input =
   "mt-1.5 w-full rounded-xl border-0 px-3 py-3 text-[15px] outline-none focus:ring-2 focus:ring-gold field";

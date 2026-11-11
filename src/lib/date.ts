@@ -22,11 +22,10 @@ export function timeKST(date: Date = new Date()): string {
   }).format(date);
 }
 
-/** 문자에 쓰는 한국 시각 "4시 5분" (정각이면 "4시") — 공부방은 오후 수업이라 오전/오후는 안 붙임 */
+/** 문자에 쓰는 한국 시각, 24시간 기준 "16시 5분" (정각이면 "16시") */
 export function spokenTimeKST(date: Date = new Date()): string {
   const [h, m] = timeKST(date).split(":").map(Number);
-  const hour = h % 12 || 12;
-  return m ? `${hour}시 ${m}분` : `${hour}시`;
+  return m ? `${h}시 ${m}분` : `${h}시`;
 }
 
 /** "2026-10" */

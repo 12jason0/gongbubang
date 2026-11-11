@@ -499,12 +499,15 @@ export async function sendPaymentReminders(month: string, studentIds: string[]) 
         .where(and(eq(payments.academyId, academy.id), eq(payments.period, month)))
     ).map((p) => p.studentId),
   );
-  const unpaid = targets.filter((s) => !paid.has(s.id) && s.consent === "AGREED");
-  const waiting = targets.filter((s) => !paid.has(s.id) && s.consent !== "AGREED").length;
+  // 교습비·납부일이 비어 있으면 "교습비: -"로 나가서 안 보냄 → 원장님께 먼저 입력해 달라고
+  const noFee = targets.filter((s) => !paid.has(s.id) && (!s.monthlyFee || !s.dueDay)).length;
+  const unpaid = targets.filter((s) => !paid.has(s.id) && s.consent === "AGREED" && s.monthlyFee && s.dueDay);
+  const waiting = targets.filter((s) => !paid.has(s.id) && s.consent !== "AGREED" && s.monthlyFee && s.dueDay).length;
   if (unpaid.length === 0) {
-    return waiting
-      ? { ok: false, sent: 0, failed: 0, waiting, test: false, error: `학부모 동의 안 한 ${waiting}명이라 보내지 않았어요` }
-      : { ok: true, sent: 0, failed: 0, waiting, test: false };
+    const why = [noFee && `교습비·납부일이 비어 있는 ${noFee}명은 교습비를 먼저 입력해 주세요`, waiting && `학부모 동의 안 한 ${waiting}명`].filter(Boolean).join(" · ");
+    return why
+      ? { ok: false, sent: 0, failed: 0, waiting, noFee, test: false, error: `보내지 않았어요 — ${why}` }
+      : { ok: true, sent: 0, failed: 0, waiting, noFee, test: false };
   }
 
   const results = await sendMessages(academy, "PAYMENT", unpaid.map((s) => paymentMessage(academy, s, month)));
@@ -516,6 +519,7 @@ export async function sendPaymentReminders(month: string, studentIds: string[]) 
     sent: unpaid.length - failedN,
     failed: failedN,
     waiting,
+    noFee,
     test: results.some((r) => r.test),
     error: results.find((r) => !r.ok)?.error,
   };

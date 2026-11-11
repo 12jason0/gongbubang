@@ -133,7 +133,9 @@ export async function sendMessages(
   } else if (isTestMode()) {
     results = messages.map(() => ({ ok: true, test: true }));
   } else {
-    results = await callSolapi(academy.senderPhone, prepared);
+    // 발신번호가 빈 공부방(공용 번호 env 가 없을 때 가입한 계정)은 공용 번호로
+    const from = academy.senderPhone || (process.env.DEFAULT_SENDER_PHONE ?? "").replace(/\D/g, "");
+    results = await callSolapi(from, prepared);
     // 접수 단계에서 실패한 건은 통수에서 돌려놓음
     if (charged) await releaseQuota(academy.id, quota.key, messages.reduce((n, m, i) => n + (results[i].ok ? 0 : unitsOf(m)), 0));
   }
