@@ -15,6 +15,22 @@ import { adminPathAllowed } from "@/lib/token";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+// 원장님 → 공부방노트(운영자) 문의용. 학부모 화면(/f /n /r /c)에는 안 나와요.
+const KAKAO_CHAT_URL = "http://pf.kakao.com/_VxcxbxeX/chat";
+
+function KakaoAsk() {
+  return (
+    <a
+      href={KAKAO_CHAT_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex h-9 shrink-0 items-center rounded-full bg-[#FEE500] px-3 text-[13px] font-semibold text-[#191919] transition active:scale-95 md:h-10 md:px-4 md:text-[14px]"
+    >
+      카톡으로 문의하기
+    </a>
+  );
+}
+
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const [academy, consultNew] = await Promise.all([requireAcademy(), currentAcademyId().then(countNewConsults)]);
   const testMode = isTestMode();
@@ -27,7 +43,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <HelpProvider>
       <StickyBar className="sticky top-0 z-20 flex h-14 items-center gap-2 px-4 text-brand md:hidden">
         <span className="h-5 w-1 rounded-full bg-gold" aria-hidden />
-        <span className="text-[17px] font-bold tracking-tight">{academy.name}</span>
+        <span className="min-w-0 truncate text-[17px] font-bold tracking-tight">{academy.name}</span>
         {testMode && (
           <span
             title="솔라피 키가 없어 문자는 실제로 나가지 않고 기록만 남아요"
@@ -37,6 +53,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </span>
         )}
         <span className="ml-auto" />
+        {!admin && <KakaoAsk />}
         <HelpButton />
       </StickyBar>
       <SideNav academyName={academy.name} loginId={shownLoginId(academy.loginId)} admin={admin} />
@@ -56,6 +73,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </span>
           )}
           <span className="ml-auto" />
+          {!admin && <KakaoAsk />}
           <HelpButton />
         </StickyBar>
         {!admin && <PlanBanner state={planState(academy)} quota={quotaState(academy)} />}
