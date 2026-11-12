@@ -20,7 +20,7 @@ export async function adminExtend(formData: FormData) {
     await tx.insert(orders).values({ academyId, kind: tier, amount: PLANS[tier].price, status: "DONE", paymentKey: "BANK", doneAt: now });
     await tx.update(academies).set({ serviceUntil: extendOneMonth(a.until, now), plan: tier, periodStart: now }).where(eq(academies.id, academyId));
   });
-  revalidatePath("/admin");
+  revalidatePath("/admin", "layout"); // 목록·상세 둘 다
 }
 
 /** 이번 기간 카톡 n통 더 주기 — msgUsed 를 n 만큼 줄인다(음수 가능). 기록은 credit_ledger (kind ADMIN_MSG, amount = 통수) */
@@ -36,5 +36,5 @@ export async function adminAddMessages(formData: FormData) {
     await tx.update(academies).set({ msgPeriod: q.key, msgUsed: q.used - n }).where(eq(academies.id, academyId));
     await tx.insert(creditLedger).values({ academyId, amount: n, balanceAfter: q.remaining + n, kind: "ADMIN_MSG", memo: `카톡 ${n}통 충전 (관리자)` });
   });
-  revalidatePath("/admin");
+  revalidatePath("/admin", "layout"); // 목록·상세 둘 다
 }

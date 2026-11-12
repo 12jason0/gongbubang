@@ -83,3 +83,12 @@ export function shiftMonth(month: string, n: number): string {
   const t = new Date(Date.UTC(y, m - 1 + n, 1));
   return t.toISOString().slice(0, 7);
 }
+
+/** 지금부터 얼마 전: 방금 / N분 전 / N시간 전 / N일 전 (관리자 화면 마지막 접속) */
+export function agoLabel(d: Date, now = Date.now()): string {
+  const min = Math.floor((now - d.getTime()) / 60_000);
+  if (min < 1) return "방금";
+  if (min < 60) return `${min}분 전`;
+  if (min < 60 * 24) return `${Math.floor(min / 60)}시간 전`;
+  return `${Math.floor(min / 60 / 24)}일 전`;
+}

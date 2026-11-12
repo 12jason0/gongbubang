@@ -1,33 +1,28 @@
-import { desc, eq, isNull, sql } from "drizzle-orm";
+import Link from "next/link";
+import { ChevronRight } from "lucide-react";
+import { desc, eq, isNull, max, sql } from "drizzle-orm";
 import { db, academies, orders, creditLedger, students, messageLogs, pageViews } from "@/db";
-import { thisMonthKST } from "@/lib/date";
+import { agoLabel } from "@/lib/date";
 import { isAdminLoginId, requireAdmin } from "@/lib/admin";
-import { formatUntil, quotaState } from "@/lib/plan";
-import { PAID_TIERS, PLANS, tierOf } from "@/lib/pricing";
+import { PLANS, tierOf } from "@/lib/pricing";
 import { formatWon } from "@/lib/money";
 import { PageTitle } from "@/components/PageTitle";
-import { ConfirmButton } from "@/components/ConfirmButton";
-import { adminAddMessages, adminExtend } from "./actions";
 
 export const metadata = { title: "관리자", robots: { index: false } };
 
 const day = (d: Date) => d.toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul", dateStyle: "short" });
-/** 마지막 접속: 방금 / N분 전 / N시간 전 / N일 전 */
-function ago(d: Date) {
-  const min = Math.floor((Date.now() - d.getTime()) / 60_000);
-  if (min < 1) return "방금";
-  if (min < 60) return `${min}분 전`;
-  if (min < 60 * 24) return `${Math.floor(min / 60)}시간 전`;
-  return `${Math.floor(min / 60 / 24)}일 전`;
-}
 const when = (d: Date) => d.toLocaleString("ko-KR", { timeZone: "Asia/Seoul", dateStyle: "short", timeStyle: "short" });
 
+/** 관리자 첫 화면: 공부방 목록 (누르면 /admin/[id] 상세 — 이용권·연장·충전·이용 기록) */
 export default async function AdminPage() {
   await requireAdmin();
-  const monthStart = new Date(`${thisMonthKST()}-01T00:00:00+09:00`); // 이번 달 1일 0시 (한국)
-  const ok = sql`${messageLogs.status} <> 'FAILED'`; // SENT (+ 테스트 모드 TEST)
+  const ok = sql`${messageLogs.status} <> 'FAILED'`;
   const [allRows, extended, added, studentStats, messageStats, viewStats] = await Promise.all([
-    db.select().from(academies).where(isNull(academies.deletedAt)).orderBy(desc(academies.createdAt)),
+    db
+      .select({ id: academies.id, name: academies.name, loginId: academies.loginId, createdAt: academies.createdAt, signupSource: academies.signupSource })
+      .from(academies)
+      .where(isNull(academies.deletedAt))
+      .orderBy(desc(academies.createdAt)),
     db
       .select({ at: orders.createdAt, name: academies.name, kind: orders.kind, amount: orders.amount })
       .from(orders)
@@ -42,13 +37,11 @@ export default async function AdminPage() {
       .where(eq(creditLedger.kind, "ADMIN_MSG"))
       .orderBy(desc(creditLedger.createdAt))
       .limit(30),
-    // 쓰는지 보기 — 숫자만 (학생 이름·번호는 안 꺼냄)
+    // 숫자만 (학생 이름·번호는 안 꺼냄)
     db
       .select({
         academyId: students.academyId,
         total: sql<number>`count(*) filter (where ${students.active})`.mapWith(Number),
-        agreed: sql<number>`count(*) filter (where ${students.active} and ${students.consent} = 'AGREED')`.mapWith(Number),
-        pending: sql<number>`count(*) filter (where ${students.active} and ${students.consent} = 'PENDING')`.mapWith(Number),
         everAgreed: sql<boolean>`bool_or(${students.consent} = 'AGREED')`,
         requested: sql<boolean>`bool_or(${students.consentRequestedAt} is not null)`,
       })
@@ -57,57 +50,17 @@ export default async function AdminPage() {
     db
       .select({
         academyId: messageLogs.academyId,
-        kakao: sql<number>`count(*) filter (where ${messageLogs.createdAt} >= ${monthStart} and ${ok} and ${messageLogs.channel} = 'ALIMTALK')`.mapWith(Number),
-        sms: sql<number>`count(*) filter (where ${messageLogs.createdAt} >= ${monthStart} and ${ok} and ${messageLogs.channel} = 'SMS')`.mapWith(Number),
-        failed: sql<number>`count(*) filter (where ${messageLogs.createdAt} >= ${monthStart} and ${messageLogs.status} = 'FAILED')`.mapWith(Number),
-        lastSent: sql<Date | null>`max(${messageLogs.createdAt}) filter (where ${ok})`.mapWith((v) => (v ? new Date(v) : null)),
         consentSent: sql<boolean>`bool_or(${messageLogs.kind} = 'CONSENT' and ${ok})`,
         firstSent: sql<boolean>`bool_or(${messageLogs.kind} <> 'CONSENT' and ${ok})`,
       })
       .from(messageLogs)
       .groupBy(messageLogs.academyId),
-    // 화면 이동 기록 (90일치) — 마지막 접속, 접속한 날 수(한국 날짜), 최근 화면 10개 (최신 → 예전)
-    db
-      .select({
-        academyId: pageViews.academyId,
-        lastSeen: sql<Date>`max(${pageViews.createdAt})`.mapWith((v) => new Date(v)),
-        days: sql<number>`count(distinct (${pageViews.createdAt} at time zone 'Asia/Seoul')::date)`.mapWith(Number),
-        recent: sql<string[]>`(array_agg(${pageViews.screen} order by ${pageViews.createdAt} desc))[1:10]`,
-      })
-      .from(pageViews)
-      .groupBy(pageViews.academyId),
+    db.select({ academyId: pageViews.academyId, lastSeen: max(pageViews.createdAt) }).from(pageViews).groupBy(pageViews.academyId),
   ]);
-  const rows = allRows.filter((a) => !isAdminLoginId(a.loginId)); // 관리자(개발자) 계정은 목록·표에서 뺌
+  const rows = allRows.filter((a) => !isAdminLoginId(a.loginId)); // 관리자(개발자) 계정은 뺌
   const sByA = new Map(studentStats.map((r) => [r.academyId, r]));
   const mByA = new Map(messageStats.map((r) => [r.academyId, r]));
-  const vByA = new Map(viewStats.map((r) => [r.academyId, r]));
-  const usage = rows.map((a) => {
-    const s = sByA.get(a.id);
-    const m = mByA.get(a.id);
-    const v = vByA.get(a.id);
-    return {
-      id: a.id,
-      name: a.name,
-      joined: a.createdAt,
-      source: a.signupSource || "—", // 이 칸이 생기기 전 가입은 모름
-      lastSeen: v?.lastSeen ?? null,
-      days: v?.days ?? 0,
-      recent: (v?.recent ?? []).toReversed(), // 예전 → 최신, 맨 끝이 나간 곳
-      steps: [
-        { label: "학생 등록", done: (s?.total ?? 0) > 0 },
-        { label: "동의 요청", done: !!(s?.requested || m?.consentSent) },
-        { label: "동의 받음", done: !!s?.everAgreed },
-        { label: "첫 카톡", done: !!m?.firstSent },
-      ],
-      total: s?.total ?? 0,
-      agreed: s?.agreed ?? 0,
-      pending: s?.pending ?? 0,
-      kakao: m?.kakao ?? 0,
-      sms: m?.sms ?? 0,
-      failed: m?.failed ?? 0,
-      lastSent: m?.lastSent ?? null,
-    };
-  });
+  const vByA = new Map(viewStats.map((r) => [r.academyId, r.lastSeen]));
   const log = [
     ...extended.map((r) => ({ at: r.at, text: `${r.name} · ${PLANS[tierOf(r.kind)].label} 1달 연장 (${formatWon(r.amount)} 입금)` })),
     ...added.map((r) => ({ at: r.at, text: `${r.name} · ${r.memo}` })),
@@ -116,98 +69,47 @@ export default async function AdminPage() {
     .slice(0, 30);
 
   return (
-    <main className="px-3 pt-4 md:max-w-4xl">
-      <PageTitle title="관리자" sub="계좌이체 입금 확인 → 연장 · 카톡 충전" />
+    <main className="px-3 pt-4">
+      <PageTitle title="관리자" sub={`공부방 ${rows.length}곳 · 이름을 누르면 이용권·연장·충전·이용 기록`} />
 
-      <div className="space-y-2">
+      {/* PC: 화면 폭에 맞춰 2~4줄로 */}
+      <ul className="grid gap-2 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        {rows.length === 0 && <li className="card rounded-2xl p-3 text-[13px] text-slate-400">아직 없어요</li>}
         {rows.map((a) => {
-          const q = quotaState(a);
+          const s = sByA.get(a.id);
+          const m = mByA.get(a.id);
+          const lastSeen = vByA.get(a.id);
+          const steps = [
+            { label: "학생 등록", done: (s?.total ?? 0) > 0 },
+            { label: "동의 요청", done: !!(s?.requested || m?.consentSent) },
+            { label: "동의 받음", done: !!s?.everAgreed },
+            { label: "첫 카톡", done: !!m?.firstSent },
+          ];
           return (
-            <section key={a.id} className="card flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl p-3.5 text-[13.5px]">
-              <div className="min-w-40 flex-1">
-                <p className="font-bold">{a.name}</p>
-                <p className="text-slate-500">
-                  {a.loginId} · {a.ownerPhone || "연락처 없음"}
-                </p>
-                <p className="text-slate-500">
-                  {q.label} · {a.serviceUntil ? `${formatUntil(a.serviceUntil)}까지` : "기한 없음"} · 카톡 {q.remaining}/{q.total}통
-                </p>
-              </div>
-              <form action={adminExtend} className="flex items-center gap-1.5">
-                <input type="hidden" name="academyId" value={a.id} />
-                <select name="tier" defaultValue={q.tier === "PLUS" ? "PLUS" : "BASIC"} className="rounded-lg border border-slate-200 px-2 py-1.5">
-                  {PAID_TIERS.map((t) => (
-                    <option key={t} value={t}>
-                      {PLANS[t].label} {formatWon(PLANS[t].price)}
-                    </option>
-                  ))}
-                </select>
-                <ConfirmButton message={`${a.name}: 이용권을 1달 연장할까요? (정말 할까요?)`} className="rounded-lg bg-brand px-3 py-1.5 font-semibold text-white">
-                  이용권 1달 연장
-                </ConfirmButton>
-              </form>
-              <form action={adminAddMessages} className="flex items-center gap-1.5">
-                <input type="hidden" name="academyId" value={a.id} />
-                <input name="count" type="number" min={1} max={10000} defaultValue={50} required aria-label="충전할 통수" className="w-20 rounded-lg border border-slate-200 px-2 py-1.5" />
-                <ConfirmButton message={`${a.name}: 카톡을 충전할까요? (정말 할까요?)`} className="rounded-lg bg-brand-soft px-3 py-1.5 font-semibold text-brand">
-                  카톡 충전
-                </ConfirmButton>
-              </form>
-            </section>
+            <li key={a.id} className="card rounded-2xl">
+              <Link href={`/admin/${a.id}`} className="flex h-full items-center gap-2 rounded-2xl p-3.5 text-[13px] active:bg-black/5 md:hover:bg-black/[0.02]">
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex items-baseline gap-2">
+                    <span className="truncate text-[15px] font-bold">{a.name}</span>
+                    <span className="ml-auto shrink-0 text-slate-500">{lastSeen ? `${agoLabel(lastSeen)} 접속` : "접속 기록 없음"}</span>
+                  </div>
+                  <p className="text-slate-500 tabular-nums">
+                    {day(a.createdAt)} 가입 · {a.signupSource || "경로 모름"} · 학생 {s?.total ?? 0}명
+                  </p>
+                  <p className="flex flex-wrap gap-x-2">
+                    {steps.map((st) => (
+                      <span key={st.label} className={st.done ? "text-brand" : "text-slate-300"}>
+                        {st.done ? "✓" : "○"} {st.label}
+                      </span>
+                    ))}
+                  </p>
+                </div>
+                <ChevronRight size={18} className="shrink-0 text-slate-300" />
+              </Link>
+            </li>
           );
         })}
-      </div>
-
-      <h2 className="mt-6 mb-2 text-[15px] font-bold">잘 쓰고 있나요 ({usage.length}곳)</h2>
-      <div className="card overflow-x-auto rounded-2xl">
-        <table className="w-full text-[13px] whitespace-nowrap">
-          <thead className="text-left text-slate-500">
-            <tr className="border-b border-slate-100">
-              <th className="p-2.5 font-semibold">공부방</th>
-              <th className="p-2.5 font-semibold">가입일</th>
-              <th className="p-2.5 font-semibold">가입 경로</th>
-              <th className="p-2.5 font-semibold">마지막 접속</th>
-              <th className="p-2.5 text-right font-semibold">접속한 날</th>
-              <th className="p-2.5 font-semibold">최근 본 화면 (맨 끝 = 나간 곳)</th>
-              <th className="p-2.5 font-semibold">시작 단계</th>
-              <th className="p-2.5 text-right font-semibold">학생</th>
-              <th className="p-2.5 font-semibold">학부모 동의</th>
-              <th className="p-2.5 text-right font-semibold">이번 달 카톡·문자</th>
-              <th className="p-2.5 text-right font-semibold">실패</th>
-              <th className="p-2.5 font-semibold">마지막 발송</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 tabular-nums">
-            {usage.map((u) => (
-              <tr key={u.id}>
-                <td className="p-2.5 font-semibold">{u.name}</td>
-                <td className="p-2.5 text-slate-500">{day(u.joined)}</td>
-                <td className="p-2.5 text-slate-500">{u.source}</td>
-                <td className="p-2.5 text-slate-500">{u.lastSeen ? ago(u.lastSeen) : "—"}</td>
-                <td className="p-2.5 text-right">{u.days}일</td>
-                <td className="p-2.5 text-slate-500">{u.recent.length ? u.recent.join(" → ") : "—"}</td>
-                <td className="p-2.5">
-                  {u.steps.map((st, i) => (
-                    <span key={st.label} className={st.done ? "text-brand" : "text-slate-300"}>
-                      {i > 0 && <span className="mx-1 text-slate-300">→</span>}
-                      {st.done ? "✓" : "○"} {st.label}
-                    </span>
-                  ))}
-                </td>
-                <td className="p-2.5 text-right">{u.total}명</td>
-                <td className="p-2.5">
-                  동의 {u.agreed}명 / 대기 {u.pending}명
-                </td>
-                <td className="p-2.5 text-right">
-                  카톡 {u.kakao} · 문자 {u.sms}
-                </td>
-                <td className={`p-2.5 text-right ${u.failed > 0 ? "font-bold text-red-600" : "text-slate-400"}`}>{u.failed}</td>
-                <td className="p-2.5 text-slate-500">{u.lastSent ? day(u.lastSent) : "—"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      </ul>
 
       <h2 className="mt-6 mb-2 text-[15px] font-bold">기록 (최근 30개)</h2>
       <ul className="card divide-y divide-slate-100 rounded-2xl text-[13px]">
