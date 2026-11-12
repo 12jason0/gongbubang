@@ -3,6 +3,8 @@ import { ArrowLeft, ChevronLeft, ChevronRight, TriangleAlert } from "lucide-reac
 import { and, asc, eq, gte, lt } from "drizzle-orm";
 import { db, payments, students } from "@/db";
 import { requireAcademy } from "@/lib/session";
+import { redirect } from "next/navigation";
+import { isAdminLoginId } from "@/lib/admin";
 import { isValidMonth, isValidQuarter, quarterOf, quarterRange, shiftMonth, shiftQuarter, thisMonthKST, todayKST } from "@/lib/date";
 import { ReceiptLedger, type LedgerRow } from "@/components/ReceiptLedger";
 import { PrintButton } from "@/components/PrintButton";
@@ -19,6 +21,7 @@ const monthText = (m: string, withYear: boolean) => `${withYear ? `${Number(m.sl
  */
 export default async function LedgerPage({ searchParams }: { searchParams: Promise<{ q?: string; from?: string; to?: string }> }) {
   const academy = await requireAcademy();
+  if (isAdminLoginId(academy.loginId)) redirect("/admin"); // 관리자 계정은 관리자 화면만
   const sp = await searchParams;
   const current = quarterOf(todayKST());
   const thisMonth = thisMonthKST();

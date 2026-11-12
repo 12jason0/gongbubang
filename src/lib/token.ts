@@ -11,20 +11,30 @@ function secretKey() {
   return new TextEncoder().encode(s);
 }
 
-export async function signToken(academyId: string) {
-  return new SignJWT({ academyId })
+/** admin: 관리자 계정(env ADMIN_LOGIN_IDS)으로 로그인 — proxy 가 관리자 화면·마이페이지 말고는 /admin 으로 보낸다 */
+export async function signToken(academyId: string, admin = false) {
+  return new SignJWT(admin ? { academyId, admin: true } : { academyId })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_MAX_AGE}s`)
     .sign(secretKey());
 }
 
-export async function verifyToken(token: string | undefined): Promise<string | null> {
+export async function verifySession(token: string | undefined): Promise<{ academyId: string; admin: boolean } | null> {
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, secretKey());
-    return typeof payload.academyId === "string" ? payload.academyId : null;
+    return typeof payload.academyId === "string" ? { academyId: payload.academyId, admin: payload.admin === true } : null;
   } catch {
     return null;
   }
+}
+
+export async function verifyToken(token: string | undefined): Promise<string | null> {
+  return (await verifySession(token))?.academyId ?? null;
+}
+
+/** 관리자 계정이 열 수 있는 화면: 관리자 화면, 마이페이지(비밀번호·로그아웃만), API. 나머지는 /admin 으로 */
+export function adminPathAllowed(path: string) {
+  return path === "/admin" || path.startsWith("/admin/") || path === "/me" || path.startsWith("/api/");
 }

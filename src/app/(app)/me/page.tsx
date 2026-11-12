@@ -9,7 +9,8 @@ import { todayKST } from "@/lib/date";
 import { formatPhone } from "@/lib/phone";
 import { PLANS } from "@/lib/pricing";
 import { PageTitle } from "@/components/PageTitle";
-import { OwnerPhoneForm, PasswordForm } from "@/components/MeForms";
+import { LogoutButton, OwnerPhoneForm, PasswordForm } from "@/components/MeForms";
+import { isAdminLoginId } from "@/lib/admin";
 import { KakaoLinkRow } from "@/components/KakaoLogin";
 import { isKakaoAccount, kakaoEnabled } from "@/lib/kakao";
 
@@ -43,6 +44,32 @@ export default async function MePage({ searchParams }: { searchParams: Promise<{
       .limit(24),
   ]);
   const kakaoOnly = isKakaoAccount(academy.loginId);
+
+  // 관리자 계정: 비밀번호 바꾸기·로그아웃만
+  if (isAdminLoginId(academy.loginId)) {
+    return (
+      <main className="px-3 pt-4 md:max-w-xl">
+        <PageTitle title="마이페이지" sub="관리자 계정" />
+        <section className="card space-y-4 rounded-2xl p-4">
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand text-gold">
+              <UserRound size={21} />
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-[17px] font-bold">{academy.name}</p>
+              <p className="text-[13px] text-slate-500">
+                아이디 <b className="text-[#1c2230]">{academy.loginId}</b>
+              </p>
+            </div>
+          </div>
+          <PasswordForm />
+        </section>
+        <section className="card mt-3 rounded-2xl">
+          <LogoutButton />
+        </section>
+      </main>
+    );
+  }
   const state = planState(academy);
   const quota = quotaState(academy);
   const period =

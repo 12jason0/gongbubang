@@ -1,12 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { SESSION_COOKIE, verifyToken } from "@/lib/token";
+import { SESSION_COOKIE, adminPathAllowed, verifySession } from "@/lib/token";
 
 // 검색엔진·AI 봇·카톡 미리보기가 로그인 없이 가져가는 파일
 const SEO_FILES = new Set(["/robots.txt", "/sitemap.xml", "/llms.txt"]);
 
 // 로그인 안 했으면 로그인 화면으로 보낸다 (실제 권한 확인은 각 화면·액션에서 다시 함)
 export async function proxy(request: NextRequest) {
-  const academyId = await verifyToken(request.cookies.get(SESSION_COOKIE)?.value);
+  const session = await verifySession(request.cookies.get(SESSION_COOKIE)?.value);
+  const academyId = session?.academyId ?? null;
   const path = request.nextUrl.pathname;
   // /signup/kakao: 카카오 로그인 뒤 공부방 이름만 넣는 가입 화면
   const isLogin = path === "/login" || path === "/signup" || path === "/signup/kakao";
@@ -32,9 +33,16 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
   if (academyId && isLogin) {
-    return NextResponse.redirect(new URL("/", request.url));
+    return NextResponse.redirect(new URL(session?.admin ? "/admin" : "/", request.url));
   }
-  return NextResponse.next();
+  // 관리자 계정: 관리자 화면·마이페이지 말고는 전부 /admin 으로
+  if (session?.admin && !adminPathAllowed(path)) {
+    return NextResponse.redirect(new URL("/admin", request.url));
+  }
+  // 화면 레이아웃이 주소를 알 수 있게 (관리자 표시 없는 예전 쿠키도 레이아웃에서 막으려고)
+  const headers = new Headers(request.headers);
+  headers.set("x-pathname", path);
+  return NextResponse.next({ request: { headers } });
 }
 
 export const config = {

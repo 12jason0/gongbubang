@@ -11,11 +11,16 @@ import { StickyBar } from "@/components/StickyBar";
 import { WarmUp } from "@/components/WarmUp";
 import { shownLoginId } from "@/lib/kakao";
 import { isAdminLoginId } from "@/lib/admin";
+import { adminPathAllowed } from "@/lib/token";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const [academy, consultNew] = await Promise.all([requireAcademy(), currentAcademyId().then(countNewConsults)]);
   const testMode = isTestMode();
   const admin = isAdminLoginId(academy.loginId); // 관리자 계정: 메뉴엔 관리자 화면만, 이용권 안내 없음
+  // proxy 가 먼저 막지만, 관리자 표시가 없는 예전 로그인 쿠키도 여기서 /admin 으로
+  if (admin && !adminPathAllowed((await headers()).get("x-pathname") ?? "/admin")) redirect("/admin");
 
   return (
     <div className="mx-auto min-h-dvh max-w-md pb-[calc(96px+env(safe-area-inset-bottom))] md:max-w-none md:pb-10 md:pl-56">

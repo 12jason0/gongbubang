@@ -5,11 +5,15 @@ import { and, eq, isNull } from "drizzle-orm";
 import { db, academies } from "@/db";
 import { SESSION_COOKIE, SESSION_MAX_AGE, signToken, verifyToken } from "./token";
 import { isActive } from "./plan";
+import { isAdminLoginId } from "./admin";
 
 export async function createSession(academyId: string) {
+  // 관리자 계정이면 쿠키에 표시 (proxy 가 DB 없이 화면을 막을 수 있게)
+  const [row] = await db.select({ loginId: academies.loginId }).from(academies).where(eq(academies.id, academyId));
+  const admin = !!row && isAdminLoginId(row.loginId);
   // https 로 접속했을 때만 secure (내 컴퓨터에서 http 로 테스트할 때도 로그인되게)
   const https = (await headers()).get("x-forwarded-proto") === "https";
-  (await cookies()).set(SESSION_COOKIE, await signToken(academyId), {
+  (await cookies()).set(SESSION_COOKIE, await signToken(academyId, admin), {
     httpOnly: true,
     secure: https,
     sameSite: "lax",
