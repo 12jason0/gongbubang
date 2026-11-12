@@ -1,11 +1,29 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { SESSION_COOKIE, adminPathAllowed, verifySession } from "@/lib/token";
+import { REF_COOKIE, SESSION_COOKIE, adminPathAllowed, verifySession } from "@/lib/token";
 
 // 검색엔진·AI 봇·카톡 미리보기가 로그인 없이 가져가는 파일
 const SEO_FILES = new Set(["/robots.txt", "/sitemap.xml", "/llms.txt"]);
 
-// 로그인 안 했으면 로그인 화면으로 보낸다 (실제 권한 확인은 각 화면·액션에서 다시 함)
+// 가입 경로: 로그인 안 한 사람이 처음 들어올 때 온 사이트 도메인만 쿠키에 (가입할 때 academies.signupSource 로 — actions.ts)
+function firstRef(request: NextRequest) {
+  try {
+    const host = new URL(request.headers.get("referer") ?? "").hostname.replace(/^www\./, "");
+    return host && host !== request.nextUrl.hostname.replace(/^www\./, "") ? host : "direct";
+  } catch {
+    return "direct"; // 이전 페이지 정보가 없음 = 주소를 직접 쳤거나 앱·북마크
+  }
+}
+
 export async function proxy(request: NextRequest) {
+  const res = await route(request);
+  if (!request.cookies.has(REF_COOKIE) && !request.cookies.has(SESSION_COOKIE)) {
+    res.cookies.set(REF_COOKIE, firstRef(request), { httpOnly: true, sameSite: "lax", path: "/", maxAge: 60 * 60 * 24 * 90 });
+  }
+  return res;
+}
+
+// 로그인 안 했으면 로그인 화면으로 보낸다 (실제 권한 확인은 각 화면·액션에서 다시 함)
+async function route(request: NextRequest) {
   const session = await verifySession(request.cookies.get(SESSION_COOKIE)?.value);
   const academyId = session?.academyId ?? null;
   const path = request.nextUrl.pathname;

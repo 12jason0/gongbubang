@@ -1,5 +1,5 @@
 import { desc, eq, isNull, sql } from "drizzle-orm";
-import { db, academies, orders, creditLedger, students, messageLogs } from "@/db";
+import { db, academies, orders, creditLedger, students, messageLogs, pageViews } from "@/db";
 import { thisMonthKST } from "@/lib/date";
 import { isAdminLoginId, requireAdmin } from "@/lib/admin";
 import { formatUntil, quotaState } from "@/lib/plan";
@@ -12,13 +12,21 @@ import { adminAddMessages, adminExtend } from "./actions";
 export const metadata = { title: "관리자", robots: { index: false } };
 
 const day = (d: Date) => d.toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul", dateStyle: "short" });
+/** 마지막 접속: 방금 / N분 전 / N시간 전 / N일 전 */
+function ago(d: Date) {
+  const min = Math.floor((Date.now() - d.getTime()) / 60_000);
+  if (min < 1) return "방금";
+  if (min < 60) return `${min}분 전`;
+  if (min < 60 * 24) return `${Math.floor(min / 60)}시간 전`;
+  return `${Math.floor(min / 60 / 24)}일 전`;
+}
 const when = (d: Date) => d.toLocaleString("ko-KR", { timeZone: "Asia/Seoul", dateStyle: "short", timeStyle: "short" });
 
 export default async function AdminPage() {
   await requireAdmin();
   const monthStart = new Date(`${thisMonthKST()}-01T00:00:00+09:00`); // 이번 달 1일 0시 (한국)
   const ok = sql`${messageLogs.status} <> 'FAILED'`; // SENT (+ 테스트 모드 TEST)
-  const [allRows, extended, added, studentStats, messageStats] = await Promise.all([
+  const [allRows, extended, added, studentStats, messageStats, viewStats] = await Promise.all([
     db.select().from(academies).where(isNull(academies.deletedAt)).orderBy(desc(academies.createdAt)),
     db
       .select({ at: orders.createdAt, name: academies.name, kind: orders.kind, amount: orders.amount })
@@ -58,17 +66,33 @@ export default async function AdminPage() {
       })
       .from(messageLogs)
       .groupBy(messageLogs.academyId),
+    // 화면 이동 기록 (90일치) — 마지막 접속, 접속한 날 수(한국 날짜), 최근 화면 10개 (최신 → 예전)
+    db
+      .select({
+        academyId: pageViews.academyId,
+        lastSeen: sql<Date>`max(${pageViews.createdAt})`.mapWith((v) => new Date(v)),
+        days: sql<number>`count(distinct (${pageViews.createdAt} at time zone 'Asia/Seoul')::date)`.mapWith(Number),
+        recent: sql<string[]>`(array_agg(${pageViews.screen} order by ${pageViews.createdAt} desc))[1:10]`,
+      })
+      .from(pageViews)
+      .groupBy(pageViews.academyId),
   ]);
   const rows = allRows.filter((a) => !isAdminLoginId(a.loginId)); // 관리자(개발자) 계정은 목록·표에서 뺌
   const sByA = new Map(studentStats.map((r) => [r.academyId, r]));
   const mByA = new Map(messageStats.map((r) => [r.academyId, r]));
+  const vByA = new Map(viewStats.map((r) => [r.academyId, r]));
   const usage = rows.map((a) => {
     const s = sByA.get(a.id);
     const m = mByA.get(a.id);
+    const v = vByA.get(a.id);
     return {
       id: a.id,
       name: a.name,
       joined: a.createdAt,
+      source: a.signupSource || "—", // 이 칸이 생기기 전 가입은 모름
+      lastSeen: v?.lastSeen ?? null,
+      days: v?.days ?? 0,
+      recent: (v?.recent ?? []).toReversed(), // 예전 → 최신, 맨 끝이 나간 곳
       steps: [
         { label: "학생 등록", done: (s?.total ?? 0) > 0 },
         { label: "동의 요청", done: !!(s?.requested || m?.consentSent) },
@@ -141,6 +165,10 @@ export default async function AdminPage() {
             <tr className="border-b border-slate-100">
               <th className="p-2.5 font-semibold">공부방</th>
               <th className="p-2.5 font-semibold">가입일</th>
+              <th className="p-2.5 font-semibold">가입 경로</th>
+              <th className="p-2.5 font-semibold">마지막 접속</th>
+              <th className="p-2.5 text-right font-semibold">접속한 날</th>
+              <th className="p-2.5 font-semibold">최근 본 화면 (맨 끝 = 나간 곳)</th>
               <th className="p-2.5 font-semibold">시작 단계</th>
               <th className="p-2.5 text-right font-semibold">학생</th>
               <th className="p-2.5 font-semibold">학부모 동의</th>
@@ -154,6 +182,10 @@ export default async function AdminPage() {
               <tr key={u.id}>
                 <td className="p-2.5 font-semibold">{u.name}</td>
                 <td className="p-2.5 text-slate-500">{day(u.joined)}</td>
+                <td className="p-2.5 text-slate-500">{u.source}</td>
+                <td className="p-2.5 text-slate-500">{u.lastSeen ? ago(u.lastSeen) : "—"}</td>
+                <td className="p-2.5 text-right">{u.days}일</td>
+                <td className="p-2.5 text-slate-500">{u.recent.length ? u.recent.join(" → ") : "—"}</td>
                 <td className="p-2.5">
                   {u.steps.map((st, i) => (
                     <span key={st.label} className={st.done ? "text-brand" : "text-slate-300"}>

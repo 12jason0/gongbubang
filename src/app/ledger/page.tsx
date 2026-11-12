@@ -9,6 +9,8 @@ import { isValidMonth, isValidQuarter, quarterOf, quarterRange, shiftMonth, shif
 import { ReceiptLedger, type LedgerRow } from "@/components/ReceiptLedger";
 import { PrintButton } from "@/components/PrintButton";
 import { fillMissingSerials } from "@/lib/receipt-serial";
+import { PageView } from "@/components/PageView";
+import { Suspense } from "react";
 
 export const metadata = { title: "교습비등 영수증 원부" };
 
@@ -71,6 +73,9 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
 
   return (
     <div className="min-h-dvh bg-canvas print:bg-white">
+      <Suspense>
+        <PageView />
+      </Suspense>
       {/* 화면에서만 보이는 도구 (인쇄 안 됨) */}
       <div className="mx-auto max-w-[1120px] px-3 pt-3 print:hidden">
         <div className="flex flex-wrap items-center gap-2">

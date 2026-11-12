@@ -49,6 +49,8 @@ export const academies = pgTable("academies", {
   consultMinutes: integer("consult_minutes").notNull().default(30), // 상담 한 번 길이 (분)
   // 영수증 원부 일련번호 — 마지막으로 준 번호. 납부 기록을 지워도 줄지 않아서 번호가 다시 쓰이지 않는다 (lib/receipt-serial.ts)
   receiptSeq: integer("receipt_seq").notNull().default(0),
+  // 가입 경로 — 처음 들어온 사이트 도메인만 (예: blog.naver.com). 없으면 "직접", 이 칸이 생기기 전 가입·가입 90일 지난 계정(cron 이 비움)은 "" (proxy.ts 쿠키 → 가입 때 저장)
+  signupSource: text("signup_source").notNull().default(""),
   createdAt: createdAt(),
 });
 
@@ -299,6 +301,19 @@ export const consultations = pgTable(
     // 같은 시각 두 번 신청 막기 (동시에 눌러도). 취소한 건 빼고
     uniqueIndex("consultations_slot_uq").on(t.academyId, t.date, t.start).where(sql`${t.status} <> 'CANCELED'`),
   ],
+);
+
+// 화면 이동 기록 — 공부방·화면 이름·시각만 (주소 속 값·화면 내용·학생 정보는 안 남김). 관리자 계정은 안 남김. 90일 지나면 cron 이 지움
+// components/PageView.tsx → api/view
+export const pageViews = pgTable(
+  "page_views",
+  {
+    id: id(),
+    academyId: text("academy_id").notNull().references(() => academies.id, { onDelete: "cascade" }),
+    screen: text("screen").notNull(), // 예: 출석부, 학생, 엑셀 올리기
+    createdAt: createdAt(),
+  },
+  (t) => [index("page_views_academy_idx").on(t.academyId, t.createdAt)],
 );
 
 export type Student = typeof students.$inferSelect;

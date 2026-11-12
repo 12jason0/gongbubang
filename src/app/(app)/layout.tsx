@@ -9,6 +9,8 @@ import { HelpButton, HelpProvider } from "@/components/Help";
 import { formatDateLabel, todayKST } from "@/lib/date";
 import { StickyBar } from "@/components/StickyBar";
 import { WarmUp } from "@/components/WarmUp";
+import { PageView } from "@/components/PageView";
+import { Suspense } from "react";
 import { shownLoginId } from "@/lib/kakao";
 import { isAdminLoginId } from "@/lib/admin";
 import { adminPathAllowed } from "@/lib/token";
@@ -81,6 +83,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </div>
       <BottomNav dotHref={consultNew > 0 ? "/calendar" : null} admin={admin} />
       <WarmUp />
+      {!admin && (
+        <Suspense>
+          <PageView />
+        </Suspense>
+      )}
       </HelpProvider>
     </div>
   );

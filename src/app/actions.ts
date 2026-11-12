@@ -25,6 +25,7 @@ import { fromMin, toMin } from "@/lib/class-colors";
 import { endTrialIfOverlap, parentPhoneHash, trialKakaoHash, trialPhoneHash, trialUsedByKakao, trialUsedByPhone } from "@/lib/account";
 import { KAKAO_LOGIN_PREFIX, KAKAO_PENDING_COOKIE, isKakaoAccount, readPendingKakao } from "@/lib/kakao";
 import { cookies } from "next/headers";
+import { REF_COOKIE, signupSourceOf } from "@/lib/token";
 import { PHONE_VERIFY, phoneCodeOk } from "@/lib/phone-verify";
 import { billingReady, createOrderRow, orderName, priceFor, type OrderKind } from "@/lib/billing";
 
@@ -93,6 +94,7 @@ export async function signup(_prev: string | null, formData: FormData): Promise<
       serviceUntil: usedTrial ? new Date() : new Date(Date.now() + TRIAL_DAYS * 86_400_000),
       attendanceNotify: false, // 등원 카톡은 원장님이 설정에서 켤 때부터
       trialPhoneHash: trialPhoneHash(ownerPhone), // 체험을 쓴 번호 — 연락처를 바꾸거나 탈퇴해도 남는다
+      signupSource: signupSourceOf((await cookies()).get(REF_COOKIE)?.value),
     })
     .onConflictDoNothing({ target: academies.loginId })
     .returning({ id: academies.id });
@@ -135,6 +137,7 @@ export async function kakaoSignup(_prev: string | null, formData: FormData): Pro
         attendanceNotify: false,
         kakaoId,
         trialKakaoHash: trialKakaoHash(kakaoId),
+        signupSource: signupSourceOf((await cookies()).get(REF_COOKIE)?.value),
       })
       .onConflictDoNothing({ target: academies.kakaoId })
       .returning({ id: academies.id });
