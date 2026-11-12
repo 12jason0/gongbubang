@@ -5,7 +5,7 @@
 
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
-import { db, academies, students, classes, classStudents } from "../src/db";
+import { db, academies, students, classes, classStudents, payments } from "../src/db";
 
 async function main() {
   const name = process.env.SEED_ACADEMY_NAME ?? "현샘영수";
@@ -27,6 +27,7 @@ async function main() {
 
   // npm run seed:reset → 이 공부방의 학생·반(출결·메모 포함)을 지우고 예시 데이터로 다시 채움
   if (process.argv.includes("--reset")) {
+    await db.delete(payments).where(eq(payments.academyId, academy.id)); // 원비 기록이 있으면 학생을 못 지움 (예시 공부방이라 같이 지움)
     await db.delete(students).where(eq(students.academyId, academy.id));
     await db.delete(classes).where(eq(classes.academyId, academy.id));
     console.log("기존 학생·반 삭제");

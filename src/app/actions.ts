@@ -445,7 +445,7 @@ export async function resendFailedMessages() {
       const [paid] = await db
         .select({ id: payments.id })
         .from(payments)
-        .where(and(eq(payments.studentId, student.id), eq(payments.period, log.refDate)))
+        .where(and(eq(payments.studentId, student.id), eq(payments.period, log.refDate), isNull(payments.canceledAt)))
         .limit(1);
       if (paid || !student.active) {
         skipped++;
@@ -502,7 +502,7 @@ export async function sendPaymentReminders(month: string, studentIds: string[]) 
       await db
         .select({ studentId: payments.studentId })
         .from(payments)
-        .where(and(eq(payments.academyId, academy.id), eq(payments.period, month)))
+        .where(and(eq(payments.academyId, academy.id), eq(payments.period, month), isNull(payments.canceledAt)))
     ).map((p) => p.studentId),
   );
   // 교습비·납부일이 비어 있으면 "교습비: -"로 나가서 안 보냄 → 원장님께 먼저 입력해 달라고
@@ -975,21 +975,45 @@ export async function undoStudentsImport(studentIds: string[], classIds: string[
   const sIds = ids(studentIds);
   const cIds = ids(classIds);
   let removed = 0;
+  let stopped = 0;
   await db.transaction(async (tx) => {
     if (sIds.length) {
-      removed = (
-        await tx
-          .delete(students)
-          .where(and(eq(students.academyId, academy.id), inArray(students.id, sIds)))
-          .returning({ id: students.id })
-      ).length;
+      // 원비 기록이 있는 학생은 지우지 않고 그만둠으로 (영수증 원부 5년 보관 — DB 도 원비 기록이 있는 학생은 못 지우게 막음)
+      const withPay = new Set(
+        (
+          await tx
+            .selectDistinct({ id: payments.studentId })
+            .from(payments)
+            .where(and(eq(payments.academyId, academy.id), inArray(payments.studentId, sIds)))
+        ).map((r) => r.id),
+      );
+      const keep = sIds.filter((id) => withPay.has(id));
+      const drop = sIds.filter((id) => !withPay.has(id));
+      if (keep.length) {
+        stopped = (
+          await tx
+            .update(students)
+            .set({ active: false })
+            .where(and(eq(students.academyId, academy.id), inArray(students.id, keep)))
+            .returning({ id: students.id })
+        ).length;
+      }
+      if (drop.length) {
+        removed = (
+          await tx
+            .delete(students)
+            .where(and(eq(students.academyId, academy.id), inArray(students.id, drop)))
+            .returning({ id: students.id })
+        ).length;
+      }
     }
     if (cIds.length) await tx.delete(classes).where(and(eq(classes.academyId, academy.id), inArray(classes.id, cIds)));
   });
   revalidatePath("/students");
   revalidatePath("/");
   revalidatePath("/calendar");
-  return { ok: true, message: `되돌렸어요. 방금 올린 ${removed}명을 지웠어요.` };
+  const note = stopped ? ` 원비 기록이 있는 ${stopped}명은 영수증 원부 보관을 위해 지우지 않고 '그만둠'으로 바꿨어요.` : "";
+  return { ok: true, message: `되돌렸어요. 방금 올린 ${removed}명을 지웠어요.${note}` };
 }
 
 export async function setStudentActive(studentId: string, active: boolean) {
@@ -1043,7 +1067,7 @@ export async function updatePayment(paymentId: string, tuitionText: string, memo
   const [p] = await db
     .select({ otherFee: payments.otherFee })
     .from(payments)
-    .where(and(eq(payments.id, paymentId), eq(payments.academyId, academy.id)));
+    .where(and(eq(payments.id, paymentId), eq(payments.academyId, academy.id), isNull(payments.canceledAt)));
   if (!p) return { ok: false, message: "납부 기록을 찾을 수 없어요." };
   if (!Number.isFinite(tuition) || tuition < 0 || tuition > 10_000_000 || tuition + p.otherFee <= 0) {
     return { ok: false, message: "금액을 확인해 주세요." };
@@ -1065,10 +1089,15 @@ export async function setStudentBirthDate(studentId: string, birthDate: string):
   return { ok: true, message: "넣었어요." };
 }
 
+/** 원비 기록 [삭제] — 지우지 않고 취소 표시만 (영수증 원부 5년 보관: 원부에는 같은 일련번호로 "취소"가 찍힘) */
 export async function deletePayment(paymentId: string) {
   const academy = await requireActiveAcademy();
-  await db.delete(payments).where(and(eq(payments.id, paymentId), eq(payments.academyId, academy.id)));
+  await db
+    .update(payments)
+    .set({ canceledAt: new Date() })
+    .where(and(eq(payments.id, paymentId), eq(payments.academyId, academy.id), isNull(payments.canceledAt)));
   revalidatePath("/stats");
+  revalidatePath("/ledger");
 }
 
 // ───────────────────────── 반 관리 ─────────────────────────

@@ -159,7 +159,9 @@ export const payments = pgTable(
   {
     id: id(),
     academyId: text("academy_id").notNull().references(() => academies.id, { onDelete: "cascade" }),
-    studentId: text("student_id").notNull().references(() => students.id, { onDelete: "cascade" }),
+    // 원비 기록이 있는 학생은 지울 수 없음 (영수증 원부 5년 보관). "no action" = 학생만 지우면 막히고,
+    // 공부방째 지울 때(academies cascade 로 학생·원비가 같은 문장에서 함께 지워짐)는 문장 끝에 검사해서 통과 — "restrict" 는 이것도 막는다
+    studentId: text("student_id").notNull().references(() => students.id, { onDelete: "no action" }),
     paidOn: text("paid_on").notNull(), // 받은 날 "2026-10-30"
     period: text("period").notNull(), // 교습기간(월) "2026-11" — 선납이면 앞으로의 달
     subject: text("subject").notNull(), // 교습과목. 예: 영어, 수학
@@ -169,6 +171,8 @@ export const payments = pgTable(
     memo: text("memo").notNull().default(""), // 원비가 바뀐 이유 등 (예: 결석 2회 차감)
     // 영수증 원부 일련번호 — 공부방별 1부터, 한 번 붙으면 안 바뀜. 비어 있는 기록(예전 코드가 넣은 것)은 원부를 열 때 붙인다
     serialNo: integer("serial_no"),
+    // [삭제] 대신 취소 표시 — 기록은 남기고 원부에 "취소"로 찍는다 (일련번호 그대로). 원비 화면·미납 계산에서는 뺀다
+    canceledAt: timestamp("canceled_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [

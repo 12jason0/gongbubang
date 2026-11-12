@@ -130,14 +130,15 @@ function PaidItem({ p, fee }: { p: PaymentItem; fee: number | null }) {
         {confirm ? (
           <div className="flex shrink-0 gap-1">
             <button onClick={() => setConfirm(false)} className="h-9 rounded-lg bg-slate-100 px-2.5 text-[12px] font-medium">
-              취소
+              그대로
             </button>
             <button
               disabled={pending}
               onClick={() => start(() => deletePayment(p.id))}
+              title="기록은 지워지지 않고 영수증 원부에 '취소'로 남아요"
               className="h-9 rounded-lg bg-rose-500 px-2.5 text-[12px] font-semibold text-white disabled:opacity-60"
             >
-              지우기
+              납부 취소
             </button>
           </div>
         ) : (
@@ -152,7 +153,7 @@ function PaidItem({ p, fee }: { p: PaymentItem; fee: number | null }) {
               onClick={() => setConfirm(true)}
               className="flex h-9 items-center gap-1 rounded-lg px-2 text-[12px] text-slate-400 active:bg-black/5"
             >
-              <Trash2 size={14} /> 삭제
+              <Trash2 size={14} /> 취소
             </button>
           </div>
         )}

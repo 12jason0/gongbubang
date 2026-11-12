@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte } from "drizzle-orm";
+import { and, count, desc, eq, gte, isNull } from "drizzle-orm";
 import { db, attendance, classes, classStudents, messageLogs, notices, payments, students } from "@/db";
 import { currentAcademyId, requireAcademy } from "@/lib/session";
 import { redirect } from "next/navigation";
@@ -53,12 +53,12 @@ export default async function DashboardPage() {
     db
       .selectDistinct({ studentId: payments.studentId })
       .from(payments)
-      .where(and(eq(payments.academyId, academyId), eq(payments.period, month))),
+      .where(and(eq(payments.academyId, academyId), eq(payments.period, month), isNull(payments.canceledAt))),
     // 미납 금액: 등록한 월 교습비, 없으면 학생별 가장 최근 납부액으로 어림
     db
       .selectDistinctOn([payments.studentId], { studentId: payments.studentId, tuition: payments.tuition, otherFee: payments.otherFee })
       .from(payments)
-      .where(eq(payments.academyId, academyId))
+      .where(and(eq(payments.academyId, academyId), isNull(payments.canceledAt)))
       .orderBy(payments.studentId, desc(payments.createdAt)),
     db
       .select({ n: count() })

@@ -14,6 +14,7 @@ export type LedgerRow = {
   tuition: number; // 실제 받은 교습비
   otherFee: number;
   paidOn: string; // "2026-10-30"
+  canceled: boolean; // 원비 [삭제] = 취소 표시 → "취소" 도장 (번호는 그대로)
 };
 
 export type LedgerInfo = {
@@ -47,7 +48,12 @@ const head = `${cell} bg-black/[0.04] text-center font-semibold`;
 function Half({ title, row, info, screenTools }: { title: string; row: LedgerRow; info: LedgerInfo; screenTools: boolean }) {
   const paid = ymd(row.paidOn);
   return (
-    <div className="flex h-full flex-col border-2 border-black p-[5mm]">
+    <div className="relative flex h-full flex-col border-2 border-black p-[5mm]">
+      {row.canceled && (
+        <span className="absolute top-[4mm] right-[5mm] rotate-[-8deg] rounded border-[3px] border-black px-3 py-0.5 text-[22px] font-bold tracking-[0.3em] text-black">
+          취소
+        </span>
+      )}
       <h2 className="mt-1 mb-4 text-center text-[19px] font-bold tracking-[0.15em]">{title}</h2>
       <table className="w-full table-fixed border-collapse">
         <colgroup>

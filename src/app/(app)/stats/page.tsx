@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, MessageSquare, Printer, Wallet } from "lucide-react";
-import { and, desc, eq, gte, like, lt, ne } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, like, lt, ne } from "drizzle-orm";
 import { db, attendance, messageLogs, students, payments, classes, classStudents } from "@/db";
 import { currentAcademyId, requireAcademy } from "@/lib/session";
 import { isValidMonth, quarterOf, shiftMonth, thisMonthKST, todayKST } from "@/lib/date";
@@ -41,13 +41,13 @@ export default async function StatsPage({ searchParams }: { searchParams: Promis
     db
       .select()
       .from(payments)
-      .where(and(eq(payments.academyId, academyId), eq(payments.period, month)))
+      .where(and(eq(payments.academyId, academyId), eq(payments.period, month), isNull(payments.canceledAt))) // 취소한 기록은 원부에만
       .orderBy(payments.paidOn),
     // 학생별 가장 최근 납부 — 입력 칸 기본값 (지난번과 같은 금액·과목·수단)
     db
       .selectDistinctOn([payments.studentId])
       .from(payments)
-      .where(eq(payments.academyId, academyId))
+      .where(and(eq(payments.academyId, academyId), isNull(payments.canceledAt)))
       .orderBy(payments.studentId, desc(payments.createdAt)),
     db
       .select({ studentId: classStudents.studentId, name: classes.name })

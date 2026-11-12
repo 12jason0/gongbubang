@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft, ChevronLeft, ChevronRight, TriangleAlert } from "lucide-react";
-import { and, asc, eq, gte, lt } from "drizzle-orm";
+import { and, asc, eq, gte, lt, sql } from "drizzle-orm";
 import { db, payments, students } from "@/db";
 import { requireAcademy } from "@/lib/session";
 import { redirect } from "next/navigation";
@@ -59,13 +59,15 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
       tuition: payments.tuition,
       otherFee: payments.otherFee,
       paidOn: payments.paidOn,
+      canceled: sql<boolean>`${payments.canceledAt} is not null`,
     })
     .from(payments)
     .innerJoin(students, eq(students.id, payments.studentId))
     .where(and(eq(payments.academyId, academy.id), gte(payments.paidOn, from), lt(payments.paidOn, to)))
     .orderBy(asc(payments.serialNo), asc(payments.createdAt));
 
-  const missingBirth = new Set(rows.filter((r) => !r.birthDate).map((r) => r.studentName));
+  const missingBirth = new Set(rows.filter((r) => !r.birthDate && !r.canceled).map((r) => r.studentName));
+  const canceledCount = rows.filter((r) => r.canceled).length;
 
   return (
     <div className="min-h-dvh bg-canvas print:bg-white">
@@ -102,7 +104,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
 
         <div className="mt-2 space-y-1.5 text-[13px]">
           <p className="text-slate-500">
-            이 기간에 받은 교습비 {rows.length}건 → <b>{rows.length}장</b> (한 건당 A4 가로 한 장: 왼쪽 원부는 보관, 오른쪽 영수증은 학부모님께) · 원부는 5년간
+            이 기간에 받은 교습비 {rows.length}건{canceledCount > 0 && ` (취소 ${canceledCount}건 포함)`} → <b>{rows.length}장</b> (한 건당 A4 가로 한 장: 왼쪽 원부는 보관, 오른쪽 영수증은 학부모님께) · 원부는 5년간
             보관하세요. 비어 있는 칸은 손으로 적어 주세요.
             <span className="md:hidden"> 종이는 옆으로 밀어서 보세요.</span>
           </p>
