@@ -10,10 +10,12 @@ import { formatDateLabel, todayKST } from "@/lib/date";
 import { StickyBar } from "@/components/StickyBar";
 import { WarmUp } from "@/components/WarmUp";
 import { shownLoginId } from "@/lib/kakao";
+import { isAdminLoginId } from "@/lib/admin";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const [academy, consultNew] = await Promise.all([requireAcademy(), currentAcademyId().then(countNewConsults)]);
   const testMode = isTestMode();
+  const admin = isAdminLoginId(academy.loginId); // 관리자 계정: 메뉴엔 관리자 화면만, 이용권 안내 없음
 
   return (
     <div className="mx-auto min-h-dvh max-w-md pb-[calc(96px+env(safe-area-inset-bottom))] md:max-w-none md:pb-10 md:pl-56">
@@ -32,7 +34,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <span className="ml-auto" />
         <HelpButton />
       </StickyBar>
-      <SideNav academyName={academy.name} loginId={shownLoginId(academy.loginId)} />
+      <SideNav academyName={academy.name} loginId={shownLoginId(academy.loginId)} admin={admin} />
       {/* PC: 왼쪽 메뉴 빼고 화면 폭 전체. 양옆 여백 = 여기 12/20px + 각 화면 main 의 px-3(12px) = 24px, 넓은 화면 32px */}
       <div className="md:px-3 xl:px-5">
         {/* PC 위쪽 바: 공부방 이름 · 오늘 날짜 · 테스트 모드 (휴대폰은 위 초록 헤더 그대로) */}
@@ -51,10 +53,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <span className="ml-auto" />
           <HelpButton />
         </StickyBar>
-        <PlanBanner state={planState(academy)} quota={quotaState(academy)} />
+        {!admin && <PlanBanner state={planState(academy)} quota={quotaState(academy)} />}
         <ToastProvider>{children}</ToastProvider>
       </div>
-      <BottomNav dotHref={consultNew > 0 ? "/calendar" : null} />
+      <BottomNav dotHref={consultNew > 0 ? "/calendar" : null} admin={admin} />
       <WarmUp />
       </HelpProvider>
     </div>

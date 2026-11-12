@@ -1,7 +1,7 @@
 import { desc, eq, isNull, sql } from "drizzle-orm";
 import { db, academies, orders, creditLedger, students, messageLogs } from "@/db";
 import { thisMonthKST } from "@/lib/date";
-import { requireAdmin } from "@/lib/admin";
+import { isAdminLoginId, requireAdmin } from "@/lib/admin";
 import { formatUntil, quotaState } from "@/lib/plan";
 import { PAID_TIERS, PLANS, tierOf } from "@/lib/pricing";
 import { formatWon } from "@/lib/money";
@@ -18,7 +18,7 @@ export default async function AdminPage() {
   await requireAdmin();
   const monthStart = new Date(`${thisMonthKST()}-01T00:00:00+09:00`); // 이번 달 1일 0시 (한국)
   const ok = sql`${messageLogs.status} <> 'FAILED'`; // SENT (+ 테스트 모드 TEST)
-  const [rows, extended, added, studentStats, messageStats] = await Promise.all([
+  const [allRows, extended, added, studentStats, messageStats] = await Promise.all([
     db.select().from(academies).where(isNull(academies.deletedAt)).orderBy(desc(academies.createdAt)),
     db
       .select({ at: orders.createdAt, name: academies.name, kind: orders.kind, amount: orders.amount })
@@ -59,6 +59,7 @@ export default async function AdminPage() {
       .from(messageLogs)
       .groupBy(messageLogs.academyId),
   ]);
+  const rows = allRows.filter((a) => !isAdminLoginId(a.loginId)); // 관리자(개발자) 계정은 목록·표에서 뺌
   const sByA = new Map(studentStats.map((r) => [r.academyId, r]));
   const mByA = new Map(messageStats.map((r) => [r.academyId, r]));
   const usage = rows.map((a) => {

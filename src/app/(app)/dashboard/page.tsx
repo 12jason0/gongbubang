@@ -1,6 +1,8 @@
 import { and, count, desc, eq, gte } from "drizzle-orm";
 import { db, attendance, classes, classStudents, messageLogs, notices, payments, students } from "@/db";
 import { currentAcademyId, requireAcademy } from "@/lib/session";
+import { redirect } from "next/navigation";
+import { isAdminLoginId } from "@/lib/admin";
 import { shiftDate, thisMonthKST, timeKST, todayKST } from "@/lib/date";
 import { byTimeName, parseDays, weekdayOf } from "@/lib/templates";
 import { quotaNote, quotaState } from "@/lib/plan";
@@ -79,6 +81,7 @@ export default async function DashboardPage() {
       .limit(6),
     countNewConsults(academyId),
   ]);
+  if (isAdminLoginId(academy.loginId)) redirect("/admin");
 
   const activeIds = new Set(studentRows.map((s) => s.id));
   const membersOf = (classId: string) => memberRows.filter((m) => m.classId === classId && activeIds.has(m.studentId)).map((m) => m.studentId);

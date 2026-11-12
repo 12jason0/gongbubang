@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Calendar, CalendarDays, ChevronRight, ClipboardCheck, LayoutDashboard, Megaphone, Settings, UserRound, Users } from "lucide-react";
+import { Calendar, CalendarDays, ChevronRight, ClipboardCheck, LayoutDashboard, Megaphone, Settings, ShieldCheck, UserRound, Users } from "lucide-react";
 
 const TABS = [
   { href: "/", label: "출석부", Icon: ClipboardCheck },
@@ -17,18 +17,22 @@ const TABS = [
 /** PC 메뉴: 맨 위에 대시보드 (휴대폰 탭은 그대로) */
 const SIDE_TABS = [{ href: "/dashboard", label: "대시보드", Icon: LayoutDashboard }, ...TABS];
 
+/** 관리자 계정(env ADMIN_LOGIN_IDS) 메뉴 — 관리자 화면만 (휴대폰은 로그아웃하러 갈 마이페이지도) */
+const ADMIN_TAB = { href: "/admin", label: "관리자", Icon: ShieldCheck };
+const ADMIN_TABS = [ADMIN_TAB, { href: "/me", label: "마이페이지", Icon: UserRound }];
+
 const isActive = (pathname: string, href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
 /** 휴대폰: 화면 아래 떠 있는 알약 모양 메뉴 (아래 12px + 아이폰 홈 바 영역, 양옆 12px). md 이상에서는 숨김 */
 /** dotHref: 그 탭 아이콘에 빨간 점 (새 상담 신청이 있으면 달력) */
-export function BottomNav({ dotHref }: { dotHref?: string | null }) {
+export function BottomNav({ dotHref, admin = false }: { dotHref?: string | null; admin?: boolean }) {
   const pathname = usePathname();
   return (
     <nav
       className="glass fixed inset-x-3 z-20 mx-auto flex max-w-[26rem] gap-0.5 rounded-full p-1.5 shadow-[0_12px_32px_-12px_rgb(12_40_30/0.35)] md:hidden"
       style={{ bottom: "calc(12px + env(safe-area-inset-bottom))" }}
     >
-      {TABS.map(({ href, label, Icon }) => {
+      {(admin ? ADMIN_TABS : TABS).map(({ href, label, Icon }) => {
         const active = isActive(pathname, href);
         return (
           <Link
@@ -52,7 +56,7 @@ export function BottomNav({ dotHref }: { dotHref?: string | null }) {
 }
 
 /** PC·태블릿(md 이상): 왼쪽에 떠 있는 유리 사이드바. 화면이 낮으면(노트북 확대 125% 등) 메뉴가 넘치지 않고 사이드바 안에서 스크롤 */
-export function SideNav({ academyName, loginId }: { academyName: string; loginId: string }) {
+export function SideNav({ academyName, loginId, admin = false }: { academyName: string; loginId: string; admin?: boolean }) {
   const pathname = usePathname();
   return (
     <aside className="glass fixed top-3 bottom-3 left-3 z-20 hidden w-52 flex-col overflow-y-auto rounded-[28px] p-3 md:flex">
@@ -64,7 +68,7 @@ export function SideNav({ academyName, loginId }: { academyName: string; loginId
         </div>
       </div>
       <nav className="flex flex-col gap-1">
-        {SIDE_TABS.map(({ href, label, Icon }) => {
+        {(admin ? [ADMIN_TAB] : SIDE_TABS).map(({ href, label, Icon }) => {
           const active = isActive(pathname, href);
           return (
             <Link

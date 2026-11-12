@@ -8,6 +8,7 @@ import { db, academies, students, attendance, notes, notices, classes, classStud
 import { createSession, deleteSession, requireAcademy, requireActiveAcademy } from "@/lib/session";
 import { notifyAdmin, sendMessages, smsBytes, smsUnits } from "@/lib/sms";
 import { after } from "next/server";
+import { isAdminLoginId } from "@/lib/admin";
 import { unresolvedFailures } from "@/lib/failed";
 import { byGradeName, fitKakao, KAKAO_MAX_CHARS, LMS_MAX_BYTES, monthLabel, noticeText, parseDays, SCHEDULE_DATE_MAX, SCHEDULE_TEXT_MAX } from "@/lib/templates";
 import { formatDateLabel, isValidDate, isValidMonth, spokenTimeKST, thisMonthKST, timeKST, todayKST } from "@/lib/date";
@@ -41,6 +42,7 @@ export async function login(_prev: string | null, formData: FormData): Promise<s
     return "아이디 또는 비밀번호가 맞지 않아요.";
   }
   await createSession(academy.id);
+  if (isAdminLoginId(academy.loginId)) redirect("/admin"); // 관리자 계정은 관리자 화면만
   // PC(화면 넓음)는 대시보드, 휴대폰은 출석부가 첫 화면
   redirect(formData.get("pc") === "1" ? "/dashboard" : "/");
 }

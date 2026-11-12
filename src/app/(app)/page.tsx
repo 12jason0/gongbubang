@@ -3,6 +3,8 @@ import { CheckCircle2, ChevronLeft, ChevronRight, History, ListChecks, Send, Use
 import { and, eq } from "drizzle-orm";
 import { db, students, attendance, notes, classes, classStudents } from "@/db";
 import { currentAcademyId, requireAcademy } from "@/lib/session";
+import { redirect } from "next/navigation";
+import { isAdminLoginId } from "@/lib/admin";
 import { formatDateLabel, isValidDate, shiftDate, timeKST, todayKST } from "@/lib/date";
 import { byGradeName, byTimeName, parseDays, weekdayOf } from "@/lib/templates";
 import type { RowData } from "@/components/AttendanceRow";
@@ -30,7 +32,7 @@ export default async function AttendancePage({
   const isToday = date === today;
   const weekday = weekdayOf(date);
 
-  const [, studentRows, classRows, memberRows, attRows, noteRows, failed, consultNew] = await Promise.all([
+  const [academy, studentRows, classRows, memberRows, attRows, noteRows, failed, consultNew] = await Promise.all([
     requireAcademy(), // 공부방이 없거나 지워졌으면 여기서 로그인 화면으로
     // 화면에 쓰는 칸만 (전화번호·생년월일 등은 출석부에서 안 씀)
     db
@@ -57,6 +59,7 @@ export default async function AttendancePage({
     countFailedMessages(academyId),
     countNewConsults(academyId),
   ]);
+  if (isAdminLoginId(academy.loginId)) redirect("/admin"); // 관리자 계정은 출석부 대신 관리자 화면
 
   // 이 날짜 요일에 수업 있는 반
   classRows.sort(byTimeName);
