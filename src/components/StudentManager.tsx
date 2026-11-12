@@ -9,7 +9,7 @@ import { feeLabel } from "@/lib/money";
 import { parseRoster, rosterKey, ROSTER_MAX_LINES } from "@/lib/roster";
 import { Confirm } from "./Confirm";
 import { ExcelImport } from "./ExcelImport";
-import { logView } from "./PageView";
+import { track } from "./PageView";
 import { PageTitle } from "./PageTitle";
 import { InfoTip, TipExample } from "./InfoTip";
 
@@ -185,7 +185,7 @@ function AddPanel({ onClose, classes, students }: { onClose?: () => void; classe
             <ClipboardList size={14} className="mr-0.5 inline align-[-2px]" />
             명단 붙여넣기
           </button>
-          <button type="button" onClick={() => { if (mode !== "excel") logView("excel"); setMode("excel"); }} className={tab(mode === "excel")}>
+          <button type="button" onClick={() => { if (mode !== "excel") track("excel"); setMode("excel"); }} className={tab(mode === "excel")}>
             <FileSpreadsheet size={14} className="mr-0.5 inline align-[-2px]" />
             엑셀 올리기
           </button>

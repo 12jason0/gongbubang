@@ -26,6 +26,7 @@ import { endTrialIfOverlap, parentPhoneHash, trialKakaoHash, trialPhoneHash, tri
 import { KAKAO_LOGIN_PREFIX, KAKAO_PENDING_COOKIE, isKakaoAccount, readPendingKakao } from "@/lib/kakao";
 import { cookies } from "next/headers";
 import { REF_COOKIE, signupSourceOf } from "@/lib/token";
+import { track } from "@/lib/usage";
 import { PHONE_VERIFY, phoneCodeOk } from "@/lib/phone-verify";
 import { billingReady, createOrderRow, orderName, priceFor, type OrderKind } from "@/lib/billing";
 
@@ -631,6 +632,7 @@ ${content}` : content,
   revalidatePath("/dashboard");
   const n = groups.length;
   const test = results.some((r) => r.test);
+  track(academy.id, "공지 보내기", failed ? `${n - failed}명, 실패 ${failed}명` : `${n}명`); // 명 수만 (내용은 안 남김)
   if (failed) {
     return { ok: false, message: `${n - failed}명 발송, ${failed}명 실패 (${results.find((r) => !r.ok)?.error ?? ""})` };
   }
@@ -699,6 +701,7 @@ export async function sendConsentRequests(): Promise<FormResult> {
   const sent = results.filter((r) => r.ok);
   const failed = results.length - sent.length;
   const charged = sent.filter((r) => !r.free).length;
+  track(academy.id, "동의 요청 보내기", failed ? `${sent.length}명, 실패 ${failed}명` : `${sent.length}명`);
   const test = results.some((r) => r.test) ? " (테스트 모드: 실제 카톡은 안 나감)" : "";
   if (failed) {
     return { ok: false, message: `${sent.length}명 보냄, ${failed}명 실패 (${results.find((r) => !r.ok)?.error ?? ""})` };
@@ -780,6 +783,7 @@ export async function addStudent(_prev: FormResult, formData: FormData): Promise
     .values({ academyId: academy.id, ...parsed.data, ...consentFields(paper) })
     .returning({ id: students.id });
   await setStudentClasses(academy.id, created.id, parsed.classIds);
+  track(academy.id, "학생 직접 추가");
   revalidatePath("/students");
   revalidatePath("/");
   if (await endTrialIfOverlap(academy)) redirect("/billing");
@@ -877,6 +881,7 @@ export async function addStudentsBulk(_prev: FormResult, formData: FormData): Pr
     skippedErr ? `확인이 필요한 줄 ${skippedErr}개` : "",
   ].filter(Boolean);
   if (fresh.length === 0) return { ok: false, message: `새로 추가할 학생이 없어요 (${skipped.join(", ")}).` };
+  track(academy.id, "학생 붙여넣기 추가", `${fresh.length}명`);
   return {
     ok: true,
     message: `${fresh.length}명을 추가했어요.${skipped.length ? ` 건너뜀: ${skipped.join(", ")}` : ""}`,
@@ -1058,6 +1063,7 @@ export async function addPayment(_prev: FormResult, formData: FormData): Promise
     const [serialNo] = await nextReceiptSerials(tx, academy.id);
     await tx.insert(payments).values({ academyId: academy.id, studentId, paidOn, period, subject, tuition, otherFee, method, memo, serialNo });
   });
+  track(academy.id, "원비 기록");
   revalidatePath("/stats");
   return { ok: true, message: "납부 기록을 저장했어요." };
 }

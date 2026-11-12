@@ -7,6 +7,7 @@ import { cellText, excelBirth, guessColumns, hasHeader, type Field } from "@/lib
 import { checkImportRow, ROSTER_MAX_LINES, type ImportInput } from "@/lib/roster";
 import { formatPhone } from "@/lib/phone";
 import { parseDueDay, parseFee } from "@/lib/money";
+import { track } from "./PageView";
 
 /**
  * 학생 추가 → 엑셀 올리기. 파일(.xlsx·.xls·.csv)은 브라우저에서 바로 읽고 서버로 보내지 않는다 (SheetJS, cdn.sheetjs.com 판).
@@ -54,8 +55,14 @@ export function ExcelImport() {
     setError(null);
     setDone(null);
     setUndone(null);
-    if (!/\.(xlsx|xls|csv)$/i.test(file.name)) return setError("엑셀(.xlsx·.xls)이나 .csv 파일을 올려 주세요.");
-    if (file.size > 5_000_000) return setError("파일이 너무 커요 (5MB까지).");
+    track("excel-try");
+    // 실패하면 이유 종류만 기록 (파일 이름·내용은 안 보냄)
+    const fail = (why: string, message: string) => {
+      track("excel-fail", why);
+      setError(message);
+    };
+    if (!/\.(xlsx|xls|csv)$/i.test(file.name)) return fail("파일 형식", "엑셀(.xlsx·.xls)이나 .csv 파일을 올려 주세요.");
+    if (file.size > 5_000_000) return fail("파일 큼", "파일이 너무 커요 (5MB까지).");
     try {
       const XLSX = await import("xlsx");
       const buf = await file.arrayBuffer();
@@ -75,23 +82,27 @@ export function ExcelImport() {
       const ws = wb.Sheets[wb.SheetNames[0]];
       const aoa = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, raw: true, defval: "" });
       const rows = aoa.map((r) => r.map(cellText)).filter((r) => r.some(Boolean));
-      if (rows.length === 0) return setError("파일에 내용이 없어요.");
+      if (rows.length === 0) return fail("빈 파일", "파일에 내용이 없어요.");
       const width = Math.max(...rows.map((r) => r.length));
       const titled = hasHeader(rows[0]);
       const header = Array.from({ length: width }, (_, i) => (titled && rows[0][i]) || `${i + 1}번째 칸`);
       const body = (titled ? rows.slice(1) : rows).map((r) => Array.from({ length: width }, (_, i) => r[i] ?? ""));
-      if (body.length > ROSTER_MAX_LINES) return setError(`한 번에 ${ROSTER_MAX_LINES}명까지 올릴 수 있어요. 파일을 나눠 주세요.`);
+      if (body.length > ROSTER_MAX_LINES) return fail("인원 초과", `한 번에 ${ROSTER_MAX_LINES}명까지 올릴 수 있어요. 파일을 나눠 주세요.`);
       const sheet: Sheet = { file: file.name, header, body, map: guessColumns(header, body) };
       next(sheet);
     } catch {
-      setError("파일을 읽지 못했어요. 엑셀에서 다시 저장한 뒤 올려 주세요.");
+      fail("파일 못 읽음", "파일을 읽지 못했어요. 엑셀에서 다시 저장한 뒤 올려 주세요.");
     }
   }
 
   /** 학부모 번호·이름 칸을 찾았으면 바로 저장, 못 찾았으면 그것만 물어봄 */
   function next(sheet: Sheet) {
-    if (sheet.map.phone < 0) return setAsk({ sheet, field: "phone" });
-    if (sheet.map.name < 0) return setAsk({ sheet, field: "name" });
+    // 칸을 못 찾아 물어볼 때도 기록 (원장님이 고르면 이어서 성공·실패가 남음)
+    const missing = sheet.map.phone < 0 ? "phone" : sheet.map.name < 0 ? "name" : null;
+    if (missing) {
+      if (!ask) track("excel-fail", "칸 못 찾음");
+      return setAsk({ sheet, field: missing });
+    }
     setAsk(null);
     save(sheet);
   }
@@ -115,13 +126,18 @@ export function ExcelImport() {
     });
     start(async () => {
       const res: ImportResult = send.length ? await addStudentsImport(send) : { ok: true, saved: [], classIds: [], dup: 0 };
-      if (!res?.ok) return setError(res?.message ?? "저장하지 못했어요. 다시 올려 주세요.");
+      if (!res?.ok) {
+        track("excel-fail", "저장 오류");
+        return setError(res?.message ?? "저장하지 못했어요. 다시 올려 주세요.");
+      }
+      track("excel-ok", res.saved.length);
       setDone({ file: sheet.file, saved: res.saved, classIds: res.classIds, dup: res.dup, badPhone, other });
     });
   }
 
   function undo() {
     if (!done) return;
+    track("excel-undo");
     start(async () => {
       const r = await undoStudentsImport(
         done.saved.map((s) => s.id),

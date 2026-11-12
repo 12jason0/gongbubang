@@ -9,6 +9,7 @@ import { formatUntil, quotaState } from "@/lib/plan";
 import { PAID_TIERS, PLANS } from "@/lib/pricing";
 import { formatWon } from "@/lib/money";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { toVisits } from "@/lib/usage";
 import { adminAddMessages, adminExtend } from "../actions";
 
 export const metadata = { title: "관리자 · 공부방", robots: { index: false } };
@@ -31,12 +32,14 @@ export default async function AdminAcademyPage({ params }: { params: Promise<{ i
       })
       .from(pageViews)
       .where(eq(pageViews.academyId, id)),
+    // 최근 방문 10번을 묶기에 넉넉한 만큼 (최신부터)
+    // ponytail: 최근 2000개로 자름 — 하루에 수천 번 누르는 공부방이 생기면 방문 수를 SQL 에서 세기
     db
-      .select({ screen: pageViews.screen, at: pageViews.createdAt })
+      .select({ kind: pageViews.kind, screen: pageViews.screen, detail: pageViews.detail, at: pageViews.createdAt })
       .from(pageViews)
       .where(eq(pageViews.academyId, id))
       .orderBy(desc(pageViews.createdAt))
-      .limit(10),
+      .limit(2000),
     db
       .select({
         kakao: sql<number>`count(*) filter (where ${ok} and ${messageLogs.channel} = 'ALIMTALK')`.mapWith(Number),
@@ -49,6 +52,7 @@ export default async function AdminAcademyPage({ params }: { params: Promise<{ i
   if (!a || isAdminLoginId(a.loginId)) notFound();
   const q = quotaState(a);
   const failed = m?.failed ?? 0;
+  const visits = toVisits(recent.toReversed()).slice(-10); // 최근 방문 10번, 시간순 (아래가 최근)
 
   return (
     <main className="px-3 pt-4 pb-8">
@@ -97,20 +101,33 @@ export default async function AdminAcademyPage({ params }: { params: Promise<{ i
         </p>
       </Card>
 
-      <Card title="이용 기록 (최근 90일)">
+      <Card title="이용 기록 (최근 90일)" wide>
         <p>
           접속한 날 <b>{views?.days ?? 0}일</b>
           {views?.lastSeen && <span className="text-slate-500"> · 마지막 접속 {agoLabel(views.lastSeen)}</span>}
         </p>
-        <p className="mt-3 mb-1 text-[12.5px] text-slate-500">최근 본 화면 10개 (맨 위 = 마지막에 본 곳)</p>
-        {recent.length === 0 ? (
+        <p className="mt-3 mb-1 text-[12.5px] text-slate-500">최근 방문 10번 (시간순 · 30분 넘게 쉬면 새 방문 · 굵은 글씨 = 한 일)</p>
+        {visits.length === 0 ? (
           <p className="text-slate-400">아직 없어요</p>
         ) : (
           <ol className="divide-y divide-slate-100">
-            {recent.map((r, i) => (
-              <li key={i} className="flex justify-between gap-3 py-1.5">
-                <span>{r.screen}</span>
-                <span className="shrink-0 text-slate-400 tabular-nums">{when(r.at)}</span>
+            {visits.map((v) => (
+              <li key={v.start.getTime()} className="py-2 leading-relaxed">
+                <span className="text-slate-400 tabular-nums">
+                  {when(v.start)} · {v.minutes < 1 ? "1분 미만" : `${v.minutes}분`}
+                </span>
+                <br />
+                {v.steps.map((s, i) => (
+                  <span key={i}>
+                    {i > 0 && <span className="mx-1 text-slate-300">→</span>}
+                    <span className={s.action ? "font-semibold text-brand" : ""}>{s.text}</span>
+                  </span>
+                ))}
+                {v.left && (
+                  <span className="text-slate-400">
+                    <span className="mx-1 text-slate-300">→</span>나감{v.lastStay !== null && ` (마지막 화면 ${v.lastStay < 1 ? "1분 미만" : `${v.lastStay}분`})`}
+                  </span>
+                )}
               </li>
             ))}
           </ol>
@@ -121,9 +138,10 @@ export default async function AdminAcademyPage({ params }: { params: Promise<{ i
   );
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+/** wide: PC 에서도 한 줄 전체 (방문 기록처럼 긴 것) */
+function Card({ title, wide = false, children }: { title: string; wide?: boolean; children: React.ReactNode }) {
   return (
-    <section className="card rounded-2xl p-4 text-[14px]">
+    <section className={`card rounded-2xl p-4 text-[14px] ${wide ? "md:col-span-2 xl:col-span-3" : ""}`}>
       <h2 className="mb-2 text-[13px] font-semibold text-slate-500">{title}</h2>
       {children}
     </section>

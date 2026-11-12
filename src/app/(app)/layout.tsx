@@ -26,6 +26,7 @@ function KakaoAsk() {
       href={KAKAO_CHAT_URL}
       target="_blank"
       rel="noopener noreferrer"
+      data-track="kakao-ask"
       className="flex h-9 shrink-0 items-center rounded-full bg-[#FEE500] px-3 text-[13px] font-semibold text-[#191919] transition active:scale-95 md:h-10 md:px-4 md:text-[14px]"
     >
       카톡으로 문의하기

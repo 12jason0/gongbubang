@@ -303,14 +303,16 @@ export const consultations = pgTable(
   ],
 );
 
-// 화면 이동 기록 — 공부방·화면 이름·시각만 (주소 속 값·화면 내용·학생 정보는 안 남김). 관리자 계정은 안 남김. 90일 지나면 cron 이 지움
-// components/PageView.tsx → api/view
+// 이용 기록 — 공부방·무엇을 했는지·시각만 (주소 속 값·입력 내용·학생 정보는 안 남김). 관리자 계정은 안 남김. 90일 지나면 cron 이 지움
+// 화면: components/PageView.tsx → api/view / 행동: lib/usage.ts track (서버 액션) 또는 api/view (브라우저에서만 아는 것)
 export const pageViews = pgTable(
   "page_views",
   {
     id: id(),
     academyId: text("academy_id").notNull().references(() => academies.id, { onDelete: "cascade" }),
-    screen: text("screen").notNull(), // 예: 출석부, 학생, 엑셀 올리기
+    kind: text("kind").notNull().default("VIEW"), // VIEW(화면 열기) / LEAVE(화면 닫기·다른 앱으로) / ACTION(주요 행동)
+    screen: text("screen").notNull(), // 화면 이름(출석부, 학생…) 또는 행동 이름(엑셀 올리기, 공지 보내기…). LEAVE 는 ""
+    detail: text("detail").notNull().default(""), // 행동 결과만: "시도" / "성공 12명" / "실패: 파일 형식" (입력 내용·이름은 안 넣음)
     createdAt: createdAt(),
   },
   (t) => [index("page_views_academy_idx").on(t.academyId, t.createdAt)],
