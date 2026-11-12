@@ -1,7 +1,7 @@
 // 원장님 계정 도우미 — 탈퇴·재가입, 무료 체험 반복 가입 막기
 
 import crypto from "node:crypto";
-import { and, count, countDistinct, eq, gte, inArray, isNull, ne, or } from "drizzle-orm";
+import { and, count, countDistinct, eq, gte, inArray, isNull, ne, notInArray, or, type SQL } from "drizzle-orm";
 import { db, academies, students, deletedParentHashes } from "@/db";
 import { planState } from "@/lib/plan";
 import type { CurrentAcademy } from "@/lib/session";
@@ -19,12 +19,21 @@ export const trialPhoneHash = (phone: string) => hmac("trial-phone", phone);
 export const trialKakaoHash = (kakaoId: string) =>
   crypto.createHmac("sha256", process.env.SESSION_SECRET ?? "").update(`trial-kakao:${kakaoId}`).digest("base64url");
 
+/**
+ * 관리자(개발자) 계정(env ADMIN_LOGIN_IDS)은 체험 반복 검사에서 뺀다 — 운영자가 자기 번호로 관리자 계정과 원장님 계정을 함께 쓰므로.
+ * (관리자 계정 test01 의 연락처가 같아서 새 원장님 계정이 "이미 체험한 번호"로 막혔던 일)
+ */
+function notAdmin(): SQL | undefined {
+  const ids = (process.env.ADMIN_LOGIN_IDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  return ids.length ? notInArray(academies.loginId, ids) : undefined;
+}
+
 /** 이 카카오 계정으로 무료 체험을 이미 쓴 계정이 있나 (살아 있는 계정 + 탈퇴 계정) */
 export async function trialUsedByKakao(kakaoId: string) {
   const [hit] = await db
     .select({ id: academies.id })
     .from(academies)
-    .where(or(eq(academies.trialKakaoHash, trialKakaoHash(kakaoId)), eq(academies.kakaoId, kakaoId)))
+    .where(and(or(eq(academies.trialKakaoHash, trialKakaoHash(kakaoId)), eq(academies.kakaoId, kakaoId)), notAdmin()))
     .limit(1);
   return !!hit;
 }
@@ -41,7 +50,7 @@ export async function trialUsedByPhone(ownerPhone: string) {
   const [hit] = await db
     .select({ id: academies.id })
     .from(academies)
-    .where(or(eq(academies.trialPhoneHash, trialPhoneHash(digits)), and(isNull(academies.deletedAt), eq(academies.ownerPhone, digits))))
+    .where(and(or(eq(academies.trialPhoneHash, trialPhoneHash(digits)), and(isNull(academies.deletedAt), eq(academies.ownerPhone, digits))), notAdmin()))
     .limit(1);
   return !!hit;
 }
