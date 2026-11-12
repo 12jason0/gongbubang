@@ -8,6 +8,7 @@ import { isAdminLoginId } from "@/lib/admin";
 import { isValidMonth, isValidQuarter, quarterOf, quarterRange, shiftMonth, shiftQuarter, thisMonthKST, todayKST } from "@/lib/date";
 import { ReceiptLedger, type LedgerRow } from "@/components/ReceiptLedger";
 import { PrintButton } from "@/components/PrintButton";
+import { fillMissingSerials } from "@/lib/receipt-serial";
 
 export const metadata = { title: "교습비등 영수증 원부" };
 
@@ -16,7 +17,7 @@ const NAV_BTN = "flex h-11 items-center gap-0.5 rounded-xl px-2 text-[13px] text
 const monthText = (m: string, withYear: boolean) => `${withYear ? `${Number(m.slice(0, 4))}년 ` : ""}${Number(m.slice(5))}월`;
 
 /**
- * 교습비등 영수증 원부 — 그 기간에 받은 교습비를 A4 양식으로 (월별 화면에서 들어옴)
+ * 교습비등 영수증 원부 — 그 기간에 받은 교습비를 별지 제24호서식으로, 납부 한 건당 A4 가로 한 장 (월별 화면에서 들어옴)
  * ?q=2026-4 분기 / ?from=2026-09&to=2026-12 원하는 달부터 달까지 (받은 날 기준)
  */
 export default async function LedgerPage({ searchParams }: { searchParams: Promise<{ q?: string; from?: string; to?: string }> }) {
@@ -44,9 +45,12 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
     periodLabel = `${y}년 ${n}분기 (${monthText(startMonth, false)}~${monthText(endMonth, false)})`;
   }
 
-  // 이 기간에 받은 교습비 (받은 날 기준, 그만둔 학생 포함)
+  await fillMissingSerials(academy.id); // 번호 칸이 생기기 전에 저장된 기록에 번호 붙이기 (없으면 바로 끝)
+
+  // 이 기간에 받은 교습비 (받은 날 기준, 그만둔 학생 포함) — 일련번호 순
   const rows: LedgerRow[] = await db
     .select({
+      serialNo: payments.serialNo,
       studentId: students.id,
       period: payments.period,
       studentName: students.name,
@@ -55,12 +59,11 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
       tuition: payments.tuition,
       otherFee: payments.otherFee,
       paidOn: payments.paidOn,
-      memo: payments.memo,
     })
     .from(payments)
     .innerJoin(students, eq(students.id, payments.studentId))
     .where(and(eq(payments.academyId, academy.id), gte(payments.paidOn, from), lt(payments.paidOn, to)))
-    .orderBy(asc(payments.paidOn), asc(payments.createdAt));
+    .orderBy(asc(payments.serialNo), asc(payments.createdAt));
 
   const missingBirth = new Set(rows.filter((r) => !r.birthDate).map((r) => r.studentName));
 
@@ -99,8 +102,9 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
 
         <div className="mt-2 space-y-1.5 text-[13px]">
           <p className="text-slate-500">
-            이 기간에 받은 교습비 {rows.length}건 · 종이를 <b>가로</b>로 놓고 인쇄돼요. 5년간 보관하세요.
-            <span className="md:hidden"> 표는 옆으로 밀어서 보세요.</span>
+            이 기간에 받은 교습비 {rows.length}건 → <b>{rows.length}장</b> (한 건당 A4 가로 한 장: 왼쪽 원부는 보관, 오른쪽 영수증은 학부모님께) · 원부는 5년간
+            보관하세요. 비어 있는 칸은 손으로 적어 주세요.
+            <span className="md:hidden"> 종이는 옆으로 밀어서 보세요.</span>
           </p>
           {!academy.registrationNo && (
             <p className="flex items-center gap-1.5 rounded-xl bg-gold-soft px-3 py-2 text-[#8a6d35]">
@@ -112,7 +116,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
           )}
           {missingBirth.size > 0 && (
             <p className="flex items-center gap-1.5 rounded-xl bg-gold-soft px-3 py-2 text-[#8a6d35]">
-              <TriangleAlert size={15} /> 생년월일이 없는 학생: {[...missingBirth].join(", ")} → 표의 노란 칸에서 [생년월일 넣기] (인쇄에는 안 나와요)
+              <TriangleAlert size={15} /> 생년월일이 없는 학생: {[...missingBirth].join(", ")} → 왼쪽 원부의 노란 칸에서 [생년월일 넣기] (안 넣으면 빈칸으로 인쇄돼요)
             </p>
           )}
         </div>
@@ -120,12 +124,11 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
 
       {/* A4 종이 — 화면에서는 가로로 밀어 볼 수 있게 */}
       <div className="mt-3 overflow-x-auto pb-8 print:mt-0 print:overflow-visible print:pb-0">
-        <div className="mx-auto w-[277mm] bg-white p-[8mm] shadow-sm ring-1 ring-black/5 print:w-auto print:p-0 print:shadow-none print:ring-0">
-          <ReceiptLedger
-            rows={rows}
-            info={{ academyName: academy.name, registrationNo: academy.registrationNo, periodLabel }}
-          />
-        </div>
+        {rows.length === 0 ? (
+          <p className="mx-auto max-w-[1120px] px-3 text-[14px] text-slate-500 print:hidden">이 기간에 받은 교습비 기록이 없어요. [월별]에서 납부를 기록하면 여기 생겨요.</p>
+        ) : (
+          <ReceiptLedger rows={rows} info={{ registrationNo: academy.registrationNo }} />
+        )}
       </div>
     </div>
   );

@@ -1,151 +1,131 @@
-// 교습비등 영수증 원부 — 인쇄 모양은 전부 이 파일에서 고친다.
-// 원장님이 쓰는 실제 양식에 맞출 때: 제목·머리말(SheetHeader), 칸 순서·이름·너비(COLUMNS),
-// 빈 줄 수(MIN_ROWS), 종이 방향·여백(PAGE_CSS) 만 바꾸면 된다.
+// 교습비등 영수증 원부 — 학원법 시행규칙 별지 제24호서식에 맞춘 인쇄 모양. 인쇄 모양은 전부 이 파일에서 고친다.
+// A4 가로 한 장 = 납부 한 건: 왼쪽 "교습비등 영수증 원부"(공부방 보관), 오른쪽 "교습비등 영수증"(학부모님께) — 같은 내용 두 번.
+// 저장된 값이 없는 칸(생년월일·신고번호·기타경비)은 빈칸으로 인쇄 → 원장님이 손으로 적는다.
 
-import type { ReactNode } from "react";
-import { formatWon } from "@/lib/money";
 import { BirthFill } from "./BirthFill";
 
 export type LedgerRow = {
+  serialNo: number | null; // 공부방별 일련번호 (lib/receipt-serial.ts)
   studentId: string;
-  period: string; // "2026-11"
+  period: string; // "2026-11" — 몇 월분인지
   studentName: string;
   birthDate: string | null; // "2017-03-02"
   subject: string;
   tuition: number; // 실제 받은 교습비
   otherFee: number;
   paidOn: string; // "2026-10-30"
-  memo: string; // 교습비와 다르게 받은 사유 (예: 결석 2회 감액) — 교습비 칸 아래 작게
 };
 
 export type LedgerInfo = {
-  academyName: string;
   registrationNo: string;
-  periodLabel: string; // "2026년 4분기 (10월~12월)" / "2026년 9월~12월"
 };
 
 // ───── 고치기 쉬운 부분 ─────
 
-const TITLE = "교습비등 영수증 원부";
-const MIN_ROWS = 15; // 손으로 더 적을 수 있게 빈 줄을 채워 최소 이만큼
 const PAGE_CSS = `
   @page { size: A4 landscape; margin: 10mm; }
   @media print { html, body { background: #fff !important; } }
 `;
 
-const dot = (s: string | null) => (s ? s.replaceAll("-", ".") : "");
-const num = (n: number) => n.toLocaleString("ko-KR");
-
-type Column = {
-  label: string;
-  width: string;
-  align?: "left" | "right" | "center";
-  cell: (r: LedgerRow, i: number, info: LedgerInfo) => ReactNode;
-  warn?: (r: LedgerRow) => boolean; // 화면에서만 노란 칸 (인쇄 안 됨)
+const ymd = (d: string) => {
+  const [y, m, day] = d.split("-").map(Number);
+  return { y, m, day };
 };
+const periodText = (p: string) => `${Number(p.slice(0, 4))}년 ${Number(p.slice(5))}월`;
+const birthText = (d: string) => {
+  const { y, m, day } = ymd(d);
+  return `${y}. ${m}. ${day}.`;
+};
+const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
 
-const COLUMNS: Column[] = [
-  { label: "일련번호", width: "6%", align: "center", cell: (_, i) => String(i + 1) },
-  { label: "연월(분기)", width: "8%", align: "center", cell: (r) => dot(r.period) },
-  { label: "등록(신고)번호", width: "12%", align: "center", cell: (_, __, info) => info.registrationNo },
-  { label: "학생 성명", width: "9%", align: "center", cell: (r) => r.studentName },
-  {
-    label: "생년월일",
-    width: "10%",
-    align: "center",
-    cell: (r) => (r.birthDate ? dot(r.birthDate) : <BirthFill studentId={r.studentId} />),
-    warn: (r) => !r.birthDate,
-  },
-  { label: "교습과목", width: "13%", cell: (r) => r.subject },
-  {
-    label: "교습비",
-    width: "10%",
-    align: "right",
-    cell: (r) => (
-      <>
-        {num(r.tuition)}
-        {r.memo && <span className="mt-0.5 block text-left text-[8.5px] leading-tight break-keep text-black/70">{r.memo}</span>}
-      </>
-    ),
-  },
-  { label: "기타경비", width: "9%", align: "right", cell: (r) => (r.otherFee ? num(r.otherFee) : "") },
-  { label: "날짜", width: "10%", align: "center", cell: (r) => dot(r.paidOn) },
-  { label: "서명", width: "13%", cell: () => "" },
-];
+// ───── 서식 그리기 ─────
 
-// ───── 표 그리기 ─────
+const cell = "border border-black px-2 py-2.5 text-[12px] leading-snug";
+const head = `${cell} bg-black/[0.04] text-center font-semibold`;
 
-const cellBase = "border border-black/70 px-1.5 py-1 text-[11px] leading-tight";
-const alignCls = { left: "text-left", right: "text-right tabular-nums", center: "text-center" };
-
-function SheetHeader({ info }: { info: LedgerInfo }) {
+/** 한쪽 (원부 또는 영수증) */
+function Half({ title, row, info, screenTools }: { title: string; row: LedgerRow; info: LedgerInfo; screenTools: boolean }) {
+  const paid = ymd(row.paidOn);
   return (
-    <div className="mb-3">
-      <h1 className="text-center text-[20px] font-bold tracking-[0.3em]">{TITLE}</h1>
-      <div className="mt-3 flex items-end justify-between text-[12px]">
-        <p>{info.periodLabel}</p>
-        <p>
-          교습자(상호): {info.academyName}
-          <span className="ml-4">신고번호: {info.registrationNo || "　　　　　　"}</span>
-        </p>
-      </div>
+    <div className="flex h-full flex-col border-2 border-black p-[5mm]">
+      <h2 className="mt-1 mb-4 text-center text-[19px] font-bold tracking-[0.15em]">{title}</h2>
+      <table className="w-full table-fixed border-collapse">
+        <colgroup>
+          <col style={{ width: "16%" }} />
+          <col style={{ width: "26%" }} />
+          <col style={{ width: "58%" }} />
+        </colgroup>
+        <tbody>
+          <tr>
+            <th colSpan={2} className={head}>일련번호</th>
+            <td className={`${cell} text-center tabular-nums`}>{row.serialNo ?? ""}</td>
+          </tr>
+          <tr>
+            <th colSpan={2} className={head}>연월(분기)</th>
+            <td className={`${cell} text-center`}>{periodText(row.period)}</td>
+          </tr>
+          <tr>
+            <th rowSpan={4} className={head}>납부자</th>
+            <th className={head}>등록(신고)번호</th>
+            <td className={`${cell} text-center`}>{info.registrationNo}</td>
+          </tr>
+          <tr>
+            <th className={head}>성명</th>
+            <td className={`${cell} text-center`}>{row.studentName}</td>
+          </tr>
+          <tr>
+            <th className={head}>생년월일</th>
+            <td className={`${cell} text-center ${!row.birthDate && screenTools ? "bg-gold-soft print:bg-transparent" : ""}`}>
+              {row.birthDate ? birthText(row.birthDate) : screenTools ? <BirthFill studentId={row.studentId} /> : ""}
+            </td>
+          </tr>
+          <tr>
+            <th className={head}>교습과목</th>
+            <td className={`${cell} text-center`}>{row.subject}</td>
+          </tr>
+          <tr>
+            <th rowSpan={2} className={head}>
+              납부
+              <br />
+              명세
+            </th>
+            <th className={head}>교습비</th>
+            <td className={`${cell} text-right tabular-nums`}>{won(row.tuition)}</td>
+          </tr>
+          <tr>
+            <th className={head}>기타경비</th>
+            <td className={`${cell} text-right tabular-nums`}>{row.otherFee ? won(row.otherFee) : ""}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p className="mt-6 text-center text-[13px]">위와 같이 영수하였음을 증명합니다.</p>
+      <p className="mt-5 text-center text-[13px] tracking-wide">
+        {paid.y}년 <span className="inline-block w-7 text-right">{paid.m}</span>월 <span className="inline-block w-7 text-right">{paid.day}</span>일
+      </p>
+      <p className="mt-6 text-right text-[12.5px] leading-relaxed">
+        학원설립ㆍ운영자, 교습자 또는 개인과외교습자
+        <span className="ml-10 text-black/70">(서명 또는 인)</span>
+      </p>
+      <p className="mt-auto pt-4 text-[10.5px] text-black/70">※ 본 서식 외 교육감이 지정한 영수증을 사용할 수 있습니다.</p>
     </div>
   );
 }
 
+/** 납부 한 건 = A4 가로 한 장 (왼쪽 원부 · 오른쪽 영수증) */
 export function ReceiptLedger({ rows, info }: { rows: LedgerRow[]; info: LedgerInfo }) {
-  const blanks = Math.max(0, MIN_ROWS - rows.length);
-  const tuitionSum = rows.reduce((n, r) => n + r.tuition, 0);
-  const otherSum = rows.reduce((n, r) => n + r.otherFee, 0);
-  const sumAt = COLUMNS.findIndex((c) => c.label === "교습비");
-
   return (
-    <div className="ledger-sheet bg-white text-black">
+    <div className="ledger-sheets space-y-6 print:space-y-0">
       <style>{PAGE_CSS}</style>
-      <SheetHeader info={info} />
-      <table className="w-full table-fixed border-collapse">
-        <colgroup>
-          {COLUMNS.map((c) => (
-            <col key={c.label} style={{ width: c.width }} />
-          ))}
-        </colgroup>
-        <thead>
-          <tr className="bg-black/5">
-            {COLUMNS.map((c) => (
-              <th key={c.label} className={`${cellBase} py-1.5 text-center font-semibold`}>
-                {c.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r, i) => (
-            <tr key={i} className="h-[26px] break-inside-avoid">
-              {COLUMNS.map((c) => (
-                <td key={c.label} className={`${cellBase} ${alignCls[c.align ?? "left"]} ${c.warn?.(r) ? "bg-gold-soft print:bg-transparent" : ""}`}>
-                  {c.cell(r, i, info)}
-                </td>
-              ))}
-            </tr>
-          ))}
-          {Array.from({ length: blanks }, (_, i) => (
-            <tr key={`blank-${i}`} className="h-[26px]">
-              {COLUMNS.map((c) => (
-                <td key={c.label} className={cellBase} />
-              ))}
-            </tr>
-          ))}
-          <tr className="h-[28px] font-semibold">
-            <td colSpan={sumAt} className={`${cellBase} text-center`}>
-              합계 ({rows.length}건 · {formatWon(tuitionSum + otherSum)})
-            </td>
-            <td className={`${cellBase} ${alignCls.right}`}>{num(tuitionSum)}</td>
-            <td className={`${cellBase} ${alignCls.right}`}>{otherSum ? num(otherSum) : ""}</td>
-            <td colSpan={COLUMNS.length - sumAt - 2} className={cellBase} />
-          </tr>
-        </tbody>
-      </table>
-      <p className="mt-2 text-[10px] text-black/60">※ 이 장부는 5년간 보관합니다.</p>
+      {rows.map((r, i) => (
+        <section
+          key={`${r.serialNo}-${i}`}
+          className="mx-auto grid h-[190mm] w-[277mm] grid-cols-2 gap-[8mm] bg-white p-[6mm] text-black shadow-sm ring-1 ring-black/5 break-inside-avoid print:h-[189mm] print:w-auto print:p-0 print:shadow-none print:ring-0 [&:not(:last-child)]:break-after-page"
+        >
+          <Half title="교습비등 영수증 원부" row={r} info={info} screenTools />
+          <Half title="교습비등 영수증" row={r} info={info} screenTools={false} />
+        </section>
+      ))}
     </div>
   );
 }

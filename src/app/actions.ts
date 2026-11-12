@@ -9,6 +9,7 @@ import { createSession, deleteSession, requireAcademy, requireActiveAcademy } fr
 import { notifyAdmin, sendMessages, smsBytes, smsUnits } from "@/lib/sms";
 import { after } from "next/server";
 import { isAdminLoginId } from "@/lib/admin";
+import { nextReceiptSerials } from "@/lib/receipt-serial";
 import { unresolvedFailures } from "@/lib/failed";
 import { byGradeName, fitKakao, KAKAO_MAX_CHARS, LMS_MAX_BYTES, monthLabel, noticeText, parseDays, SCHEDULE_DATE_MAX, SCHEDULE_TEXT_MAX } from "@/lib/templates";
 import { formatDateLabel, isValidDate, isValidMonth, spokenTimeKST, thisMonthKST, timeKST, todayKST } from "@/lib/date";
@@ -1025,7 +1026,11 @@ export async function addPayment(_prev: FormResult, formData: FormData): Promise
   }
   if (!isPaymentMethod(method)) return { ok: false, message: "결제수단을 골라 주세요." };
 
-  await db.insert(payments).values({ academyId: academy.id, studentId, paidOn, period, subject, tuition, otherFee, method, memo });
+  // 영수증 원부 일련번호를 같이 붙여서 저장 (한 번 붙으면 안 바뀜)
+  await db.transaction(async (tx) => {
+    const [serialNo] = await nextReceiptSerials(tx, academy.id);
+    await tx.insert(payments).values({ academyId: academy.id, studentId, paidOn, period, subject, tuition, otherFee, method, memo, serialNo });
+  });
   revalidatePath("/stats");
   return { ok: true, message: "납부 기록을 저장했어요." };
 }

@@ -47,6 +47,8 @@ export const academies = pgTable("academies", {
   // 상담 예약 — 받는 시간: [{"days":[1,3],"start":"14:00","end":"16:00"}] (JSON, lib/consult.ts). "" = 아직 안 정함 → 신청 링크는 "받지 않아요"
   consultHours: text("consult_hours").notNull().default(""),
   consultMinutes: integer("consult_minutes").notNull().default(30), // 상담 한 번 길이 (분)
+  // 영수증 원부 일련번호 — 마지막으로 준 번호. 납부 기록을 지워도 줄지 않아서 번호가 다시 쓰이지 않는다 (lib/receipt-serial.ts)
+  receiptSeq: integer("receipt_seq").notNull().default(0),
   createdAt: createdAt(),
 });
 
@@ -165,11 +167,14 @@ export const payments = pgTable(
     otherFee: integer("other_fee").notNull().default(0), // 기타경비 (원, 교재비 등)
     method: text("method").notNull(), // lib/money.ts PAYMENT_METHODS 중 하나
     memo: text("memo").notNull().default(""), // 원비가 바뀐 이유 등 (예: 결석 2회 차감)
+    // 영수증 원부 일련번호 — 공부방별 1부터, 한 번 붙으면 안 바뀜. 비어 있는 기록(예전 코드가 넣은 것)은 원부를 열 때 붙인다
+    serialNo: integer("serial_no"),
     createdAt: createdAt(),
   },
   (t) => [
     index("payments_academy_period_idx").on(t.academyId, t.period),
     index("payments_student_idx").on(t.studentId),
+    uniqueIndex("payments_academy_serial_uq").on(t.academyId, t.serialNo),
   ],
 );
 
