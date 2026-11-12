@@ -6,7 +6,8 @@ import { redirect } from "next/navigation";
 import { and, eq, gte, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { db, academies, students, attendance, notes, notices, classes, classStudents, payments, messageLogs, deletedParentHashes, calendarChanges, calendarMemos, consultations } from "@/db";
 import { createSession, deleteSession, requireAcademy, requireActiveAcademy } from "@/lib/session";
-import { sendMessages, smsBytes, smsUnits } from "@/lib/sms";
+import { notifyAdmin, sendMessages, smsBytes, smsUnits } from "@/lib/sms";
+import { after } from "next/server";
 import { unresolvedFailures } from "@/lib/failed";
 import { byGradeName, fitKakao, KAKAO_MAX_CHARS, LMS_MAX_BYTES, monthLabel, noticeText, parseDays, SCHEDULE_DATE_MAX, SCHEDULE_TEXT_MAX } from "@/lib/templates";
 import { formatDateLabel, isValidDate, isValidMonth, spokenTimeKST, thisMonthKST, timeKST, todayKST } from "@/lib/date";
@@ -94,6 +95,7 @@ export async function signup(_prev: string | null, formData: FormData): Promise<
     .returning({ id: academies.id });
   if (!created) return "이미 쓰고 있는 아이디예요. 다른 아이디로 해 주세요.";
 
+  after(() => notifyAdmin(`공부방노트 새 가입: ${name}`)); // 응답 뒤에 보냄 — 실패해도 가입은 그대로
   await createSession(created.id);
   redirect(usedTrial ? "/billing?trial=used" : "/students?guide=1"); // guide=1: 처음 쓰는 법 안내가 저절로 뜸 (components/Help.tsx)
 }
@@ -135,6 +137,7 @@ export async function kakaoSignup(_prev: string | null, formData: FormData): Pro
       .returning({ id: academies.id });
     if (!created) return "이미 이 카카오로 만든 공부방이 있어요. 로그인 화면에서 [카카오로 시작하기]를 눌러 주세요.";
     academyId = created.id;
+    after(() => notifyAdmin(`공부방노트 새 가입: ${name}`)); // 응답 뒤에 보냄 — 실패해도 가입은 그대로
   }
 
   (await cookies()).delete(KAKAO_PENDING_COOKIE);

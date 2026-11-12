@@ -264,3 +264,26 @@ async function callSolapi(from: string, messages: Prepared[]): Promise<SendResul
     return messages.map(() => ({ ok: false, test: false, error }));
   }
 }
+
+// ───── 운영자 알림 ─────
+
+/** 새 가입 알림을 받을 운영자 번호 (env ADMIN_NOTIFY_PHONE 로 바꿀 수 있음) */
+const ADMIN_NOTIFY_PHONE = (process.env.ADMIN_NOTIFY_PHONE ?? "01022719824").replace(/\D/g, "");
+
+/**
+ * 운영자에게 문자 한 통 (공용 발신번호). 공부방 통수·발송 기록과 상관없음.
+ * 실패해도 던지지 않고 로그만 남긴다 — 가입 같은 본 작업을 막지 않으려고.
+ */
+export async function notifyAdmin(text: string): Promise<void> {
+  try {
+    const from = (process.env.DEFAULT_SENDER_PHONE ?? "").replace(/\D/g, "");
+    if (isTestMode() || !from || !ADMIN_NOTIFY_PHONE) {
+      console.log("[운영자 알림 · 안 보냄]", text);
+      return;
+    }
+    const [r] = await callSolapi(from, [{ channel: "SMS", to: ADMIN_NOTIFY_PHONE, text }]);
+    if (!r.ok) console.error("운영자 알림 문자 실패", r.error);
+  } catch (e) {
+    console.error("운영자 알림 문자 실패", e);
+  }
+}
