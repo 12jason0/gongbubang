@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition, type CSSProperties, type FormEvent } from "react";
 import Link from "next/link";
-import { CalendarCog, ChevronLeft, ChevronRight, Megaphone, Pencil, Plus, Trash2, Users, Wallet, X } from "lucide-react";
+import { CalendarPlus, ChevronLeft, ChevronRight, Megaphone, Pencil, Plus, Trash2, Users, Wallet, X } from "lucide-react";
 import {
   addCalendarExtra,
   addCalendarMemo,
@@ -146,6 +146,13 @@ export function CalendarView({
               오늘
             </Link>
           )}
+          <button
+            type="button"
+            onClick={() => slotDialog.current?.showModal()}
+            className="ml-2 flex items-center gap-1 rounded-full bg-brand-soft px-3 py-2 text-[13px] font-semibold whitespace-nowrap text-brand"
+          >
+            <CalendarPlus size={15} /> 시간표 추가
+          </button>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <div className="flex rounded-full bg-black/5 p-1" role="tablist" aria-label="보기">
@@ -156,13 +163,6 @@ export function CalendarView({
               주
             </Link>
           </div>
-          <button
-            type="button"
-            onClick={() => slotDialog.current?.showModal()}
-            className="flex items-center gap-1 rounded-full bg-brand-soft px-3 py-2 text-[13px] font-semibold text-brand"
-          >
-            <CalendarCog size={15} /> 시간표 설정
-          </button>
         </div>
       </div>
 
@@ -691,7 +691,7 @@ function MemoItem({ memo }: { memo: Memo }) {
   );
 }
 
-/** 시간표 설정 = 반 목록. 여기서 넣거나 고치면 반으로 저장된다 (학생·반 화면과 같은 데이터) */
+/** 시간표 추가 창 = 반 목록. 여기서 넣거나 고치면 반으로 저장된다 (학생·반 화면과 같은 데이터) */
 function SlotDialog({ dialog, classes }: { dialog: React.RefObject<HTMLDialogElement | null>; classes: Cls[] }) {
   const [editing, setEditing] = useState<Cls | null>(null);
   const [removing, setRemoving] = useState<Cls | null>(null);
@@ -717,7 +717,7 @@ function SlotDialog({ dialog, classes }: { dialog: React.RefObject<HTMLDialogEle
         <div className="flex items-start justify-between">
           <div>
             <p className="flex items-center gap-0.5 text-[18px] font-bold tracking-tight">
-              시간표 설정
+              시간표 추가
               <InfoTip label="시간표">
                 시간표는 반 목록과 같아요. 요일과 시각을 적은 반은 달력의 그 요일에 반 색으로 매주 나와요. 그날만 쉬거나 더 하는 날은 달력에서 날짜를 눌러 [휴강]·[보강 추가]를 쓰세요.
                 <TipExample>월·수·금 15:00~17:00 초등반 → 매주 월·수·금 칸에 &lsquo;15:00 초등반&rsquo;</TipExample>

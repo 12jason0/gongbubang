@@ -1174,7 +1174,7 @@ export async function deleteClass(classId: string) {
 }
 
 // ───────────────────────── 달력 ─────────────────────────
-// 매주 수업은 반의 요일·시각 (시간표 설정 창은 반 만들기·고치기를 그대로 씀)
+// 매주 수업은 반의 요일·시각 (시간표 추가 창은 반 만들기·고치기를 그대로 씀)
 // 모든 쿼리에 academyId 를 같이 걸어서 다른 원장님 것은 고치거나 지울 수 없다
 
 function readTimes(formData: FormData) {

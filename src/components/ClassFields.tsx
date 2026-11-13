@@ -90,7 +90,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 }
 
 /**
- * 반 입력 칸: 이름 / 요일 / 시간 / 색 — 학생·반 화면과 달력 시간표 설정에서 같이 씀.
+ * 반 입력 칸: 이름 / 요일 / 시간 / 색 — 학생·반 화면과 달력 시간표 추가에서 같이 씀.
  * 요일: 안 고른 날은 테두리만, 고른 날은 이 반 색으로 채움. 색을 안 고르면 autoColor(안 겹치는 색)
  */
 export function ClassFields({
