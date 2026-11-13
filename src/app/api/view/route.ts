@@ -30,6 +30,7 @@ const ACTIONS = new Map([
   ["excel-undo", "엑셀 되돌리기"],
   ["print", "원부 인쇄"],
   ["kakao-ask", "카톡 문의"],
+  ["first-step", "첫 안내 띠 → 학생 등록"],
 ]);
 // 엑셀 실패 이유는 이 종류만 (오류 문구·파일 이름은 안 받음)
 const EXCEL_FAILS = new Set(["파일 형식", "파일 큼", "빈 파일", "인원 초과", "파일 못 읽음", "칸 못 찾음", "저장 오류"]);

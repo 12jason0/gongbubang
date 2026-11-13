@@ -168,8 +168,8 @@ function useStudentForm(
 }
 
 // 추가 패널: 한 명씩 / 명단 붙여넣기. onClose 없으면 닫기 버튼 없음 (PC 오른쪽에 늘 떠 있는 폼)
-function AddPanel({ onClose, classes, students }: { onClose?: () => void; classes: C[]; students: S[] }) {
-  const [mode, setMode] = useState<"one" | "paste" | "excel">("one");
+function AddPanel({ onClose, classes, students, excel }: { onClose?: () => void; classes: C[]; students: S[]; excel?: boolean }) {
+  const [mode, setMode] = useState<"one" | "paste" | "excel">(excel ? "excel" : "one");
   const tab = (on: boolean) =>
     `flex-1 rounded-lg py-1.5 text-center text-[12.5px] font-semibold whitespace-nowrap ${on ? "bg-white text-brand shadow-sm" : "text-slate-500"}`;
 
@@ -500,8 +500,8 @@ function ConsentBar({ active }: { active: S[] }) {
   );
 }
 
-export function StudentManager({ students, classes, editId }: { students: S[]; classes: C[]; editId?: string }) {
-  const [adding, setAdding] = useState(students.length === 0);
+export function StudentManager({ students, classes, editId, excel }: { students: S[]; classes: C[]; editId?: string; excel?: boolean }) {
+  const [adding, setAdding] = useState(students.length === 0 || !!excel);
   const active = students.filter((s) => s.active);
   const inactive = students.filter((s) => !s.active);
 
@@ -525,7 +525,7 @@ export function StudentManager({ students, classes, editId }: { students: S[]; c
       />
       {adding && (
         <div className="lg:hidden">
-          <AddPanel classes={classes} students={students} onClose={() => setAdding(false)} />
+          <AddPanel classes={classes} students={students} excel={excel} onClose={() => setAdding(false)} />
         </div>
       )}
 
@@ -549,7 +549,7 @@ export function StudentManager({ students, classes, editId }: { students: S[]; c
       </div>
 
       <aside className="hidden lg:sticky lg:top-4 lg:block">
-        <AddPanel classes={classes} students={students} />
+        <AddPanel classes={classes} students={students} excel={excel} />
       </aside>
     </div>
   );

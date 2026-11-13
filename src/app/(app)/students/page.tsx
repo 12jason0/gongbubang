@@ -6,7 +6,7 @@ import { StudentManager } from "@/components/StudentManager";
 import { ClassManager } from "@/components/ClassManager";
 import { byGradeName, byTimeName } from "@/lib/templates";
 
-export default async function StudentsPage({ searchParams }: { searchParams: Promise<{ tab?: string; edit?: string }> }) {
+export default async function StudentsPage({ searchParams }: { searchParams: Promise<{ tab?: string; edit?: string; add?: string }> }) {
   const academyId = await currentAcademyId(); // 쿠키만 확인 — 아래 쿼리를 공부방 조회와 동시에
   const sp = await searchParams;
   const tab = sp.tab === "classes" ? "classes" : "students";
@@ -67,7 +67,7 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
       </div>
 
       {tab === "students" ? (
-        <StudentManager students={studentsWithClasses} classes={classRows} editId={sp.edit} />
+        <StudentManager students={studentsWithClasses} classes={classRows} editId={sp.edit} excel={sp.add === "excel"} />
       ) : (
         <ClassManager classes={classesWithCount} />
       )}

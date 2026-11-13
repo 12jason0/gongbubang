@@ -103,7 +103,7 @@ export async function signup(_prev: string | null, formData: FormData): Promise<
 
   after(() => notifyAdmin(`공부방노트 새 가입: ${name}`)); // 응답 뒤에 보냄 — 실패해도 가입은 그대로
   await createSession(created.id);
-  redirect(usedTrial ? "/billing?trial=used" : "/students?guide=1"); // guide=1: 처음 쓰는 법 안내가 저절로 뜸 (components/Help.tsx)
+  redirect(usedTrial ? "/billing?trial=used" : "/students?guide=1&add=excel"); // guide=1: 처음 쓰는 법 안내가 저절로 뜸 (components/Help.tsx)
 }
 
 /**
@@ -149,7 +149,7 @@ export async function kakaoSignup(_prev: string | null, formData: FormData): Pro
 
   (await cookies()).delete(KAKAO_PENDING_COOKIE);
   await createSession(academyId);
-  redirect(usedTrial ? "/billing?trial=used" : existing ? "/" : "/students?guide=1");
+  redirect(usedTrial ? "/billing?trial=used" : existing ? "/" : "/students?guide=1&add=excel");
 }
 
 /** 마이페이지: 카카오 연결 끊기 (아이디·비밀번호로 로그인할 수 있는 계정만 — 카카오로만 가입한 계정은 끊으면 못 들어옴) */

@@ -16,6 +16,9 @@ import { isAdminLoginId } from "@/lib/admin";
 import { adminPathAllowed } from "@/lib/token";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { eq } from "drizzle-orm";
+import { db, students } from "@/db";
+import { FirstStepBanner } from "@/components/FirstStepBanner";
 
 // 원장님 → 공부방노트(운영자) 문의용. 학부모 화면(/f /n /r /c)에는 안 나와요.
 const KAKAO_CHAT_URL = "http://pf.kakao.com/_VxcxbxeX/chat";
@@ -35,7 +38,11 @@ function KakaoAsk() {
 }
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const [academy, consultNew] = await Promise.all([requireAcademy(), currentAcademyId().then(countNewConsults)]);
+  const [academy, consultNew, anyStudent] = await Promise.all([
+    requireAcademy(),
+    currentAcademyId().then(countNewConsults),
+    currentAcademyId().then((id) => db.select({ id: students.id }).from(students).where(eq(students.academyId, id)).limit(1)),
+  ]);
   const testMode = isTestMode();
   const admin = isAdminLoginId(academy.loginId); // 관리자 계정: 메뉴엔 관리자 화면만, 이용권 안내 없음
   // proxy 가 먼저 막지만, 관리자 표시가 없는 예전 로그인 쿠키도 여기서 /admin 으로
@@ -80,6 +87,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <HelpButton />
         </StickyBar>
         {!admin && <PlanBanner state={planState(academy)} quota={quotaState(academy)} />}
+        {!admin && anyStudent.length === 0 && <FirstStepBanner />}
         <ToastProvider>{children}</ToastProvider>
       </div>
       <BottomNav dotHref={consultNew > 0 ? "/calendar" : null} admin={admin} />
